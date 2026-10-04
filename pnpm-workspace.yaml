@@ -1,0 +1,5 @@
+autoInstallPeers: false
+peerDependencyRules:
+  ignoreMissing:
+    - eslint
+minimumReleaseAge: 1440

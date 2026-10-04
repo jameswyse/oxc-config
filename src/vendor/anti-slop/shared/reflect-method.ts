@@ -1,0 +1,40 @@
+import { resolveVariable } from "./scope.ts";
+
+// Adapted from dmmulroy/anti-slop
+import type { ESTree, SourceCode } from "@oxlint/plugins";
+
+function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Node): boolean {
+  if (expression.type !== "Identifier" || expression.name !== "Reflect") {
+    return false;
+  }
+
+  if (sourceCode.isGlobalReference(expression)) {
+    return true;
+  }
+
+  const variable = resolveVariable(sourceCode, expression);
+
+  return variable === null || variable.defs.length === 0;
+}
+
+function isGlobalReflectMethodCall(
+  sourceCode: SourceCode,
+  callee: ESTree.Node,
+  methodName: string,
+): boolean {
+  if (callee.type !== "MemberExpression") {
+    return false;
+  }
+
+  if (!isGlobalReflect(sourceCode, callee.object)) {
+    return false;
+  }
+
+  const property = callee.property;
+
+  return callee.computed
+    ? property.type === "Literal" && property.value === methodName
+    : property.type === "Identifier" && property.name === methodName;
+}
+
+export { isGlobalReflectMethodCall };

@@ -1,0 +1,144 @@
+import { resolveVariable } from "./scope.ts";
+
+// Adapted from dmmulroy/anti-slop
+import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
+
+type ArrayMethodTarget = {
+  readonly name: string;
+  readonly object: ESTree.Expression;
+};
+
+function unwrapArrayExpression(expression: ESTree.Node): ESTree.Node {
+  let node = expression;
+
+  while (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSSatisfiesExpression"
+  ) {
+    node = node.expression;
+  }
+
+  return node;
+}
+
+function resolveArrayBinding(sourceCode: SourceCode, expression: ESTree.Node): Variable | null {
+  const node = unwrapArrayExpression(expression);
+
+  return node.type === "Identifier" ? resolveVariable(sourceCode, node) : null;
+}
+
+function arrayMethodTarget(expression: ESTree.Node): ArrayMethodTarget | null {
+  const node = unwrapArrayExpression(expression);
+
+  if (node.type !== "MemberExpression") {
+    return null;
+  }
+
+  const property = node.property;
+
+  if (!node.computed && property.type === "Identifier") {
+    return { name: property.name, object: node.object };
+  }
+
+  if (node.computed && property.type === "Literal" && typeof property.value === "string") {
+    return { name: property.value, object: node.object };
+  }
+
+  return null;
+}
+
+function isArrayAnnotation(type: ESTree.TSType): boolean {
+  if (type.type === "TSArrayType" || type.type === "TSTupleType") {
+    return true;
+  }
+
+  if (type.type === "TSParenthesizedType") {
+    return isArrayAnnotation(type.typeAnnotation);
+  }
+
+  if (type.type === "TSTypeOperator" && type.operator === "readonly") {
+    return isArrayAnnotation(type.typeAnnotation);
+  }
+
+  return (
+    type.type === "TSTypeReference" &&
+    type.typeName.type === "Identifier" &&
+    (type.typeName.name === "Array" || type.typeName.name === "ReadonlyArray")
+  );
+}
+
+function isKnownArrayExpression(
+  sourceCode: SourceCode,
+  expression: ESTree.Node,
+  visited = new Set<Variable>(),
+): boolean {
+  const node = unwrapArrayExpression(expression);
+
+  if (node.type === "ArrayExpression") {
+    return true;
+  }
+
+  if (node.type === "CallExpression") {
+    const method = arrayMethodTarget(node.callee);
+
+    return (
+      method !== null &&
+      [
+        "map",
+        "filter",
+        "flatMap",
+        "slice",
+        "concat",
+        "toSorted",
+        "toReversed",
+        "toSpliced",
+      ].includes(method.name) &&
+      isKnownArrayExpression(sourceCode, method.object, visited)
+    );
+  }
+
+  if (node.type !== "Identifier") {
+    return false;
+  }
+
+  const variable = resolveArrayBinding(sourceCode, node);
+
+  if (variable === null || visited.has(variable)) {
+    return false;
+  }
+
+  visited.add(variable);
+
+  if (variable.references.some((reference) => reference.isWrite() && !reference.init)) {
+    return false;
+  }
+
+  for (const identifier of variable.identifiers) {
+    const annotation = identifier.typeAnnotation?.typeAnnotation;
+
+    if (annotation !== void 0) {
+      return isArrayAnnotation(annotation);
+    }
+  }
+
+  for (const definition of variable.defs) {
+    if (
+      definition.type === "Variable" &&
+      definition.node.type === "VariableDeclarator" &&
+      definition.node.id.type === "Identifier" &&
+      definition.node.init !== null &&
+      definition.node.parent.type === "VariableDeclaration" &&
+      definition.node.parent.kind === "const"
+    ) {
+      return isKnownArrayExpression(sourceCode, definition.node.init, visited);
+    }
+  }
+
+  return false;
+}
+
+export { arrayMethodTarget, isKnownArrayExpression, resolveArrayBinding, unwrapArrayExpression };

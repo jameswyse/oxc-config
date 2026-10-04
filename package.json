@@ -1,0 +1,91 @@
+{
+  "name": "@jameswyse/oxc-config",
+  "version": "0.1.0",
+  "description": "Opinionated Oxlint and Oxfmt configs with custom rules for TypeScript and JavaScript projects",
+  "keywords": [
+    "config",
+    "format",
+    "lint",
+    "nextjs",
+    "oxc",
+    "oxfmt",
+    "oxlint",
+    "react",
+    "typescript"
+  ],
+  "homepage": "https://github.com/jameswyse/oxc-config#readme",
+  "bugs": {
+    "url": "https://github.com/jameswyse/oxc-config/issues"
+  },
+  "license": "MIT",
+  "author": "James Wyse",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jameswyse/oxc-config.git"
+  },
+  "files": [
+    "dist",
+    "src/vendor/anti-slop/LICENSE",
+    "src/vendor/eslint-stylistic/LICENSE",
+    "tsconfig.base.json",
+    "REFERENCE.md"
+  ],
+  "type": "module",
+  "exports": {
+    "./oxlint": "./dist/lint.js",
+    "./oxfmt": "./dist/format.js",
+    "./wyse": "./dist/index.js",
+    "./tsconfig": "./tsconfig.base.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "pnpm test && pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "prepack": "pnpm build",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@e18e/eslint-plugin": "0.8.1",
+    "@oxlint/plugins": "1.86.0",
+    "eslint-plugin-react-you-might-not-need-an-effect": "1.0.2"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.3",
+    "@types/node": "^22.20.5",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
+    "oxlint-tsgolint": "7.0.2003",
+    "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "oxfmt": ">=0.71.0 <1",
+    "oxlint": ">=1.86.0 <2",
+    "oxlint-tsgolint": ">=7.0.2003 <8"
+  },
+  "peerDependenciesMeta": {
+    "oxfmt": {
+      "optional": true
+    },
+    "oxlint-tsgolint": {
+      "optional": true
+    }
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.6.0"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "24.18.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.23.0"
+  },
+  "packageManager": "pnpm@12.6.0"
+}
