@@ -1,6 +1,6 @@
 {
   "name": "@jameswyse/oxc-config",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Opinionated Oxlint and Oxfmt configs with custom rules for TypeScript and JavaScript projects",
   "keywords": [
     "config",
