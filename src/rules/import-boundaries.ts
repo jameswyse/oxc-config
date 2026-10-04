@@ -38,19 +38,25 @@ function parseBoundary(value: OptionValue): Boundary {
   return { files, ignore, deny, message };
 }
 
-function parseBoundaries(options: Readonly<Options>): Boundary[] {
+type BoundarySettings = {
+  readonly root: string;
+  readonly boundaries: readonly Boundary[];
+};
+
+function parseSettings(options: Readonly<Options>): BoundarySettings {
   const [option] = options;
 
   if (
     typeof option !== "object" ||
     option === null ||
     Array.isArray(option) ||
+    typeof option.root !== "string" ||
     !Array.isArray(option.boundaries)
   ) {
-    throw new TypeError("Configure import boundaries with a boundaries array.");
+    throw new TypeError("Configure import boundaries with a root and a boundaries array.");
   }
 
-  return option.boundaries.map(parseBoundary);
+  return { root: option.root, boundaries: option.boundaries.map(parseBoundary) };
 }
 
 export const importBoundaries = defineRule({
@@ -61,6 +67,7 @@ export const importBoundaries = defineRule({
       {
         type: "object",
         properties: {
+          root: { type: "string" },
           boundaries: {
             type: "array",
             items: {
@@ -76,16 +83,17 @@ export const importBoundaries = defineRule({
             },
           },
         },
-        required: ["boundaries"],
+        required: ["root", "boundaries"],
         additionalProperties: false,
       },
     ],
     messages: { boundary: "Do not import '{{specifier}}' here. {{message}}" },
   },
   create(context) {
-    const file = projectPath(context.cwd, context.filename);
+    const { root, boundaries } = parseSettings(context.options);
+    const file = projectPath(root, context.filename);
 
-    const active = parseBoundaries(context.options).filter(
+    const active = boundaries.filter(
       (boundary) => matchesAny(file, boundary.files) && !matchesAny(file, boundary.ignore),
     );
 
@@ -101,7 +109,7 @@ export const importBoundaries = defineRule({
       const specifier = source.value;
 
       const target = specifier.startsWith(".")
-        ? projectPath(context.cwd, resolvePath(dirname(context.filename), specifier))
+        ? projectPath(root, resolvePath(dirname(context.filename), specifier))
         : specifier;
 
       const boundary = active.find(({ deny }) => matchesAny(target, deny));
