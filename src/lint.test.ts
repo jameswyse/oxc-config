@@ -6,6 +6,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 
+import { formatConfig } from "./format.ts";
+import { createLintConfig } from "./lint.ts";
+
+import type { OxfmtConfig } from "oxfmt";
+
 import type { LintOptions } from "./lint.ts";
 
 const require = createRequire(import.meta.url);
@@ -30,7 +35,7 @@ function fixture(t: TestContext, options: LintOptions = {}): string {
   write(
     root,
     "oxlint.config.ts",
-    `import { createLintConfig } from ${JSON.stringify(lintUrl)};\nexport default createLintConfig(${JSON.stringify({ typeAware: false, ...options })});\n`,
+    `import { createLintConfig } from ${JSON.stringify(lintUrl)};\nexport default createLintConfig({ root: import.meta.dirname, ...${JSON.stringify({ typeAware: false, ...options })} });\n`,
   );
   write(
     root,
@@ -138,6 +143,25 @@ test("framework policy is scoped and React rules survive a matching test overrid
   assert.match(client.output, /alt-text/);
   const server = lint(root, "server/view.test.tsx");
   assert.equal(server.status, 0, server.output);
+});
+
+test("nested label text and empty table cells are accessible while empty labels are not", (t) => {
+  const root = fixture(t, { react: true });
+  write(
+    root,
+    "src/form.tsx",
+    'export function Form() {\n  return (\n    <table>\n      <tbody>\n        <tr>\n          <td />\n          <td>\n            <label>\n              <span>\n                <span>Email</span>\n              </span>\n              <input type="email" />\n            </label>\n          </td>\n        </tr>\n      </tbody>\n    </table>\n  );\n}\n',
+  );
+  const valid = lint(root, "src/form.tsx");
+  assert.equal(valid.status, 0, valid.output);
+  write(
+    root,
+    "src/empty.tsx",
+    'export function Empty() {\n  return (\n    <label>\n      <span />\n      <input type="email" />\n    </label>\n  );\n}\n',
+  );
+  const empty = lint(root, "src/empty.tsx");
+  assert.equal(empty.status, 1, empty.output);
+  assert.match(empty.output, /label-has-associated-control/);
 });
 
 test("separate React and Next glob scopes both receive React policy", (t) => {
@@ -254,6 +278,31 @@ test("lint fixes and formatting converge while side-effect import order is prese
   assert.equal(ternary.status, 0, ternary.output);
 });
 
+test("an extended sortImports keeps the shared groups and adds an internal prefix", (t) => {
+  const root = fixture(t);
+
+  const config: OxfmtConfig = {
+    ...formatConfig,
+    sortImports: {
+      ...formatConfig.sortImports,
+      internalPattern: ["@/", "#", "@my-workspace/"],
+    },
+  };
+
+  write(root, "oxfmt.config.ts", `export default ${JSON.stringify(config)};\n`);
+  write(
+    root,
+    "imports.ts",
+    'import { z } from "zod";\nimport { db } from "@my-workspace/db";\nimport { useState } from "react";\n\nexport { db, useState, z };\n',
+  );
+  const formatted = run(root, formatBin, ["imports.ts"]);
+  assert.equal(formatted.status, 0, formatted.output);
+  assert.equal(
+    readFileSync(join(root, "imports.ts"), "utf8"),
+    'import { useState } from "react";\n\nimport { z } from "zod";\n\nimport { db } from "@my-workspace/db";\n\nexport { db, useState, z };\n',
+  );
+});
+
 test("framework-loaded stories, Storybook and tool entrypoints may default export", (t) => {
   const root = fixture(t);
   write(root, "src/Button.stories.tsx", "export default { title: 'Button' };\n");
@@ -362,6 +411,40 @@ test("clock and random reads are limited to configured owners outside tests", (t
   assert.equal(order.status, 1, order.output);
   assert.match(order.output, /no-ambient-clock/);
   assert.match(order.output, /no-ambient-random/);
+});
+
+test("boundary globs resolve from the config file when Oxlint runs inside a package", (t) => {
+  const root = fixture(t, {
+    boundaries: [
+      {
+        files: ["apps/web/src/ui/**"],
+        deny: ["node:*", "apps/api/**"],
+        message: "UI code stays in the browser.",
+      },
+    ],
+  });
+
+  write(root, "apps/api/src/handler.ts", "export const handler = 'save';\n");
+  write(
+    root,
+    "apps/web/src/ui/view.ts",
+    "import { readFile } from 'node:fs';\nimport { handler } from '../../../api/src/handler';\n\nexport const values = [readFile, handler];\n",
+  );
+  write(
+    root,
+    "apps/web/src/server.ts",
+    "import { readFileSync } from 'node:fs';\n\nexport const config = readFileSync('config.json', 'utf8');\n",
+  );
+  const result = run(join(root, "apps/web"), lintBin, ["--format", "json", "."]);
+  assert.equal(result.status, 1, result.output);
+  assert.equal(result.output.match(/import-boundaries/g)?.length, 2, result.output);
+  assert.doesNotMatch(result.output, /server\.ts/);
+});
+
+test("boundaries and the electron profile require the config root", () => {
+  const boundaries = [{ files: ["src/ui/**"], deny: ["node:*"], message: "Stay in the browser." }];
+  assert.throws(() => createLintConfig({ boundaries }), /root: import\.meta\.dirname/);
+  assert.throws(() => createLintConfig({ electron: true }), /root: import\.meta\.dirname/);
 });
 
 test("the electron profile guards renderer imports and window preferences", (t) => {

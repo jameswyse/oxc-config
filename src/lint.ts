@@ -7,6 +7,7 @@ import type { DummyRuleMap, ExternalPluginEntry, OxlintConfig, OxlintOverride } 
 export type FileScope = boolean | string[];
 
 export interface LintOptions {
+  root?: string;
   typeAware?: boolean;
   node?: FileScope;
   react?: FileScope;
@@ -320,6 +321,7 @@ const testRuleNames = [
 ];
 
 export function createLintConfig({
+  root,
   typeAware = true,
   node = false,
   react = false,
@@ -335,13 +337,16 @@ export function createLintConfig({
   random,
   electron = false,
 }: LintOptions = {}): SharedLintConfig {
-  const nextRoots = filesFor(nextjs, ["."]).map((root) => {
-    const normalized = root.replace(/^\.\//, "").replace(/\/+$/, "");
+  const nextRoots = filesFor(nextjs, ["."]).map((appRoot) => {
+    const normalized = appRoot.replace(/^\.\//, "").replace(/\/+$/, "");
 
     return normalized === "." || normalized === "" ? "" : `${normalized}/`;
   });
 
-  const nextFiles = nextRoots.flatMap((root) => sourceFiles.map((pattern) => `${root}${pattern}`));
+  const nextFiles = nextRoots.flatMap((appRoot) =>
+    sourceFiles.map((pattern) => `${appRoot}${pattern}`),
+  );
+
   const reactFiles = reactScope(react, nextFiles);
 
   const allTestFiles = [
@@ -415,9 +420,15 @@ export function createLintConfig({
     : boundaries;
 
   if (importBoundaries.length > 0) {
+    if (root === undefined) {
+      throw new TypeError(
+        "Import boundaries resolve from the config file, so pass root: import.meta.dirname.",
+      );
+    }
+
     overrides.push({
       files: sourceFiles,
-      rules: { "wyse/import-boundaries": ["error", { boundaries: importBoundaries }] },
+      rules: { "wyse/import-boundaries": ["error", { root, boundaries: importBoundaries }] },
     });
   }
 
@@ -479,6 +490,22 @@ export function createLintConfig({
           "react/exhaustive-deps": "error",
           "react/no-array-index-key": "error",
           "react/react-in-jsx-scope": "off",
+          "jsx-a11y/control-has-associated-label": [
+            "error",
+            {
+              ignoreElements: [
+                "audio",
+                "canvas",
+                "embed",
+                "input",
+                "td",
+                "textarea",
+                "tr",
+                "video",
+              ],
+            },
+          ],
+          "jsx-a11y/label-has-associated-control": ["error", { depth: 25 }],
           "jsx-a11y/no-noninteractive-tabindex": ["error", { roles: ["region", "tabpanel"] }],
           "jsx-a11y/prefer-tag-over-role": "off",
         },
@@ -500,12 +527,12 @@ export function createLintConfig({
         rules: nextRules,
       },
       {
-        files: nextRoots.flatMap((root) =>
+        files: nextRoots.flatMap((appRoot) =>
           ["", "src/"].flatMap((source) => [
-            `${root}${source}app/**/{page,layout,template,loading,error,global-error,not-found,global-not-found,forbidden,unauthorized,default}.{js,jsx,ts,tsx}`,
-            `${root}${source}app/**/{sitemap,robots,manifest,icon,apple-icon,opengraph-image,twitter-image}.{js,jsx,ts,tsx}`,
-            `${root}${source}pages/**/*.{js,jsx,ts,tsx}`,
-            `${root}${source}{middleware,proxy}.{js,ts}`,
+            `${appRoot}${source}app/**/{page,layout,template,loading,error,global-error,not-found,global-not-found,forbidden,unauthorized,default}.{js,jsx,ts,tsx}`,
+            `${appRoot}${source}app/**/{sitemap,robots,manifest,icon,apple-icon,opengraph-image,twitter-image}.{js,jsx,ts,tsx}`,
+            `${appRoot}${source}pages/**/*.{js,jsx,ts,tsx}`,
+            `${appRoot}${source}{middleware,proxy}.{js,ts}`,
           ]),
         ),
         excludeFiles: allTestFiles,

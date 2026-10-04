@@ -1,10 +1,12 @@
 import { defaultIgnores } from "./lint.ts";
 
-import type { OxfmtConfig, SortImportsConfig } from "oxfmt";
+import type { OxfmtConfig } from "oxfmt";
 
-export const formatConfig: OxfmtConfig & {
+type SortImportsOptions = Exclude<OxfmtConfig["sortImports"], boolean | undefined>;
+
+export const formatConfig: Omit<OxfmtConfig, "ignorePatterns" | "sortImports"> & {
   ignorePatterns: string[];
-  sortImports: SortImportsConfig;
+  sortImports: SortImportsOptions;
 } = {
   printWidth: 100,
   tabWidth: 2,

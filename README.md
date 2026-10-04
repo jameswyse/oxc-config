@@ -23,6 +23,26 @@ peerDependencyRules:
 
 `autoInstallPeers` affects every dependency in the workspace. No ESLint configuration is needed either way.
 
+## Set up with a coding agent
+
+To have a coding agent install and configure the package, give it this prompt:
+
+```text
+Set up @jameswyse/oxc-config in this repository by following its README:
+https://github.com/jameswyse/oxc-config#readme
+
+1. Install the package and its peers, then create oxlint.config.ts and oxfmt.config.ts. In a monorepo, check which directory each package's lint script runs from and which config Oxlint finds from there.
+2. Survey the code before choosing options. Pass each option the evidence supports:
+   - react, nextjs, node, vitest, jest, effect, electron and tests: the frameworks, runtimes and test runners each package uses, scoped to the files that use them.
+   - env: the modules that read process.env or import.meta.env. Each runtime should have one module that parses configuration and passes typed values on. If reads are scattered, list them as owners for now and record the consolidation as follow-up.
+   - boundaries: code that must not import from another part of the project, such as browser code importing server modules, Node built-ins or database clients, an Electron renderer importing main-process code, or a shared package importing an application.
+   - serverActionGuards: the functions that "use server" actions call to check authentication or permissions.
+   - clock and random: the modules that own the current time and ID or random value generation.
+3. Extend @jameswyse/oxc-config/tsconfig unless the project's existing compiler settings conflict with it.
+4. Run the lint and format scripts. Fix the violations. Suppress a rule only where it reports correct code, with the reason after --, and list each such case as a possible upstream issue.
+5. Report every option above, with the value you set or the evidence for leaving it out. Leaving out env or boundaries in an application needs a specific reason.
+```
+
 ## Configure
 
 Create `oxlint.config.ts` in the project root:
@@ -58,6 +78,8 @@ Add the scripts:
 
 Errors fail the run. Warnings mark patterns worth reviewing that have legitimate uses, so they report without blocking: dependency cycles, barrel and forwarding modules, `typeof` outside type guards, swallowed errors, boolean parameters on exported functions, pass-through functions, tests without a matching owner file and test timeout overrides. `lint:fix` formats after applying lint fixes, then lints again to confirm the result.
 
+The defaults enable no framework profiles or project boundaries, because both depend on the project. Select the profiles below, then [configure the boundaries](#enforce-project-boundaries) that fit.
+
 ## Select framework and runtime profiles
 
 Enable only the tools the project uses. Each profile accepts `true` for its default scope or an array of project-relative globs. `nextjs` takes application root directories instead of globs.
@@ -81,29 +103,30 @@ export default createLintConfig({
 });
 ```
 
-| Option     | Adds                                                                                                                                                                    |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `react`    | React and React Compiler rules, accessibility rules, effect-misuse rules, and e18e performance rules outside tests                                                      |
-| `nextjs`   | The React profile plus Next.js rules, with default exports allowed for `app` and `pages` entrypoints under each root                                                    |
-| `node`     | Node.js environment and rules                                                                                                                                           |
-| `vitest`   | Vitest rules; its globs join the shared test scope                                                                                                                      |
-| `jest`     | Jest rules; keep its scope separate from Vitest when both exist                                                                                                         |
-| `effect`   | Effect error-tag and service-import rules, for modules that use [Effect](https://effect.website)                                                                        |
-| `tests`    | Extra test globs, such as Playwright or Node tests, for the custom test rules                                                                                           |
-| `electron` | Electron security rules everywhere, and an import boundary keeping `electron` and `node:*` out of the renderer (`src/renderer/**` by default, or `{ renderer: [...] }`) |
+| Option     | Adds                                                                                                                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `react`    | React and React Compiler rules, accessibility rules, effect-misuse rules, and e18e performance rules outside tests                                                                                                   |
+| `nextjs`   | The React profile plus Next.js rules, with default exports allowed for `app` and `pages` entrypoints under each root                                                                                                 |
+| `node`     | Node.js environment and rules                                                                                                                                                                                        |
+| `vitest`   | Vitest rules; its globs join the shared test scope                                                                                                                                                                   |
+| `jest`     | Jest rules; keep its scope separate from Vitest when both exist                                                                                                                                                      |
+| `effect`   | Effect error-tag and service-import rules, for modules that use [Effect](https://effect.website)                                                                                                                     |
+| `tests`    | Extra test globs, such as Playwright or Node tests, for the custom test rules                                                                                                                                        |
+| `electron` | Electron security rules everywhere, and an import boundary keeping `electron` and `node:*` out of the renderer (`src/renderer/**` by default, or `{ renderer: [...] }`). Needs [`root`](#enforce-project-boundaries) |
 
 Default exports are also accepted where a tool loads them: config files, Storybook stories and `.storybook`, `sanity.cli`, GraphQL Codegen entrypoints and declaration files.
 
-In a monorepo, run Oxlint from each package with a `tsconfig.json`, or pass an existing lint tsconfig with `--tsconfig`.
+In a monorepo, run Oxlint from each package with a `tsconfig.json`, or pass an existing lint tsconfig with `--tsconfig`. Oxlint uses the nearest config file in or above the directory it runs from, so one root config can serve every package. Write its globs from the root, such as `apps/web/src/**`.
 
 ## Enforce project boundaries
 
-These options need the project to name its owners, so each is off until configured. Globs are relative to the directory Oxlint runs from.
+These options need the project to name its owners, so the defaults cannot enable them. Most applications have a configuration owner and at least one runtime boundary, so check each option during setup. Like the profiles, their globs are relative to the config file's directory, wherever Oxlint runs from.
 
 ```ts
 import { createLintConfig } from "@jameswyse/oxc-config/oxlint";
 
 export default createLintConfig({
+  root: import.meta.dirname,
   react: ["src/renderer/**"],
   env: ["src/main/config.ts", "src/renderer/env.ts"],
   boundaries: [
@@ -120,7 +143,7 @@ export default createLintConfig({
 ```
 
 - `env` lists the modules that may read `process.env` or `import.meta.env`. Other source files must receive parsed configuration. Config files and scripts are entrypoints and remain allowed.
-- `boundaries` rejects imports from `files` that match a `deny` glob. Bare specifiers match as written. Relative specifiers resolve to a project path first, so `../main/ipc` matches `src/main/**`. Type-only imports are allowed because they are erased. Use `ignore` to exclude files from a boundary's scope.
+- `boundaries` rejects imports from `files` that match a `deny` glob. Bare specifiers match as written. Relative specifiers resolve to a path from the config file's directory first, so `../main/ipc` matches `src/main/**`. Type-only imports are allowed because they are erased. Use `ignore` to exclude files from a boundary's scope. The boundary rule needs `root: import.meta.dirname` to find that directory, and `createLintConfig` throws without it when `boundaries` or `electron` is set.
 - `serverActionGuards` requires every exported function in a `"use server"` module, and every inline `"use server"` function, to start by awaiting one of the named guards. Server-action modules must export each action where it is declared. A guard's name cannot prove it authorises the operation, so review the guard itself.
 - `clock` and `random` list the modules that may read the current time (`Date.now()`, argument-less `new Date()`) or generate random values and IDs (`Math.random()`, `crypto.randomUUID()`, `randomUUID`/`randomInt` from `node:crypto`). Other production code must receive them, so tests can control them without faking globals. Test files, parameter defaults such as `now = new Date()` and passing `Date.now` uncalled are allowed. Durations from `performance.now()` and secret generation are out of scope.
 
