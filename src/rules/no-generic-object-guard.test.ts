@@ -7,6 +7,7 @@ ruleTester.run("no-generic-object-guard", noGenericObjectGuard, {
   valid: [
     "function isPresent<T>(value: T | null): value is T { return value !== null; }",
     "function isDefined(value: unknown): value is NonNullable<unknown> { return value !== null && value !== undefined; }",
+    "function isCallable(value: unknown): value is Function { return typeof value === 'function'; }",
     "import { Object } from './model'; function isPlain(value: unknown): boolean { return Object.prototype.toString.call(value) === '[object Object]'; }",
     "function isCircle(shape: Shape): shape is Circle { return shape.kind === 'circle'; }",
     "function isUser(value: unknown): value is User { return userSchema.safeParse(value).success; }",

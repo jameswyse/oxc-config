@@ -6,7 +6,7 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
-type Check = "object" | "supporting";
+type Check = "object" | "function" | "supporting";
 
 type Comparison = {
   readonly left: ESTree.Node;
@@ -25,7 +25,11 @@ function combined(checks: readonly (Check | null)[]): Check | null {
     return null;
   }
 
-  return checks.includes("object") ? "object" : "supporting";
+  if (checks.includes("object")) {
+    return "object";
+  }
+
+  return checks.includes("function") ? "function" : "supporting";
 }
 
 function isSubject(node: ESTree.Node, subject: string): boolean {
@@ -78,7 +82,7 @@ function typeofCheck(node: Comparison, subject: string): Check | null {
     return "object";
   }
 
-  return isLiteral(literal, "function") ? "supporting" : null;
+  return isLiteral(literal, "function") ? "function" : null;
 }
 
 function isArrayCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string): boolean {
