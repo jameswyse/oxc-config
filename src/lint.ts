@@ -29,6 +29,7 @@ export interface ImportBoundary {
   ignore?: string[];
   deny: string[];
   message: string;
+  types?: boolean;
 }
 
 export type SharedLintConfig = OxlintConfig & {
@@ -44,6 +45,8 @@ const require = createRequire(import.meta.url);
 const sourceFiles = ["**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"];
 
 const typeScriptFiles = ["**/*.{ts,tsx,mts,cts}"];
+
+const javaScriptFiles = ["**/*.{js,jsx,mjs,cjs}"];
 
 const testFiles = [
   "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
@@ -80,6 +83,12 @@ const defaultExportFiles = [
   "**/.storybook/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
 ];
 
+const programFiles = [
+  "**/{bin,cli,deploy,tools,test,tests,e2e,fixtures}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+  "**/.storybook/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+  "**/{main,server,worker,instrumentation,instrumentation-client,healthcheck}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+];
+
 const endToEndFiles = ["**/e2e/**", "**/*.e2e.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"];
 
 const electronRendererFiles = ["src/renderer/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"];
@@ -88,6 +97,8 @@ const testRules: DummyRuleMap = {
   "wyse/no-fixed-test-delay": "error",
   "wyse/no-vacuous-test-assertions": "error",
   "wyse/no-edit-proof-assertions": "error",
+  "wyse/no-optional-test-action": "error",
+  "wyse/no-derived-test-expectation": "warn",
   "wyse/companion-has-owner": "warn",
 };
 
@@ -127,6 +138,45 @@ function reactScope(react: FileScope, nextjs: FileScope): string[] | false {
   return files.length > 0 ? [...new Set(files)] : false;
 }
 
+const nativeGuards: DummyRuleMap = {
+  ...errors("eslint", [
+    "array-callback-return",
+    "no-array-constructor",
+    "no-case-declarations",
+    "no-constructor-return",
+    "no-fallthrough",
+    "no-loop-func",
+    "no-new-func",
+    "no-new-wrappers",
+    "no-proto",
+    "no-prototype-builtins",
+    "no-self-compare",
+    "no-unreachable-loop",
+    "no-useless-assignment",
+    "no-var",
+    "prefer-object-has-own",
+    "prefer-rest-params",
+  ]),
+  "eslint/prefer-regex-literals": ["error", { disallowRedundantWrapping: true }],
+  ...errors("unicorn", [
+    "error-message",
+    "new-for-builtins",
+    "no-instanceof-array",
+    "no-new-buffer",
+    "prefer-array-find",
+    "prefer-array-flat-map",
+    "prefer-array-some",
+    "prefer-import-meta-properties",
+    "prefer-node-protocol",
+    "prefer-response-static-json",
+    "prefer-string-trim-start-end",
+  ]),
+  "import/no-mutable-exports": "error",
+  "oxc/no-const-enum": "error",
+};
+
+const javaScriptOnlyRules = errors("eslint", ["no-throw-literal", "prefer-promise-reject-errors"]);
+
 const baseErrors = errors("wyse", [
   "no-array-filter-map",
   "no-reduce-accumulator-copy",
@@ -157,10 +207,23 @@ const typeAwareRules: DummyRuleMap = {
     "no-unsafe-return",
     "no-unsafe-type-assertion",
     "only-throw-error",
+    "prefer-promise-reject-errors",
     "prefer-readonly",
+    "prefer-reduce-type-parameter",
     "return-await",
     "switch-exhaustiveness-check",
+    "use-unknown-in-catch-callback-variable",
   ]),
+  "typescript/restrict-plus-operands": [
+    "error",
+    {
+      allowAny: false,
+      allowBoolean: false,
+      allowNullish: false,
+      allowNumberAndString: false,
+      allowRegExp: false,
+    },
+  ],
   "typescript/no-floating-promises": [
     "error",
     {
@@ -314,7 +377,14 @@ const testRuleNames = [
   "no-duplicate-hooks",
   "no-focused-tests",
   "no-identical-title",
+  "no-interpolation-in-snapshots",
   "no-standalone-expect",
+  "no-unneeded-async-expect-function",
+  "prefer-comparison-matcher",
+  "prefer-equality-matcher",
+  "prefer-strict-equal",
+  "prefer-to-contain",
+  "prefer-to-have-length",
   "valid-describe-callback",
   "valid-expect",
   "valid-expect-in-promise",
@@ -362,13 +432,32 @@ export function createLintConfig({
 
   const typescriptRules: DummyRuleMap = {
     ...errors("typescript", [
-      "ban-ts-comment",
       "consistent-type-imports",
       "no-explicit-any",
       "no-non-null-assertion",
       "no-empty-object-type",
       "no-unnecessary-type-constraint",
     ]),
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": { descriptionFormat: "^\\s*-{2,}\\s+\\S" },
+        "ts-ignore": true,
+        "ts-nocheck": true,
+        "ts-check": false,
+      },
+    ],
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        assertionStyle: "as",
+        objectLiteralTypeAssertions: "never",
+        arrayLiteralTypeAssertions: "never",
+      },
+    ],
+    "typescript/method-signature-style": ["error", "property"],
+    "typescript/no-import-type-side-effects": "error",
+    "typescript/no-unsafe-function-type": "error",
     "wyse/type-guard-name": "error",
   };
 
@@ -387,11 +476,28 @@ export function createLintConfig({
       files: defaultExportFiles,
       rules: { "import/no-default-export": "off" },
     },
+    { files: javaScriptFiles, rules: javaScriptOnlyRules },
     { files: allTestFiles, rules: testRules },
     {
       files: allTestFiles,
       excludeFiles: endToEndFiles,
-      rules: { "wyse/no-test-timeout-overrides": "warn" },
+      rules: {
+        "wyse/no-test-timeout-overrides": "warn",
+        "wyse/no-uncontrolled-test-clock": "error",
+      },
+    },
+    {
+      files: sourceFiles,
+      excludeFiles: allTestFiles,
+      rules: {
+        "wyse/no-unchecked-fetch-response": "error",
+        "wyse/no-unsettled-promise": "error",
+      },
+    },
+    {
+      files: sourceFiles,
+      excludeFiles: [...allTestFiles, ...entrypointFiles, ...programFiles],
+      rules: { "wyse/no-import-time-effects": "warn" },
     },
   ];
 
@@ -455,7 +561,14 @@ export function createLintConfig({
   }
 
   if (typeAware) {
-    overrides.unshift({ files: typeScriptFiles, rules: typeAwareRules });
+    overrides.unshift(
+      { files: typeScriptFiles, rules: typeAwareRules },
+      {
+        files: typeScriptFiles,
+        excludeFiles: allTestFiles,
+        rules: { "typescript/no-deprecated": "warn" },
+      },
+    );
   }
 
   if (node) {
@@ -489,6 +602,7 @@ export function createLintConfig({
           ...accessibilityRules,
           "react/exhaustive-deps": "error",
           "react/no-array-index-key": "error",
+          "wyse/no-get-password-form": "error",
           "react/react-in-jsx-scope": "off",
           "jsx-a11y/control-has-associated-label": [
             "error",
@@ -508,12 +622,20 @@ export function createLintConfig({
           "jsx-a11y/label-has-associated-control": ["error", { depth: 25 }],
           "jsx-a11y/no-noninteractive-tabindex": ["error", { roles: ["region", "tabpanel"] }],
           "jsx-a11y/prefer-tag-over-role": "off",
+          "react/checked-requires-onchange-or-readonly": "error",
+          "react/jsx-no-useless-fragment": ["error", { allowExpressions: true }],
+          "react/no-unknown-property": "error",
         },
       },
       {
         files: reactFiles,
         excludeFiles: allTestFiles,
         rules: { ...reactEffectRules, ...browserPerformanceRules },
+      },
+      {
+        files: reactFiles,
+        excludeFiles: [...endToEndFiles, "**/tests/**"],
+        rules: { "react/rules-of-hooks": "error" },
       },
     );
   }
@@ -553,7 +675,7 @@ export function createLintConfig({
         plugins: [...basePlugins, name],
         env: { [name]: true },
         rules: {
-          ...errors(name, testRuleNames),
+          ...errors(name, name === "jest" ? [...testRuleNames, "no-done-callback"] : testRuleNames),
           ...testRules,
           [`${name}/no-standalone-expect`]: [
             "error",
@@ -579,12 +701,19 @@ export function createLintConfig({
     env: { es2022: true },
     ignorePatterns: defaultIgnores,
     rules: {
+      ...nativeGuards,
       ...baseErrors,
       ...typescriptRules,
       "wyse/no-runtime-typeof": ["warn", { allowInTypeGuards: true }],
       "wyse/no-comments": "error",
+      "wyse/require-suppression-reason": "error",
       "wyse/statement-spacing": "error",
       "wyse/no-generic-file-suffix": "error",
+      "wyse/no-generic-object-guard": "error",
+      "wyse/no-disabled-tls-verification": "error",
+      "wyse/no-hardcoded-credential": "error",
+      "wyse/no-secret-fallback": "error",
+      "wyse/no-unchecked-index-search": "error",
       "wyse/no-swallowed-errors": "warn",
       "wyse/explicit-api-states": "warn",
       "wyse/no-pass-through-function": "warn",

@@ -54,6 +54,16 @@ function isSetter(name: string, fn: FunctionNode, parameter: ESTree.ParamPattern
   );
 }
 
+function isPredicateSubject(fn: FunctionNode, identifier: ESTree.BindingIdentifier): boolean {
+  const predicate = fn.returnType?.typeAnnotation;
+
+  return (
+    predicate?.type === "TSTypePredicate" &&
+    predicate.parameterName.type === "Identifier" &&
+    predicate.parameterName.name === identifier.name
+  );
+}
+
 function functionValue(node: ESTree.Expression | null): FunctionNode | null {
   return node?.type === "ArrowFunctionExpression" || node?.type === "FunctionExpression"
     ? node
@@ -139,7 +149,7 @@ export const explicitApiStates = defineRule({
       for (const parameter of fn.params) {
         const identifier = booleanParameter(parameter);
 
-        if (identifier && !isSetter(name, fn, parameter)) {
+        if (identifier && !isSetter(name, fn, parameter) && !isPredicateSubject(fn, identifier)) {
           context.report({
             node: identifier,
             messageId: "boolean",

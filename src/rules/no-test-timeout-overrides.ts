@@ -1,6 +1,13 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { isGlobal, propertyName, apiReference, testModules } from "../shared/index.ts";
+import {
+  isGlobal,
+  propertyName,
+  apiReference,
+  staticPropertyName,
+  testModules,
+  unwrapExpression,
+} from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
@@ -36,23 +43,38 @@ function testApi(sourceCode: SourceCode, callee: ESTree.Expression): string | nu
   return null;
 }
 
-function hasOverrideKey(node: ESTree.Argument | undefined, keys: ReadonlySet<string>): boolean {
-  return (
-    node?.type === "ObjectExpression" &&
-    node.properties.some((property) => {
-      const name = property.type === "Property" ? propertyName(property) : null;
+function isZero(node: ESTree.Node | undefined): boolean {
+  const value = node === undefined ? undefined : unwrapExpression(node);
 
-      return name !== null && keys.has(name);
+  return value?.type === "Literal" && value.value === 0;
+}
+
+function hasOverrideKey(node: ESTree.Argument | undefined, keys: ReadonlySet<string>): boolean {
+  const options = node === undefined ? undefined : unwrapExpression(node);
+
+  return (
+    options?.type === "ObjectExpression" &&
+    options.properties.some((property) => {
+      const name = property.type === "Property" ? staticPropertyName(property) : null;
+
+      return (
+        property.type === "Property" &&
+        name !== null &&
+        keys.has(name) &&
+        !(name.startsWith("retr") && isZero(property.value))
+      );
     })
   );
 }
 
 function timeoutArgument(node: ESTree.Argument | undefined): boolean {
+  const value = node === undefined ? undefined : unwrapExpression(node);
+
   return (
-    node !== undefined &&
-    node.type !== "ObjectExpression" &&
-    node.type !== "SpreadElement" &&
-    !functionTypes.has(node.type)
+    value !== undefined &&
+    value.type !== "ObjectExpression" &&
+    value.type !== "SpreadElement" &&
+    !functionTypes.has(value.type)
   );
 }
 
@@ -118,6 +140,13 @@ function runnerOverride(sourceCode: SourceCode, node: ESTree.CallExpression): bo
     return (
       runnerObject(sourceCode, callee.object, "jest", ["@jest/globals"]) ||
       importedTest(sourceCode, callee.object)
+    );
+  }
+
+  if (method === "retryTimes") {
+    return (
+      runnerObject(sourceCode, callee.object, "jest", ["@jest/globals"]) &&
+      !isZero(node.arguments[0])
     );
   }
 

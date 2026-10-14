@@ -371,6 +371,43 @@ test("import boundaries reject bare and resolved relative imports but allow type
   assert.equal(allowed.status, 0, allowed.output);
 });
 
+test("import boundaries check require calls and reject type imports when a boundary asks", (t) => {
+  const root = fixture(t, {
+    boundaries: [
+      {
+        files: ["src/features/**"],
+        deny: ["src/generated/**"],
+        message: "Features own their unions.",
+        types: true,
+      },
+      { files: ["src/legacy/**"], deny: ["node:*"], message: "Legacy code stays portable." },
+    ],
+  });
+
+  write(root, "src/generated/graphql.ts", "export type ActivityApp = 'web';\n");
+  write(
+    root,
+    "src/features/activity.ts",
+    "import type { ActivityApp } from '../generated/graphql';\n\nexport const app: ActivityApp = 'web';\nexport type Imported = import('../generated/graphql').ActivityApp;\n",
+  );
+  write(
+    root,
+    "src/legacy/files.cjs",
+    "const fs = require('node:fs');\n\nmodule.exports = { fs };\n",
+  );
+  const types = lint(root, "src/features/activity.ts");
+  assert.equal(types.output.match(/import-boundaries/g)?.length, 2, types.output);
+  write(
+    root,
+    "src/features/loader.ts",
+    "import { createRequire as makeRequire } from 'node:module';\n\nconst load = makeRequire(import.meta.url);\nconst lookup = cache.createRequire('graphql');\n\nexport const graphql = load('../generated/graphql');\nexport const cached = lookup('../generated/graphql');\n",
+  );
+  const required = lint(root, "src/legacy/files.cjs");
+  assert.equal(required.output.match(/import-boundaries/g)?.length, 1, required.output);
+  const created = lint(root, "src/features/loader.ts");
+  assert.equal(created.output.match(/import-boundaries/g)?.length, 1, created.output);
+});
+
 test("server actions must await a configured guard outside tests", (t) => {
   const root = fixture(t, { serverActionGuards: ["requireStaff"], vitest: true });
   const unguarded = '"use server";\n\nexport async function save() {\n  return 1;\n}\n';
@@ -403,7 +440,7 @@ test("clock and random reads are limited to configured owners outside tests", (t
   write(
     root,
     "src/order.test.ts",
-    'import { expect, it } from "vitest";\n\nimport { stamp } from "./order";\n\nit("stamps", () => {\n  expect(stamp()).not.toBe(`${Date.now()}`);\n});\n',
+    'import { expect, it, vi } from "vitest";\n\nimport { stamp } from "./order";\n\nvi.useFakeTimers();\n\nit("stamps", () => {\n  expect(stamp()).not.toBe(`${Date.now()}`);\n});\n',
   );
   const owners = lint(root, "src/clock.ts", "src/ids.ts", "src/order.test.ts");
   assert.equal(owners.status, 0, owners.output);
@@ -494,4 +531,37 @@ test("timeout overrides warn in unit tests and are ignored in end-to-end tests",
   const endToEnd = lint(root, "e2e/flow.e2e.ts");
   assert.equal(endToEnd.status, 0, endToEnd.output);
   assert.doesNotMatch(endToEnd.output, /no-test-timeout-overrides/);
+});
+
+test("production, unit-test and React rules stay in their scopes", (t) => {
+  const root = fixture(t, { react: ["src/ui/**"] });
+
+  const production =
+    "export function stop(server: { close(done: () => void): void } | undefined) {\n  return new Promise((resolve) => server?.close(resolve));\n}\n\nexport async function load(url: string) {\n  const response = await fetch(url);\n\n  return response.json();\n}\n";
+
+  const clockTest =
+    'import { expect, test } from "vitest";\n\ntest("now", () => {\n  expect(Date.now()).toBeGreaterThan(0);\n});\n';
+
+  const form =
+    'export function SignIn() {\n  return (\n    <form>\n      <input type="password" />\n    </form>\n  );\n}\n';
+
+  write(root, "src/server.ts", production);
+  write(root, "src/server.test.ts", `${production}${clockTest}`);
+  write(root, "e2e/clock.test.ts", clockTest);
+  write(root, "src/ui/SignIn.tsx", form);
+  write(root, "src/SignIn.tsx", form);
+
+  const server = lint(root, "src/server.ts");
+  assert.match(server.output, /no-unsettled-promise/);
+  assert.match(server.output, /no-unchecked-fetch-response/);
+
+  const unit = lint(root, "src/server.test.ts");
+  assert.doesNotMatch(unit.output, /no-unsettled-promise|no-unchecked-fetch-response/);
+  assert.match(unit.output, /no-uncontrolled-test-clock/);
+
+  const endToEnd = lint(root, "e2e/clock.test.ts");
+  assert.doesNotMatch(endToEnd.output, /no-uncontrolled-test-clock/);
+
+  const forms = lint(root, "src/ui/SignIn.tsx", "src/SignIn.tsx");
+  assert.equal(forms.output.match(/no-get-password-form/g)?.length, 1, forms.output);
 });

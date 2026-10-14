@@ -6,6 +6,7 @@ import {
   propertyName,
   isPlaywright,
   apiReference,
+  isEffectModule,
   testContext,
 } from "../shared/index.ts";
 
@@ -13,7 +14,29 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 import type { TestContext } from "../shared/index.ts";
 
-function numericLiteral(node: ESTree.Argument | undefined): boolean {
+function constantValue(
+  sourceCode: SourceCode,
+  node: ESTree.Node | null | undefined,
+): ESTree.Node | null | undefined {
+  if (node?.type !== "Identifier") {
+    return node;
+  }
+
+  const [definition, ...others] = variableFor(sourceCode, node)?.defs ?? [];
+  const declarator = definition?.node;
+
+  return others.length === 0 &&
+    definition?.type === "Variable" &&
+    definition.parent?.type === "VariableDeclaration" &&
+    definition.parent.kind === "const" &&
+    declarator?.type === "VariableDeclarator"
+    ? declarator.init
+    : node;
+}
+
+function numericLiteral(sourceCode: SourceCode, argument: ESTree.Node | null | undefined): boolean {
+  const node = constantValue(sourceCode, argument);
+
   return (
     (node?.type === "Literal" && typeof node.value === "number") ||
     (node?.type === "UnaryExpression" &&
@@ -113,7 +136,7 @@ function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression): boole
   if (
     timer?.type !== "CallExpression" ||
     !globalTimer(sourceCode, timer.callee) ||
-    !numericLiteral(timer.arguments[1])
+    !numericLiteral(sourceCode, timer.arguments[1])
   ) {
     return false;
   }
@@ -151,6 +174,36 @@ function playwrightPage(
   });
 }
 
+function isFixedDuration(sourceCode: SourceCode, argument: ESTree.Argument | undefined): boolean {
+  const node = constantValue(sourceCode, argument);
+
+  if (node?.type === "Literal") {
+    return typeof node.value === "string" || typeof node.value === "number";
+  }
+
+  const owner =
+    node?.type === "CallExpression" && node.callee.type === "MemberExpression"
+      ? node.callee.object
+      : null;
+
+  return (
+    node?.type === "CallExpression" &&
+    owner !== null &&
+    isEffectModule(sourceCode, owner, "Duration") &&
+    node.arguments.length > 0 &&
+    node.arguments.every((item) => numericLiteral(sourceCode, item))
+  );
+}
+
+function isEffectSleep(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+  return (
+    node.callee.type === "MemberExpression" &&
+    propertyName(node.callee) === "sleep" &&
+    isEffectModule(sourceCode, node.callee.object, "Effect") &&
+    isFixedDuration(sourceCode, node.arguments[0])
+  );
+}
+
 export const noFixedTestDelay = defineRule({
   meta: {
     type: "problem",
@@ -166,6 +219,15 @@ export const noFixedTestDelay = defineRule({
 
     return {
       CallExpression(node) {
+        if (
+          node.parent.type === "YieldExpression" &&
+          node.parent.delegate &&
+          isEffectSleep(sourceCode, node) &&
+          testContext(sourceCode, node)
+        ) {
+          context.report({ node, messageId: "delay" });
+        }
+
         if (node.parent.type !== "AwaitExpression") {
           return;
         }
@@ -181,12 +243,12 @@ export const noFixedTestDelay = defineRule({
         const importedTimer =
           api?.name === "setTimeout" &&
           ["node:timers/promises", "timers/promises"].includes(api.module) &&
-          numericLiteral(node.arguments[0]);
+          numericLiteral(sourceCode, node.arguments[0]);
 
         const browserTimer =
           node.callee.type === "MemberExpression" &&
           propertyName(node.callee) === "waitForTimeout" &&
-          numericLiteral(node.arguments[0]) &&
+          numericLiteral(sourceCode, node.arguments[0]) &&
           playwrightPage(sourceCode, node.callee.object, enclosing);
 
         if (importedTimer || browserTimer) {

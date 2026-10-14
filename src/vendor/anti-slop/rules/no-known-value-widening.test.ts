@@ -22,6 +22,9 @@ ruleTester.run("no-known-value-widening", noKnownValueWidening, {
     `${prelude} interface Commands { readonly start: Command } const commands: Commands = { start: startCommand };`,
     `${prelude} type Commands = { readonly start: Command }; const commands: Commands = { start: startCommand };`,
     `${prelude} type PermissionLevels = { readonly [Level in Permission]: number }; const levels: PermissionLevels = { admin: 1 };`,
+    `${prelude} type Flags = { [K in string | 'enabled' as 'enabled']: boolean }; const flags: Flags = { enabled: true };`,
+    `${prelude} const flags: { [K in 'enabled']: boolean } = { enabled: true };`,
+    `${prelude} type Narrow<T> = Pick<Record<string, T>, 'start'>; const commands: Narrow<Command> = { start: startCommand };`,
     `${prelude} function create() { return { start: startCommand }; }`,
     `${prelude} interface Commands { readonly start: Command } function create(): Commands { return { start: startCommand }; }`,
     `${prelude} declare function make(): Record<string, Command>; const commands: Record<string, Command> = make();`,
@@ -40,6 +43,18 @@ ruleTester.run("no-known-value-widening", noKnownValueWidening, {
     { code: "const value: object = {};", errors: [error] },
     { code: "let value: unknown; value = {};", errors: [error] },
     { code: "function create(): unknown { return {}; }", errors: [error] },
+    {
+      code: `${prelude} type Scores<T> = Pick<Record<string, T>, string>; const commands: Scores<Command> = { start: startCommand };`,
+      errors: [error],
+    },
+    {
+      code: `${prelude} type Scores<T> = Omit<Record<string, T>, 'unused'>; const commands: Scores<Command> = { start: startCommand };`,
+      errors: [error],
+    },
+    {
+      code: `${prelude} const commands: Omit<Record<string, Command>, 'stop'> = { start: startCommand };`,
+      errors: [error],
+    },
     {
       code: `${prelude} const commands: Record<string, Command> = { start: startCommand };`,
       errors: [error],

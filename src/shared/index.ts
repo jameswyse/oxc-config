@@ -390,3 +390,100 @@ export function isInjectionSeam(source: ESTree.Node): boolean {
 
   return false;
 }
+
+export function isShortCircuited(call: ESTree.CallExpression): boolean {
+  let current: ESTree.Node = call;
+
+  while (current.type === "CallExpression" || current.type === "MemberExpression") {
+    if (current.optional) {
+      return true;
+    }
+
+    current = current.type === "CallExpression" ? current.callee : current.object;
+
+    while (current.type === "TSNonNullExpression") {
+      current = current.expression;
+    }
+  }
+
+  return false;
+}
+
+export function staticPropertyName(node: ESTree.Node): string | null {
+  if (!("computed" in node && node.computed)) {
+    return propertyName(node);
+  }
+
+  const key = memberKey(node);
+
+  return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
+}
+
+export function importedBinding(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+): { readonly source: string; readonly name: string } | null {
+  if (node.type === "MemberExpression") {
+    const owner = importedBinding(sourceCode, node.object);
+    const name = staticPropertyName(node);
+
+    return (owner?.name === "*" || owner?.name === "default") && name !== null
+      ? { source: owner.source, name }
+      : null;
+  }
+
+  const definition = variableFor(sourceCode, node)?.defs[0];
+  const declaration = definition?.parent;
+
+  if (definition?.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
+    return null;
+  }
+
+  const specifier = definition.node;
+  const source = declaration.source.value;
+
+  if (specifier.type === "ImportNamespaceSpecifier") {
+    return { source, name: "*" };
+  }
+
+  if (specifier.type === "ImportDefaultSpecifier") {
+    return { source, name: "default" };
+  }
+
+  return specifier.type === "ImportSpecifier"
+    ? {
+        source,
+        name:
+          specifier.imported.type === "Identifier"
+            ? specifier.imported.name
+            : specifier.imported.value,
+      }
+    : null;
+}
+
+export function isEffectModule(sourceCode: SourceCode, node: ESTree.Node, module: string): boolean {
+  const binding = importedBinding(sourceCode, node);
+
+  return (
+    (binding?.source === "effect" && binding.name === module) ||
+    (binding?.source === `effect/${module}` && binding.name === "*")
+  );
+}
+
+export function unwrapExpression(node: ESTree.Node): ESTree.Node {
+  return node.type === "ParenthesizedExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSTypeAssertion"
+    ? unwrapExpression(node.expression)
+    : node;
+}
+
+export function outermostExpression(node: ESTree.Node): ESTree.Node {
+  const parent = node.parent;
+
+  return parent !== null && unwrapExpression(parent) === unwrapExpression(node)
+    ? outermostExpression(parent)
+    : node;
+}

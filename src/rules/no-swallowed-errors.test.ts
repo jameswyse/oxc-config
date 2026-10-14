@@ -17,6 +17,8 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
     'import { readFile } from "node:fs/promises"; async function read(path: string) { try { return await readFile(path, "utf8"); } catch { return ""; } }',
     'import { statSync } from "node:fs"; function exists(path: string) { try { return statSync(path).isFile(); } catch { return false; } }',
     'import { stat } from "node:fs/promises"; async function find(path: string) { return stat(path).catch(() => null); }',
+    'import { stat } from "node:fs/promises"; async function find(path: string) { const pending = stat(path); return pending.catch(() => null); }',
+    'import { stat } from "node:fs/promises"; async function find(path: string) { const pending = stat(path) as Promise<unknown>; return pending.catch(() => null); }',
     'import fs from "node:fs"; async function list(path: string) { return fs.promises.readdir(path).catch(() => []); }',
     "void promise.catch(() => undefined);",
     "async function next() { await previous?.catch(() => undefined); }",
@@ -26,6 +28,17 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
     "load().catch(() => fallback);",
     "load().catch(handle);",
     "load().catch((error) => { report(error); return null; });",
+    "load().then(show, (error) => report(error));",
+    "load().then(() => true);",
+    "export async function run(pending: Promise<void>) { await pending.catch(() => undefined); }",
+    "const pending = save(); track(pending); export const done = pending.catch(() => null);",
+    "const results = await Promise.allSettled(tasks); report(results);",
+    "export const settled = Promise.allSettled(tasks);",
+    'import { Effect } from "effect"; export const run = load.pipe(Effect.catchTag("Missing", (error) => Effect.fail(new LoadError({ cause: error }))));',
+    'import { Effect } from "effect"; export const run = load.pipe(Effect.catchAll(() => Effect.succeed(defaults)));',
+    'import { Effect } from "effect"; export const viewer = load.pipe(Effect.catchTag("NotSignedIn", () => Effect.succeed(null)));',
+    'import { Effect } from "effect"; export const run = load.pipe(Effect.orElseSucceed(() => cached));',
+    'import { Effect } from "./effect.ts"; export const run = load.pipe(Effect.orElseSucceed(() => ({})));',
   ],
   invalid: [
     {
@@ -69,5 +82,40 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
     { code: "load().catch((error) => { return false; });", errors: [{ messageId: "swallowed" }] },
     { code: "load().then(show).catch(() => null);", errors: [{ messageId: "swallowed" }] },
     { code: "void sync(view).catch(async () => 0);", errors: [{ messageId: "swallowed" }] },
+    { code: "save().then(() => true, () => false);", errors: [{ messageId: "swallowed" }] },
+    { code: "await Promise.allSettled(tasks);", errors: [{ messageId: "settled" }] },
+    {
+      code: "export const settled = void Promise.allSettled(tasks);",
+      errors: [{ messageId: "settled" }],
+    },
+    {
+      code: "async function run() { const _results = await Promise.allSettled(tasks); }",
+      errors: [{ messageId: "settled" }],
+    },
+    {
+      code: "const pending = save(); export const done = pending.catch(() => null);",
+      errors: [{ messageId: "swallowed" }],
+    },
+    { code: "void Promise.allSettled([save(), notify()]);", errors: [{ messageId: "settled" }] },
+    {
+      code: 'import { Effect } from "effect"; export const run = load.pipe(Effect.catchAll(() => Effect.void));',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
+      code: 'import * as E from "effect"; export const run = load.pipe(E.Effect.catchAll(() => E.Effect.void));',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
+      code: 'import { Effect } from "effect"; export const run = load.pipe(Effect.orElseSucceed(() => ({})));',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
+      code: 'import * as Effect from "effect/Effect"; export const run = Effect.catchAll(load, () => Effect.succeed([]));',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
+      code: 'import { Effect } from "effect"; export const run = load.pipe(Effect.orElse(() => Effect.succeedNone));',
+      errors: [{ messageId: "swallowed" }],
+    },
   ],
 });

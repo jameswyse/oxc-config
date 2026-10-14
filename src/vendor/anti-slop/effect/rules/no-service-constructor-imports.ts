@@ -1,7 +1,7 @@
 // Adapted from dmmulroy/anti-slop
 import { defineRule } from "@oxlint/plugins";
 
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Reference } from "@oxlint/plugins";
 
 const SERVICE_CONSTRUCTOR_NAME = /^make[A-Z]/u;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
@@ -18,12 +18,21 @@ function getImportedName(specifier: ESTree.ImportSpecifier): string {
   return specifier.imported.value;
 }
 
+function isCallOrTypeQuery(reference: Reference): boolean {
+  const parent = reference.identifier.parent;
+
+  return (
+    parent.type === "TSTypeQuery" ||
+    (parent.type === "CallExpression" && parent.callee === reference.identifier)
+  );
+}
+
 export const noServiceConstructorImports = defineRule({
   meta: {
     type: "problem",
     docs: {
       description:
-        "Disallow project-local make<CapabilityName> imports outside test and spec files.",
+        "Disallow project-local make<CapabilityName> service values imported outside test and spec files.",
     },
     messages: {
       serviceConstructorImport:
@@ -46,7 +55,12 @@ export const noServiceConstructorImports = defineRule({
 
           const importedName = getImportedName(specifier);
 
-          if (!SERVICE_CONSTRUCTOR_NAME.test(importedName)) {
+          if (
+            !SERVICE_CONSTRUCTOR_NAME.test(importedName) ||
+            context.sourceCode
+              .getDeclaredVariables(specifier)
+              .every((variable) => variable.references.every(isCallOrTypeQuery))
+          ) {
             continue;
           }
 

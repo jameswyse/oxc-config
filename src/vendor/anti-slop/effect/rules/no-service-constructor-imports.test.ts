@@ -24,17 +24,41 @@ ruleTester.run("no-service-constructor-imports", noServiceConstructorImports, {
       filename: "src/runtime.ts",
       code: 'import { makeissueService } from "../../../../rules/issue-service.ts";',
     },
+    {
+      filename: "src/runtime.ts",
+      code: 'import { makeReader } from "./reader.ts";\nexport const reader = makeReader({ login });',
+    },
+    {
+      filename: "src/runtime.ts",
+      code: 'import { makeHubClient } from "./hub-client.ts";\nexport const run = Effect.gen(function* () { return yield* makeHubClient(config); });',
+    },
+    {
+      filename: "src/runtime.ts",
+      code: 'import { makeClient } from "./client.ts";\ntype Client = ReturnType<typeof makeClient>;\nexport const client: Client = makeClient(config);',
+    },
   ],
   invalid: [
     {
       filename: "src/runtime.ts",
-      code: 'import { makeIssueService } from "../../../../rules/issue-service.ts";',
+      code: 'import { makeIssueService } from "../../../../rules/issue-service.ts";\nexport const layer = makeIssueService.pipe(Layer.effect(IssueService));',
       errors: [{ messageId: "serviceConstructorImport", data: { name: "makeIssueService" } }],
       output: null,
     },
     {
       filename: "src/runtime.ts",
-      code: 'import { makeIssueService as createIssueService } from "../../../../issue-service.ts";',
+      code: 'import { makeIssueService } from "./issue-service.ts";\nexport const run = Effect.gen(function* () { return yield* makeIssueService; });',
+      errors: [{ messageId: "serviceConstructorImport", data: { name: "makeIssueService" } }],
+      output: null,
+    },
+    {
+      filename: "src/runtime.ts",
+      code: 'import { makeIssueService } from "./issue-service.ts";\nexport const layer = Layer.effect(IssueService, makeIssueService);',
+      errors: [{ messageId: "serviceConstructorImport", data: { name: "makeIssueService" } }],
+      output: null,
+    },
+    {
+      filename: "src/runtime.ts",
+      code: 'import { makeIssueService as createIssueService } from "../../../../issue-service.ts";\nexport const service = createIssueService;',
       errors: [{ messageId: "serviceConstructorImport", data: { name: "makeIssueService" } }],
       output: null,
     },

@@ -1,7 +1,9 @@
 // Adapted from dmmulroy/anti-slop
 import { defineRule } from "@oxlint/plugins";
 
-import type { ESTree } from "@oxlint/plugins";
+import { variableFor } from "../../../shared/index.ts";
+
+import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 const FORBIDDEN_SYMBOL_NAME = "shape";
 
@@ -19,6 +21,43 @@ function isBorrowedMemberName(node: ESTree.Node): boolean {
   return parent.property === node && !parent.computed;
 }
 
+function importedName(specifier: ESTree.ImportSpecifier): string {
+  return specifier.imported.type === "Identifier"
+    ? specifier.imported.name
+    : specifier.imported.value;
+}
+
+function isPackageImport(specifier: ESTree.Node): specifier is ESTree.ImportSpecifier {
+  return (
+    specifier.type === "ImportSpecifier" &&
+    specifier.parent.type === "ImportDeclaration" &&
+    !/^(?:\.{1,2}\/|@\/|~\/|#)/u.test(specifier.parent.source.value)
+  );
+}
+
+function isBorrowedImportName(
+  sourceCode: SourceCode,
+  node: ESTree.Node & { readonly name: string },
+): boolean {
+  const parent = node.parent;
+
+  if (parent?.type === "ImportSpecifier" && parent.imported === node) {
+    return isPackageImport(parent);
+  }
+
+  const variable = variableFor(sourceCode, node);
+  const definition = variable?.defs[0];
+  const specifier = definition?.type === "ImportBinding" ? definition.node : null;
+
+  return (
+    specifier !== null &&
+    isPackageImport(specifier) &&
+    importedName(specifier) === node.name &&
+    (definition?.name === node ||
+      (variable?.references.some((reference) => reference.identifier === node) ?? false))
+  );
+}
+
 export const noForbiddenTermInSymbolNames = defineRule({
   meta: {
     type: "problem",
@@ -33,7 +72,11 @@ export const noForbiddenTermInSymbolNames = defineRule({
   },
   createOnce(context) {
     const reportForbiddenSymbolName = (node: ESTree.Node & { readonly name: string }): void => {
-      if (!containsForbiddenSymbolName(node.name) || isBorrowedMemberName(node)) {
+      if (
+        !containsForbiddenSymbolName(node.name) ||
+        isBorrowedMemberName(node) ||
+        isBorrowedImportName(context.sourceCode, node)
+      ) {
         return;
       }
 
