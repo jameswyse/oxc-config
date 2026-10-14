@@ -63,6 +63,14 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
       errors: [{ messageId: "delay" }],
     },
     {
+      code: 'import { it } from "@effect/vitest"; import { Duration as D, Effect } from "effect"; it.effect("settles", () => Effect.gen(function* () { yield* Effect.sleep(D.millis(1500)); }));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { it } from "@effect/vitest"; import { Effect } from "effect"; import * as Duration from "effect/Duration"; it.effect("settles", () => Effect.gen(function* () { yield* Effect.sleep(Duration.seconds(2)); }));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
       code: 'import { test } from "vitest"; import { setTimeout as delay } from "node:timers/promises"; test("ready", async () => { await delay(100); });',
       errors: [{ messageId: "delay" }],
     },

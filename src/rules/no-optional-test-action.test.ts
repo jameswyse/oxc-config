@@ -22,6 +22,10 @@ ruleTester.run("no-optional-test-action", noOptionalTestAction, {
       errors: [error],
     },
     {
+      code: 'import { it } from "vitest"; it("dismisses", async () => { await dialog?.close!(); });',
+      errors: [error],
+    },
+    {
       code: 'test("focuses", () => { const input = container.querySelector("input"); input?.focus(); });',
       errors: [error],
     },

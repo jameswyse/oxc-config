@@ -2,7 +2,13 @@ import { dirname, resolve as resolvePath } from "node:path";
 
 import { defineRule } from "@oxlint/plugins";
 
-import { isGlobal, matchesAny, projectPath, propertyName, variableFor } from "../shared/index.ts";
+import {
+  importedBinding,
+  isGlobal,
+  matchesAny,
+  projectPath,
+  variableFor,
+} from "../shared/index.ts";
 
 import type { ESTree, Options, SourceCode } from "@oxlint/plugins";
 
@@ -61,6 +67,8 @@ function parseSettings(options: Readonly<Options>): BoundarySettings {
   return { root: option.root, boundaries: option.boundaries.map(parseBoundary) };
 }
 
+const nodeModuleSources = new Set(["module", "node:module"]);
+
 function isRequire(sourceCode: SourceCode, callee: ESTree.Node): boolean {
   if (isGlobal(sourceCode, callee, "require")) {
     return true;
@@ -70,9 +78,10 @@ function isRequire(sourceCode: SourceCode, callee: ESTree.Node): boolean {
   const init = definition?.node.type === "VariableDeclarator" ? definition.node.init : null;
   const factory = init?.type === "CallExpression" ? init.callee : null;
 
+  const binding = factory === null ? null : importedBinding(sourceCode, factory);
+
   return (
-    (factory?.type === "Identifier" && factory.name === "createRequire") ||
-    (factory?.type === "MemberExpression" && propertyName(factory) === "createRequire")
+    binding !== null && nodeModuleSources.has(binding.source) && binding.name === "createRequire"
   );
 }
 

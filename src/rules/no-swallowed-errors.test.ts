@@ -17,6 +17,8 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
     'import { readFile } from "node:fs/promises"; async function read(path: string) { try { return await readFile(path, "utf8"); } catch { return ""; } }',
     'import { statSync } from "node:fs"; function exists(path: string) { try { return statSync(path).isFile(); } catch { return false; } }',
     'import { stat } from "node:fs/promises"; async function find(path: string) { return stat(path).catch(() => null); }',
+    'import { stat } from "node:fs/promises"; async function find(path: string) { const pending = stat(path); return pending.catch(() => null); }',
+    'import { stat } from "node:fs/promises"; async function find(path: string) { const pending = stat(path) as Promise<unknown>; return pending.catch(() => null); }',
     'import fs from "node:fs"; async function list(path: string) { return fs.promises.readdir(path).catch(() => []); }',
     "void promise.catch(() => undefined);",
     "async function next() { await previous?.catch(() => undefined); }",

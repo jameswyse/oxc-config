@@ -29,6 +29,10 @@ ruleTester.run("no-hardcoded-credential", noHardcodedCredential, {
       errors: [error],
     },
     {
+      code: `export const tokens = "${assembled("ghp_", "EXAMPLE0000000000000000000000000000000")} ${assembled("ghp_", "R8x3kQm2Vn7Lp4Tz9Wc1Yb6Hd5Jf0Gs8Ae2Ku")}";`,
+      errors: [error],
+    },
+    {
       code: `export const key = \`${assembled("-----BEGIN RSA ", "PRIVATE KEY-----")}\\nMIIEowIBAAKCAQEA\`;`,
       errors: [error],
     },

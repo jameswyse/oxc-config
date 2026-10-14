@@ -1,6 +1,7 @@
 // Adapted from dmmulroy/anti-slop
 import { defineRule } from "@oxlint/plugins";
 
+import { apiReference, outermostExpression, propertyName } from "../../../shared/index.ts";
 import { resolveVariable } from "../shared/scope.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
@@ -50,6 +51,53 @@ function isTestFrameworkObject(sourceCode: SourceCode, expression: ESTree.Expres
 
 const nodeTestModules = ["node:test", "test"];
 
+const nodeTestContextMethods = new Set(["test", "before", "after", "beforeEach", "afterEach"]);
+
+function callbackCalls(sourceCode: SourceCode, callback: ESTree.Node): ESTree.CallExpression[] {
+  const argument = outermostExpression(callback);
+  const declarator = argument.parent;
+
+  const holder =
+    callback.type === "FunctionDeclaration"
+      ? callback
+      : declarator?.type === "VariableDeclarator" && declarator.init === argument
+        ? declarator
+        : null;
+
+  const uses =
+    holder === null
+      ? [argument]
+      : sourceCode
+          .getDeclaredVariables(holder)
+          .flatMap((variable) =>
+            variable.references.map((reference) => outermostExpression(reference.identifier)),
+          );
+
+  return uses.flatMap((use) =>
+    use.parent?.type === "CallExpression" && use.parent.arguments.some((item) => item === use)
+      ? [use.parent]
+      : [],
+  );
+}
+
+function isNodeTestContext(sourceCode: SourceCode, node: ESTree.IdentifierReference): boolean {
+  const definition = resolveVariable(sourceCode, node)?.defs[0];
+  const callback = definition?.type === "Parameter" ? definition.node : null;
+
+  if (callback === null || !("params" in callback) || callback.params[0] !== definition?.name) {
+    return false;
+  }
+
+  return callbackCalls(sourceCode, callback).some(
+    ({ callee }) =>
+      nodeTestModules.includes(apiReference(sourceCode, callee)?.module ?? "") ||
+      (callee.type === "MemberExpression" &&
+        callee.object.type === "Identifier" &&
+        nodeTestContextMethods.has(propertyName(callee) ?? "") &&
+        isNodeTestContext(sourceCode, callee.object)),
+  );
+}
+
 function isNodeTestMock(sourceCode: SourceCode, expression: ESTree.Expression): boolean {
   if (expression.type === "MemberExpression") {
     return (
@@ -57,12 +105,7 @@ function isNodeTestMock(sourceCode: SourceCode, expression: ESTree.Expression): 
       expression.property.type === "Identifier" &&
       expression.property.name === "mock" &&
       expression.object.type === "Identifier" &&
-      resolveVariable(sourceCode, expression.object)?.defs[0]?.type === "Parameter" &&
-      sourceCode.ast.body.some(
-        (statement) =>
-          statement.type === "ImportDeclaration" &&
-          nodeTestModules.includes(statement.source.value),
-      )
+      isNodeTestContext(sourceCode, expression.object)
     );
   }
 

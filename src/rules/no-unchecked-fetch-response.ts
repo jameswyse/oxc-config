@@ -1,6 +1,11 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { isGlobalValue, staticPropertyName, unwrapExpression } from "../shared/index.ts";
+import {
+  isGlobalValue,
+  outermostExpression,
+  staticPropertyName,
+  unwrapExpression,
+} from "../shared/index.ts";
 
 import type { ESTree, Reference, SourceCode, Variable } from "@oxlint/plugins";
 
@@ -16,14 +21,6 @@ function unwrap(node: ESTree.Node): ESTree.Node {
   return value.type === "AwaitExpression" ? unwrap(value.argument) : value;
 }
 
-function outermost(node: ESTree.Node): ESTree.Node {
-  const parent = node.parent;
-
-  return parent !== null && unwrapExpression(parent) === unwrapExpression(node)
-    ? outermost(parent)
-    : node;
-}
-
 function isFetch(sourceCode: SourceCode, node: ESTree.Node | null): boolean {
   const value = node === null ? null : unwrap(node);
 
@@ -33,7 +30,7 @@ function isFetch(sourceCode: SourceCode, node: ESTree.Node | null): boolean {
 type Use = "body" | "check" | "metadata" | "other";
 
 function use(reference: Reference): Use {
-  const response = outermost(reference.identifier);
+  const response = outermostExpression(reference.identifier);
   const member = response.parent;
 
   if (member?.type !== "MemberExpression" || member.object !== response) {

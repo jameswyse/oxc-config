@@ -6,7 +6,7 @@ import {
   propertyName,
   isPlaywright,
   apiReference,
-  isEffectNamespace,
+  isEffectModule,
   testContext,
 } from "../shared/index.ts";
 
@@ -188,8 +188,8 @@ function isFixedDuration(sourceCode: SourceCode, argument: ESTree.Argument | und
 
   return (
     node?.type === "CallExpression" &&
-    ((owner?.type === "Identifier" && owner.name === "Duration") ||
-      (owner?.type === "MemberExpression" && propertyName(owner) === "Duration")) &&
+    owner !== null &&
+    isEffectModule(sourceCode, owner, "Duration") &&
     node.arguments.length > 0 &&
     node.arguments.every((item) => numericLiteral(sourceCode, item))
   );
@@ -199,7 +199,7 @@ function isEffectSleep(sourceCode: SourceCode, node: ESTree.CallExpression): boo
   return (
     node.callee.type === "MemberExpression" &&
     propertyName(node.callee) === "sleep" &&
-    isEffectNamespace(sourceCode, node.callee.object) &&
+    isEffectModule(sourceCode, node.callee.object, "Effect") &&
     isFixedDuration(sourceCode, node.arguments[0])
   );
 }

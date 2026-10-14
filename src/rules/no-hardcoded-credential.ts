@@ -5,25 +5,23 @@ import type { ESTree } from "@oxlint/plugins";
 const credentials: readonly (readonly [string, RegExp])[] = [
   [
     "private key",
-    /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?(?:-----END|$)/u,
+    /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?(?:-----END|$)/gu,
   ],
-  ["AWS access key", /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/u],
-  ["GitHub token", /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,})\b/u],
-  ["Stripe live key", /\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b/u],
-  ["Slack token", /\bxox[abposr]-[0-9A-Za-z-]{10,}\b/u],
-  ["Google API key", /\bAIza[0-9A-Za-z_-]{35}\b/u],
-  ["Anthropic or OpenAI key", /\bsk-(?:ant-[a-z0-9]+-|proj-)[A-Za-z0-9_-]{32,}/u],
+  ["AWS access key", /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/gu],
+  ["GitHub token", /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,})\b/gu],
+  ["Stripe live key", /\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b/gu],
+  ["Slack token", /\bxox[abposr]-[0-9A-Za-z-]{10,}\b/gu],
+  ["Google API key", /\bAIza[0-9A-Za-z_-]{35}\b/gu],
+  ["Anthropic or OpenAI key", /\bsk-(?:ant-[a-z0-9]+-|proj-)[A-Za-z0-9_-]{32,}/gu],
 ];
 
 const placeholder = /example|fake|dummy|placeholder|redacted|x{6,}|abcdefgh|12345678/iu;
 
 function credentialIn(text: string): string | null {
   return (
-    credentials.find(([, pattern]) => {
-      const match = pattern.exec(text);
-
-      return match !== null && !placeholder.test(match[0]);
-    })?.[0] ?? null
+    credentials.find(([, pattern]) =>
+      [...text.matchAll(pattern)].some((match) => !placeholder.test(match[0])),
+    )?.[0] ?? null
   );
 }
 

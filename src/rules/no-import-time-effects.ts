@@ -109,6 +109,11 @@ export const noImportTimeEffects = defineRule({
 
           if (!isDeferred(node)) {
             pending.push(...childNodes(node, sourceCode.visitorKeys));
+          } else if (
+            (node.type === "PropertyDefinition" || node.type === "AccessorProperty") &&
+            node.computed
+          ) {
+            pending.push(node.key);
           }
         }
       },

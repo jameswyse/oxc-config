@@ -400,7 +400,7 @@ test("import boundaries check require calls and reject type imports when a bound
   write(
     root,
     "src/features/loader.ts",
-    "import { createRequire } from 'node:module';\n\nconst load = createRequire(import.meta.url);\n\nexport const graphql = load('../generated/graphql');\n",
+    "import { createRequire as makeRequire } from 'node:module';\n\nconst load = makeRequire(import.meta.url);\nconst lookup = cache.createRequire('graphql');\n\nexport const graphql = load('../generated/graphql');\nexport const cached = lookup('../generated/graphql');\n",
   );
   const required = lint(root, "src/legacy/files.cjs");
   assert.equal(required.output.match(/import-boundaries/g)?.length, 1, required.output);

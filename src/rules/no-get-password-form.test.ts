@@ -23,6 +23,15 @@ ruleTester.run("no-get-password-form", noGetPasswordForm, {
     tsx(
       'export const SignIn = () => <form method="post"><input type="password" /><button type="button" formMethod="get">Show</button></form>;',
     ),
+    tsx(
+      'export const SignIn = () => <><form id="search" method="get"><input form="login" type="password" /></form><form id="login" method="post" /></>;',
+    ),
+    tsx(
+      'export const Edit = () => <dialog><form method="dialog"><input type="password" /><button>Close</button></form></dialog>;',
+    ),
+    tsx(
+      'export const SignIn = () => <form id="" method="post"><input name="password" type="password" /><button form="" formMethod="get">Send</button></form>;',
+    ),
   ],
   invalid: [
     {
@@ -64,6 +73,44 @@ ruleTester.run("no-get-password-form", noGetPasswordForm, {
     {
       ...tsx(
         'export const Change = () => <form onSubmit={submit}>{fields.map((field) => <input key={field} type="password" />)}</form>;',
+      ),
+      errors: [error],
+    },
+    {
+      ...tsx(
+        'export const SignIn = () => <><form id="login" method="get" /><input form="login" name="password" type="password" /></>;',
+      ),
+      errors: [error],
+    },
+    {
+      ...tsx(
+        'export const Code = () => <form><input name="code" autoComplete="section-login one-time-code" /></form>;',
+      ),
+      errors: [error],
+    },
+    {
+      ...tsx('export const SignIn = () => <form method=""><input type="password" /></form>;'),
+      errors: [error],
+    },
+    {
+      ...tsx(
+        'export const SignIn = () => <form method="post"><input type="password" /><button formMethod="">Sign in</button></form>;',
+      ),
+      errors: [error],
+    },
+    {
+      ...tsx('export const SignIn = () => <form method=" post "><input type="password" /></form>;'),
+      errors: [error],
+    },
+    {
+      ...tsx(
+        'export const SignIn = () => <form><input form={undefined} name="password" type="password" /></form>;',
+      ),
+      errors: [error],
+    },
+    {
+      ...tsx(
+        'export const Other = () => <form id="login" method="post" />; export const SignIn = () => <><form id="login" /><input form="login" name="password" type="password" /></>;',
       ),
       errors: [error],
     },

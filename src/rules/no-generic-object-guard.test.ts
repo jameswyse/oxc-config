@@ -65,6 +65,14 @@ ruleTester.run("no-generic-object-guard", noGenericObjectGuard, {
       errors: [error],
     },
     {
+      code: "function isPlainObject(value: unknown) { return value instanceof Object && (Object.prototype === Object.getPrototypeOf(value) || null === Object.getPrototypeOf(value)); }",
+      errors: [error],
+    },
+    {
+      code: "function isPlainObject(value: unknown): boolean { return '[object Object]' === Object.prototype.toString.call(value); }",
+      errors: [error],
+    },
+    {
       code: "const guards = { isObjectLike(value: unknown) { return value != null && (typeof value === 'object' || typeof value === 'function'); } };",
       errors: [error],
     },

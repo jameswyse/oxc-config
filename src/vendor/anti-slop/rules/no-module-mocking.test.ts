@@ -8,6 +8,8 @@ ruleTester.run("no-module-mocking", noModuleMocking, {
     'import { mock } from "node:test"; mock.fn(save);',
     'registry.mock.module("./database");',
     'import { test } from "node:test"; test("loads", () => { registry.mock.module("./database"); });',
+    'import { test } from "node:test"; function load(registry: Registry) { registry.mock.module("./database"); }',
+    'import { test } from "node:test"; test("loads", (t, done) => { done.mock.module("./database"); });',
     "const registry = { module: load }; registry.module('x');",
     "const store = new InMemoryUserStore();",
     "vi.spyOn(store, 'save');",
@@ -26,6 +28,26 @@ ruleTester.run("no-module-mocking", noModuleMocking, {
     },
     {
       code: 'import { test } from "node:test"; test("saves", (t) => { t.mock.module("./database", {}); });',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
+      code: 'import test from "node:test"; test.only("saves", async (context) => { context.mock.module("./database", {}); });',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
+      code: 'import { test } from "node:test"; test("outer", async (t) => { await t.test("inner", (s) => { s.mock.module("./database"); }); });',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
+      code: 'import { test, type TestFn } from "node:test"; test("saves", ((t) => { t.mock.module("./database"); }) satisfies TestFn);',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
+      code: 'import { test, type TestFn } from "node:test"; const saves: TestFn = (t) => { t.mock.module("./database"); }; test("saves", saves);',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
+      code: 'import { test } from "node:test"; function saves(t) { t.mock.module("./database"); } test("saves", saves);',
       errors: [{ messageId: "moduleMock" }],
     },
     { code: "vi.mock('./user-store');", errors: [error] },

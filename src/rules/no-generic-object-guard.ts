@@ -121,6 +121,20 @@ function isObjectTag(sourceCode: SourceCode, node: ESTree.Node, subject: string)
   );
 }
 
+function provesObject(
+  sourceCode: SourceCode,
+  value: ESTree.Node,
+  expected: ESTree.Node,
+  subject: string,
+): boolean {
+  return (
+    (isPrototypeRead(sourceCode, value, subject) &&
+      (isLiteral(expected, null) ||
+        sourceCode.getText(expected).replace(/\s/gu, "") === "Object.prototype")) ||
+    (isObjectTag(sourceCode, value, subject) && isLiteral(expected, "[object Object]"))
+  );
+}
+
 function equalityCheck(
   sourceCode: SourceCode,
   comparison: Comparison,
@@ -133,11 +147,8 @@ function equalityCheck(
   }
 
   if (
-    (isPrototypeRead(sourceCode, comparison.left, subject) &&
-      (isLiteral(comparison.right, null) ||
-        sourceCode.getText(comparison.right).replace(/\s/gu, "") === "Object.prototype")) ||
-    (isObjectTag(sourceCode, comparison.left, subject) &&
-      isLiteral(comparison.right, "[object Object]"))
+    provesObject(sourceCode, comparison.left, comparison.right, subject) ||
+    provesObject(sourceCode, comparison.right, comparison.left, subject)
   ) {
     return "object";
   }

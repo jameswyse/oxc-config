@@ -24,6 +24,7 @@ ruleTester.run("no-import-time-effects", noImportTimeEffects, {
     { code: "export const bios = fetch('/api/bios').then(read);", errors: [error] },
     { code: "void (async () => { await fetch('/api/warm'); })();", errors: [error] },
     { code: "export class Poller { static timer = setInterval(poll, 1000); }", errors: [error] },
+    { code: "export class Poller { [setInterval(poll, 1000)] = true; }", errors: [error] },
     { code: "export class Bus { static { new BroadcastChannel('bus'); } }", errors: [error] },
     {
       code: "export namespace Clock { export const timer = setInterval(tick, 1000); }",

@@ -2,9 +2,10 @@ import { defineRule } from "@oxlint/plugins";
 
 import {
   childNodes,
-  isEffectNamespace,
+  isEffectModule,
   isGlobal,
   propertyName,
+  unwrapExpression,
   variableFor,
 } from "../shared/index.ts";
 
@@ -195,6 +196,20 @@ function isSharedBinding(sourceCode: SourceCode, node: ESTree.IdentifierReferenc
   );
 }
 
+function storedValue(sourceCode: SourceCode, node: ESTree.Expression): ESTree.Node {
+  const value = unwrapExpression(node);
+
+  const declarator =
+    value.type === "Identifier" ? variableFor(sourceCode, value)?.defs[0]?.node : undefined;
+
+  return declarator?.type === "VariableDeclarator" &&
+    declarator.parent.type === "VariableDeclaration" &&
+    declarator.parent.kind === "const" &&
+    declarator.init !== null
+    ? unwrapExpression(declarator.init)
+    : value;
+}
+
 function isExistingPromise(sourceCode: SourceCode, node: ESTree.Expression): boolean {
   const value = node.type === "ChainExpression" ? node.expression : node;
 
@@ -249,7 +264,7 @@ function rejectionHandler(
 const effectRecoveries = new Set(["catchAll", "catchAllCause", "orElse"]);
 
 function effectMember(sourceCode: SourceCode, node: ESTree.Node): string | null {
-  return node.type === "MemberExpression" && isEffectNamespace(sourceCode, node.object)
+  return node.type === "MemberExpression" && isEffectModule(sourceCode, node.object, "Effect")
     ? propertyName(node)
     : null;
 }
@@ -381,7 +396,7 @@ export const noSwallowedErrors = defineRule({
         if (
           rejection !== null &&
           !isExistingPromise(sourceCode, rejection.promise) &&
-          !isProbe(sourceCode, rejection.promise) &&
+          !isProbe(sourceCode, storedValue(sourceCode, rejection.promise)) &&
           swallowingCallback(sourceCode, rejection.handler)
         ) {
           context.report({ node: rejection.handler, messageId: "swallowed" });

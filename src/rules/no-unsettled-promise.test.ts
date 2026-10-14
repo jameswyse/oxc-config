@@ -25,6 +25,10 @@ ruleTester.run("no-unsettled-promise", noUnsettledPromise, {
       errors: [{ messageId: "unsettled" }],
     },
     {
+      code: "export const close = () => new Promise((resolve) => { server?.close!(resolve); });",
+      errors: [{ messageId: "optional" }],
+    },
+    {
       code: "export const stop = () => new Promise((resolve) => server?.close(resolve));",
       errors: [{ messageId: "optional" }],
     },

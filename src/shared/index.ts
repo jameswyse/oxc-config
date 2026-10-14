@@ -400,6 +400,10 @@ export function isShortCircuited(call: ESTree.CallExpression): boolean {
     }
 
     current = current.type === "CallExpression" ? current.callee : current.object;
+
+    while (current.type === "TSNonNullExpression") {
+      current = current.expression;
+    }
   }
 
   return false;
@@ -415,39 +419,54 @@ export function staticPropertyName(node: ESTree.Node): string | null {
   return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
 }
 
-function importDeclarationFor(
+export function importedBinding(
   sourceCode: SourceCode,
   node: ESTree.Node,
-): { readonly source: string; readonly specifier: ESTree.Node } | null {
+): { readonly source: string; readonly name: string } | null {
+  if (node.type === "MemberExpression") {
+    const owner = importedBinding(sourceCode, node.object);
+    const name = staticPropertyName(node);
+
+    return (owner?.name === "*" || owner?.name === "default") && name !== null
+      ? { source: owner.source, name }
+      : null;
+  }
+
   const definition = variableFor(sourceCode, node)?.defs[0];
   const declaration = definition?.parent;
 
-  return definition?.type === "ImportBinding" && declaration?.type === "ImportDeclaration"
-    ? { source: declaration.source.value, specifier: definition.node }
+  if (definition?.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
+    return null;
+  }
+
+  const specifier = definition.node;
+  const source = declaration.source.value;
+
+  if (specifier.type === "ImportNamespaceSpecifier") {
+    return { source, name: "*" };
+  }
+
+  if (specifier.type === "ImportDefaultSpecifier") {
+    return { source, name: "default" };
+  }
+
+  return specifier.type === "ImportSpecifier"
+    ? {
+        source,
+        name:
+          specifier.imported.type === "Identifier"
+            ? specifier.imported.name
+            : specifier.imported.value,
+      }
     : null;
 }
 
-export function isEffectNamespace(sourceCode: SourceCode, node: ESTree.Node): boolean {
-  if (node.type === "MemberExpression") {
-    const parent = importDeclarationFor(sourceCode, node.object);
-
-    return (
-      staticPropertyName(node) === "Effect" &&
-      parent?.source === "effect" &&
-      parent.specifier.type === "ImportNamespaceSpecifier"
-    );
-  }
-
-  const binding = importDeclarationFor(sourceCode, node);
-  const specifier = binding?.specifier;
+export function isEffectModule(sourceCode: SourceCode, node: ESTree.Node, module: string): boolean {
+  const binding = importedBinding(sourceCode, node);
 
   return (
-    (binding?.source === "effect" &&
-      specifier?.type === "ImportSpecifier" &&
-      (specifier.imported.type === "Identifier"
-        ? specifier.imported.name
-        : specifier.imported.value) === "Effect") ||
-    (binding?.source === "effect/Effect" && specifier?.type === "ImportNamespaceSpecifier")
+    (binding?.source === "effect" && binding.name === module) ||
+    (binding?.source === `effect/${module}` && binding.name === "*")
   );
 }
 
@@ -458,5 +477,13 @@ export function unwrapExpression(node: ESTree.Node): ESTree.Node {
     node.type === "TSNonNullExpression" ||
     node.type === "TSTypeAssertion"
     ? unwrapExpression(node.expression)
+    : node;
+}
+
+export function outermostExpression(node: ESTree.Node): ESTree.Node {
+  const parent = node.parent;
+
+  return parent !== null && unwrapExpression(parent) === unwrapExpression(node)
+    ? outermostExpression(parent)
     : node;
 }
