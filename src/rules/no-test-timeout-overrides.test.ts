@@ -3,6 +3,10 @@ import { noTestTimeoutOverrides } from "./no-test-timeout-overrides.ts";
 
 ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
   valid: [
+    'import { vi } from "vitest"; vi.setConfig({ retry: 0 });',
+    "jest.retryTimes(0);",
+    'import { vi } from "vitest"; vi.setConfig({ retry: 0 as const });',
+    'import { test } from "vitest"; test("works", () => {}, { retry: 0 } as const);',
     'import { it } from "vitest"; it("works", () => {});',
     'import { it } from "vitest"; it("works", { tags: ["db"] }, () => {});',
     'import { test } from "@playwright/test"; test("works", { tag: "@slow" }, async () => {});',
@@ -17,6 +21,15 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
     'import { it } from "vitest"; function suite(test) { test.slow(); }',
   ],
   invalid: [
+    { code: "jest.retryTimes(3);", errors: [{ messageId: "override" }] },
+    {
+      code: 'import { vi } from "vitest"; vi.setConfig({ ["testTimeout"]: 20000 });',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { jest } from "@jest/globals"; jest.retryTimes(2, { logErrorsBeforeRetry: true });',
+      errors: [{ messageId: "override" }],
+    },
     {
       code: 'import { it } from "vitest"; it("works", () => {}, 10_000);',
       errors: [{ messageId: "override" }],

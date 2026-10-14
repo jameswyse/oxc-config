@@ -2,9 +2,9 @@ import { dirname, resolve as resolvePath } from "node:path";
 
 import { defineRule } from "@oxlint/plugins";
 
-import { projectPath, matchesAny } from "../shared/index.ts";
+import { isGlobal, matchesAny, projectPath, propertyName, variableFor } from "../shared/index.ts";
 
-import type { ESTree, Options } from "@oxlint/plugins";
+import type { ESTree, Options, SourceCode } from "@oxlint/plugins";
 
 type OptionValue = Options[number];
 
@@ -13,6 +13,7 @@ type Boundary = {
   readonly ignore: readonly string[];
   readonly deny: readonly string[];
   readonly message: string;
+  readonly types: boolean;
 };
 
 function isStringList(value: OptionValue | undefined): value is string[] {
@@ -24,18 +25,19 @@ function parseBoundary(value: OptionValue): Boundary {
     throw new TypeError("Each import boundary must be an object.");
   }
 
-  const { files, ignore = [], deny, message } = value;
+  const { files, ignore = [], deny, message, types = false } = value;
 
   if (
     !isStringList(files) ||
     !isStringList(ignore) ||
     !isStringList(deny) ||
-    typeof message !== "string"
+    typeof message !== "string" ||
+    typeof types !== "boolean"
   ) {
     throw new TypeError("Each import boundary needs files, deny and message settings.");
   }
 
-  return { files, ignore, deny, message };
+  return { files, ignore, deny, message, types };
 }
 
 type BoundarySettings = {
@@ -59,6 +61,21 @@ function parseSettings(options: Readonly<Options>): BoundarySettings {
   return { root: option.root, boundaries: option.boundaries.map(parseBoundary) };
 }
 
+function isRequire(sourceCode: SourceCode, callee: ESTree.Node): boolean {
+  if (isGlobal(sourceCode, callee, "require")) {
+    return true;
+  }
+
+  const definition = variableFor(sourceCode, callee)?.defs[0];
+  const init = definition?.node.type === "VariableDeclarator" ? definition.node.init : null;
+  const factory = init?.type === "CallExpression" ? init.callee : null;
+
+  return (
+    (factory?.type === "Identifier" && factory.name === "createRequire") ||
+    (factory?.type === "MemberExpression" && propertyName(factory) === "createRequire")
+  );
+}
+
 export const importBoundaries = defineRule({
   meta: {
     type: "problem",
@@ -77,6 +94,7 @@ export const importBoundaries = defineRule({
                 ignore: { type: "array", items: { type: "string" } },
                 deny: { type: "array", items: { type: "string" } },
                 message: { type: "string" },
+                types: { type: "boolean" },
               },
               required: ["files", "deny", "message"],
               additionalProperties: false,
@@ -101,8 +119,8 @@ export const importBoundaries = defineRule({
       return {};
     }
 
-    function check(source: ESTree.Expression | null, typeOnly: boolean): void {
-      if (typeOnly || source?.type !== "Literal" || typeof source.value !== "string") {
+    function check(source: ESTree.Node | null | undefined, typeOnly: boolean): void {
+      if (source?.type !== "Literal" || typeof source.value !== "string") {
         return;
       }
 
@@ -112,7 +130,9 @@ export const importBoundaries = defineRule({
         ? projectPath(root, resolvePath(dirname(context.filename), specifier))
         : specifier;
 
-      const boundary = active.find(({ deny }) => matchesAny(target, deny));
+      const boundary = active.find(
+        ({ deny, types }) => (types || !typeOnly) && matchesAny(target, deny),
+      );
 
       if (boundary) {
         context.report({
@@ -143,6 +163,22 @@ export const importBoundaries = defineRule({
       },
       ImportExpression(node) {
         check(node.source, false);
+      },
+      TSImportType(node) {
+        check(node.source, true);
+      },
+      TSExternalModuleReference(node) {
+        check(
+          node.expression,
+          node.parent.type === "TSImportEqualsDeclaration" && node.parent.importKind === "type",
+        );
+      },
+      CallExpression(node) {
+        const [source] = node.arguments;
+
+        if (node.arguments.length === 1 && isRequire(context.sourceCode, node.callee)) {
+          check(source, false);
+        }
       },
     };
   },

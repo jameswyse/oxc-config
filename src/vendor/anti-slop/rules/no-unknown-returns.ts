@@ -23,8 +23,7 @@ export const noUnknownReturns = defineRule({
   meta: {
     type: "problem",
     docs: {
-      description:
-        "Disallow functions whose explicit return contract is unknown or Promise<unknown>.",
+      description: "Disallow functions whose declared return type is unknown or Promise<unknown>.",
     },
     messages: {
       unknownReturn:

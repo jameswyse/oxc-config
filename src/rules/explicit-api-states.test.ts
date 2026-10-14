@@ -4,6 +4,7 @@ import { explicitApiStates } from "./explicit-api-states.ts";
 ruleTester.run("explicit-api-states", explicitApiStates, {
   valid: [
     "function local(flag: boolean) { return flag; }",
+    "export function assertReady(condition: boolean): asserts condition { if (!condition) { throw new Error('not ready'); } }",
     "export function load({ force }: { force: boolean }) { return force; }",
     "export function Title({ leftAligned }: Readonly<{ leftAligned: boolean }>) { return leftAligned; }",
     "export function merge(base: User, overrides: Partial<User>) { return { ...base, ...overrides }; }",

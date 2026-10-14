@@ -1,7 +1,15 @@
 // Adapted from dmmulroy/anti-slop
 import { defineRule } from "@oxlint/plugins";
 
-import type { ESTree } from "@oxlint/plugins";
+import { variableFor } from "../../../shared/index.ts";
+import {
+  createTypeAliasEnvironment,
+  resolvedTypeMatches,
+} from "../shared/type-alias-resolution.ts";
+
+import type { ESTree, SourceCode } from "@oxlint/plugins";
+
+import type { TypeAliasEnvironment } from "../shared/type-alias-resolution.ts";
 
 type RuntimeFunction = ESTree.ArrowFunctionExpression | ESTree.Function;
 
@@ -43,6 +51,36 @@ function isExistenceProbe(node: ESTree.UnaryExpression): boolean {
   return other.type === "Literal" && other.value === "undefined";
 }
 
+function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType | null {
+  const name = variableFor(sourceCode, node)?.defs[0]?.name;
+
+  return name?.type === "Identifier" ? (name.typeAnnotation?.typeAnnotation ?? null) : null;
+}
+
+function isUnion(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean {
+  return resolvedTypeMatches(type, environment, (resolved, matches) =>
+    resolved.type === "TSParenthesizedType"
+      ? matches(resolved.typeAnnotation)
+      : resolved.type === "TSUnionType",
+  );
+}
+
+function isOpen(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean {
+  return resolvedTypeMatches(
+    type,
+    environment,
+    (resolved, matches) =>
+      resolved.type === "TSUnknownKeyword" ||
+      resolved.type === "TSAnyKeyword" ||
+      (resolved.type === "TSParenthesizedType" && matches(resolved.typeAnnotation)) ||
+      (resolved.type === "TSUnionType" && resolved.types.some(matches)),
+  );
+}
+
+function isKnownUnion(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean {
+  return isUnion(type, environment) && !isOpen(type, environment);
+}
+
 export const noRuntimeTypeof = defineRule({
   meta: {
     type: "problem",
@@ -52,7 +90,7 @@ export const noRuntimeTypeof = defineRule({
     },
     messages: {
       runtimeTypeof:
-        "A `typeof` check narrows a representation without establishing its contract. Parse input at its I/O boundary, then branch on the domain value.",
+        "A `typeof` check narrows a value's representation without proving its shape. Parse input where it enters, then branch on the domain value.",
     },
     schema: [
       {
@@ -64,7 +102,18 @@ export const noRuntimeTypeof = defineRule({
     defaultOptions: [{ allowInTypeGuards: false }],
   },
   createOnce(context) {
+    let environment: TypeAliasEnvironment | null = null;
+
+    function discriminatesKnownUnion(node: ESTree.UnaryExpression): boolean {
+      const type = declaredType(context.sourceCode, node.argument);
+
+      return type !== null && environment !== null && isKnownUnion(type, environment);
+    }
+
     return {
+      Program(program) {
+        environment = createTypeAliasEnvironment(program, context.sourceCode.visitorKeys);
+      },
       UnaryExpression(node) {
         const option = context.options[0];
 
@@ -77,6 +126,7 @@ export const noRuntimeTypeof = defineRule({
         if (
           node.operator === "typeof" &&
           !isExistenceProbe(node) &&
+          !discriminatesKnownUnion(node) &&
           (!allowInTypeGuards || !isInsideTypeGuard(node))
         ) {
           context.report({ node, messageId: "runtimeTypeof" });

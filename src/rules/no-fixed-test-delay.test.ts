@@ -3,6 +3,12 @@ import { noFixedTestDelay } from "./no-fixed-test-delay.ts";
 
 ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
   valid: [
+    'import { test } from "@playwright/test"; let delay = 500; test("ready", async ({ page }) => { await page.waitForTimeout(delay); });',
+    'import { it } from "@effect/vitest"; import { Effect, TestClock } from "effect"; it.effect("expires", () => Effect.gen(function* () { yield* TestClock.adjust("1 minute"); }));',
+    'import { Effect } from "effect"; export const retry = Effect.gen(function* () { yield* Effect.sleep("50 millis"); });',
+    'import { it } from "@effect/vitest"; import { Effect } from "effect"; it.effect("waits", () => Effect.gen(function* () { yield* Effect.sleep(backoff); }));',
+    'import { it } from "@effect/vitest"; import { Effect } from "effect"; it.effect("waits", () => Effect.gen(function* () { yield* Effect.sleep(clock.remaining(1)); }));',
+    'import { it } from "@effect/vitest"; import { Duration, Effect } from "effect"; it.effect("waits", () => Effect.gen(function* () { yield* Effect.sleep(Duration.millis(backoff)); }));',
     'import { setTimeout as delay } from "node:timers/promises"; await delay(100);',
     'import { test } from "vitest"; import { delay } from "./clock"; test("ready", async () => { await delay(100); });',
     'import { setTimeout as delay } from "node:timers/promises"; test("ready", async (delay) => { await delay(100); });',
@@ -36,6 +42,26 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     'test("ready", async () => { await new Promise(function* (resolve) { setTimeout(resolve, 100); }); });',
   ],
   invalid: [
+    {
+      code: 'import { test } from "@playwright/test"; const delay = 500; test("ready", async ({ page }) => { await page.waitForTimeout(delay); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { it } from "@effect/vitest"; import { Effect } from "effect"; const settle = "50 millis"; it.effect("settles", () => Effect.gen(function* () { yield* Effect.sleep(settle); }));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { it } from "@effect/vitest"; import { Effect } from "effect"; it.effect("settles", () => Effect.gen(function* () { yield* Effect.sleep("50 millis"); }));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { Duration, Effect } from "effect"; test("settles", () => Effect.runPromise(Effect.gen(function* () { yield* Effect.sleep(Duration.millis(1500)); })));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { it } from "@effect/vitest"; import * as E from "effect"; it.effect("settles", () => E.Effect.gen(function* () { yield* E.Effect.sleep("50 millis"); }));',
+      errors: [{ messageId: "delay" }],
+    },
     {
       code: 'import { test } from "vitest"; import { setTimeout as delay } from "node:timers/promises"; test("ready", async () => { await delay(100); });',
       errors: [{ messageId: "delay" }],

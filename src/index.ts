@@ -12,15 +12,28 @@ import { noAmbientClock } from "./rules/no-ambient-clock.ts";
 import { noAmbientRandom } from "./rules/no-ambient-random.ts";
 import { noComments } from "./rules/no-comments.ts";
 import { noDeepTernary } from "./rules/no-deep-ternary.ts";
+import { noDerivedTestExpectation } from "./rules/no-derived-test-expectation.ts";
+import { noDisabledTlsVerification } from "./rules/no-disabled-tls-verification.ts";
 import { noEditProofAssertions } from "./rules/no-edit-proof-assertions.ts";
 import { noEnvAccess } from "./rules/no-env-access.ts";
 import { noFixedTestDelay } from "./rules/no-fixed-test-delay.ts";
 import { noForwardingModule } from "./rules/no-forwarding-module.ts";
 import { noGenericFileSuffix } from "./rules/no-generic-file-suffix.ts";
+import { noGenericObjectGuard } from "./rules/no-generic-object-guard.ts";
+import { noGetPasswordForm } from "./rules/no-get-password-form.ts";
+import { noHardcodedCredential } from "./rules/no-hardcoded-credential.ts";
+import { noImportTimeEffects } from "./rules/no-import-time-effects.ts";
+import { noOptionalTestAction } from "./rules/no-optional-test-action.ts";
 import { noPassThroughFunction } from "./rules/no-pass-through-function.ts";
+import { noSecretFallback } from "./rules/no-secret-fallback.ts";
 import { noSwallowedErrors } from "./rules/no-swallowed-errors.ts";
 import { noTestTimeoutOverrides } from "./rules/no-test-timeout-overrides.ts";
+import { noUncheckedFetchResponse } from "./rules/no-unchecked-fetch-response.ts";
+import { noUncheckedIndexSearch } from "./rules/no-unchecked-index-search.ts";
+import { noUncontrolledTestClock } from "./rules/no-uncontrolled-test-clock.ts";
+import { noUnsettledPromise } from "./rules/no-unsettled-promise.ts";
 import { noVacuousTestAssertions } from "./rules/no-vacuous-test-assertions.ts";
+import { requireSuppressionReason } from "./rules/require-suppression-reason.ts";
 import { serverActionGuard } from "./rules/server-action-guard.ts";
 import { statementSpacing } from "./rules/statement-spacing.ts";
 import { typeGuardName } from "./rules/type-guard-name.ts";
@@ -77,29 +90,42 @@ const wyse = definePlugin({
     "no-comments": noComments,
     "no-conditional-empty-object-spread": noConditionalEmptyObjectSpread,
     "no-deep-ternary": noDeepTernary,
+    "no-derived-test-expectation": noDerivedTestExpectation,
+    "no-disabled-tls-verification": noDisabledTlsVerification,
     "no-edit-proof-assertions": noEditProofAssertions,
     "no-env-access": noEnvAccess,
     "no-fixed-test-delay": noFixedTestDelay,
     "no-forwarding-module": noForwardingModule,
     "no-generic-file-suffix": noGenericFileSuffix,
+    "no-generic-object-guard": noGenericObjectGuard,
+    "no-get-password-form": noGetPasswordForm,
+    "no-hardcoded-credential": noHardcodedCredential,
+    "no-import-time-effects": noImportTimeEffects,
     "no-known-value-widening": noKnownValueWidening,
     "no-manual-effect-error-tag": noManualEffectErrorTag,
     "no-module-mocking": noModuleMocking,
     "no-object-parameters": noObjectParameters,
+    "no-optional-test-action": noOptionalTestAction,
     "no-pass-through-function": noPassThroughFunction,
     "no-reduce-accumulator-copy": noReduceAccumulatorCopy,
     "no-reflect-apply": noReflectApply,
     "no-reflect-get": noReflectGet,
     "no-runtime-typeof": noRuntimeTypeof,
+    "no-secret-fallback": noSecretFallback,
     "no-service-constructor-imports": noServiceConstructorImports,
     "no-shape-in-symbol-names": noForbiddenTermInSymbolNames,
     "no-swallowed-errors": noSwallowedErrors,
     "no-test-timeout-overrides": noTestTimeoutOverrides,
+    "no-unchecked-fetch-response": noUncheckedFetchResponse,
+    "no-unchecked-index-search": noUncheckedIndexSearch,
+    "no-uncontrolled-test-clock": noUncontrolledTestClock,
     "no-unknown-returns": noUnknownReturns,
     "no-unknown-type-aliases": noUnknownTypeAliases,
     "no-unsafe-dictionary-type": noUnsafeDictionaryType,
+    "no-unsettled-promise": noUnsettledPromise,
     "no-vacuous-test-assertions": noVacuousTestAssertions,
     "no-widen-then-assert": noWidenThenAssert,
+    "require-suppression-reason": requireSuppressionReason,
     "server-action-guard": serverActionGuard,
     "statement-spacing": statementSpacing,
     "type-guard-name": typeGuardName,

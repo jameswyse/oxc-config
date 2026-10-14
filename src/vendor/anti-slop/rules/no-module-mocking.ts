@@ -42,14 +42,57 @@ function isTestFrameworkObject(sourceCode: SourceCode, expression: ESTree.Expres
     const name = importedName(definition.node);
 
     return (
-      (source === "vitest" && name === "vi") || (source === "@jest/globals" && name === "jest")
+      ((source === "vitest" || source === "@effect/vitest") && name === "vi") ||
+      (source === "@jest/globals" && name === "jest")
     );
   });
+}
+
+const nodeTestModules = ["node:test", "test"];
+
+function isNodeTestMock(sourceCode: SourceCode, expression: ESTree.Expression): boolean {
+  if (expression.type === "MemberExpression") {
+    return (
+      !expression.computed &&
+      expression.property.type === "Identifier" &&
+      expression.property.name === "mock" &&
+      expression.object.type === "Identifier" &&
+      resolveVariable(sourceCode, expression.object)?.defs[0]?.type === "Parameter" &&
+      sourceCode.ast.body.some(
+        (statement) =>
+          statement.type === "ImportDeclaration" &&
+          nodeTestModules.includes(statement.source.value),
+      )
+    );
+  }
+
+  if (expression.type !== "Identifier") {
+    return false;
+  }
+
+  return (
+    resolveVariable(sourceCode, expression)?.defs.some(
+      (definition) =>
+        definition.type === "ImportBinding" &&
+        definition.parent?.type === "ImportDeclaration" &&
+        nodeTestModules.includes(definition.parent.source.value) &&
+        importedName(definition.node) === "mock",
+    ) ?? false
+  );
 }
 
 function moduleMockCall(sourceCode: SourceCode, callee: ESTree.Expression): boolean {
   if (!("property" in callee) || !("object" in callee) || !("computed" in callee)) {
     return false;
+  }
+
+  if (
+    !callee.computed &&
+    callee.property.type === "Identifier" &&
+    callee.property.name === "module" &&
+    isNodeTestMock(sourceCode, callee.object)
+  ) {
+    return true;
   }
 
   if (!isTestFrameworkObject(sourceCode, callee.object)) {

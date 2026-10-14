@@ -390,3 +390,73 @@ export function isInjectionSeam(source: ESTree.Node): boolean {
 
   return false;
 }
+
+export function isShortCircuited(call: ESTree.CallExpression): boolean {
+  let current: ESTree.Node = call;
+
+  while (current.type === "CallExpression" || current.type === "MemberExpression") {
+    if (current.optional) {
+      return true;
+    }
+
+    current = current.type === "CallExpression" ? current.callee : current.object;
+  }
+
+  return false;
+}
+
+export function staticPropertyName(node: ESTree.Node): string | null {
+  if (!("computed" in node && node.computed)) {
+    return propertyName(node);
+  }
+
+  const key = memberKey(node);
+
+  return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
+}
+
+function importDeclarationFor(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+): { readonly source: string; readonly specifier: ESTree.Node } | null {
+  const definition = variableFor(sourceCode, node)?.defs[0];
+  const declaration = definition?.parent;
+
+  return definition?.type === "ImportBinding" && declaration?.type === "ImportDeclaration"
+    ? { source: declaration.source.value, specifier: definition.node }
+    : null;
+}
+
+export function isEffectNamespace(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  if (node.type === "MemberExpression") {
+    const parent = importDeclarationFor(sourceCode, node.object);
+
+    return (
+      staticPropertyName(node) === "Effect" &&
+      parent?.source === "effect" &&
+      parent.specifier.type === "ImportNamespaceSpecifier"
+    );
+  }
+
+  const binding = importDeclarationFor(sourceCode, node);
+  const specifier = binding?.specifier;
+
+  return (
+    (binding?.source === "effect" &&
+      specifier?.type === "ImportSpecifier" &&
+      (specifier.imported.type === "Identifier"
+        ? specifier.imported.name
+        : specifier.imported.value) === "Effect") ||
+    (binding?.source === "effect/Effect" && specifier?.type === "ImportNamespaceSpecifier")
+  );
+}
+
+export function unwrapExpression(node: ESTree.Node): ESTree.Node {
+  return node.type === "ParenthesizedExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSTypeAssertion"
+    ? unwrapExpression(node.expression)
+    : node;
+}

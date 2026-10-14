@@ -54,7 +54,7 @@ Add the scripts:
 }
 ```
 
-Errors fail the run. Warnings mark patterns worth reviewing that have legitimate uses, so they report without blocking: dependency cycles, barrel and forwarding modules, `typeof` outside type guards, swallowed errors, boolean parameters on exported functions, pass-through functions, tests without a matching owner file and test timeout overrides. `lint:fix` formats after applying lint fixes, then lints again to confirm the result.
+Errors fail the run. Warnings mark patterns worth reviewing that have legitimate uses, so they report without blocking: dependency cycles, barrel and forwarding modules, `typeof` outside type guards, swallowed errors, boolean parameters on exported functions, pass-through functions, import-time effects, deprecated APIs, tests without a matching owner file, test timeout overrides and test expectations derived from production code. `lint:fix` formats after applying lint fixes, then lints again to confirm the result.
 
 The defaults enable no framework profiles or project boundaries, because both depend on the project. [Select the profiles](#select-framework-and-runtime-profiles), then [configure the boundaries](#enforce-project-boundaries) that fit.
 
@@ -121,7 +121,7 @@ export default createLintConfig({
 ```
 
 - `env` lists the modules that may read `process.env` or `import.meta.env`. Other source files must receive parsed configuration. Config files and scripts are entrypoints and remain allowed.
-- `boundaries` rejects imports from `files` that match a `deny` glob. Bare specifiers match as written. Relative specifiers resolve to a path from the config file's directory first, so `../main/ipc` matches `src/main/**`. Type-only imports are allowed because they are erased. Use `ignore` to exclude files from a boundary's scope. The boundary rule needs `root: import.meta.dirname` to find that directory, and `createLintConfig` throws without it when `boundaries` or `electron` is set.
+- `boundaries` rejects imports from `files` that match a `deny` glob. Bare specifiers match as written. Relative specifiers resolve to a path from the config file's directory first, so `../main/ipc` matches `src/main/**`. Type-only imports are allowed because they are erased. Set `types: true` on a boundary to reject them too, such as generated API types that should stay inside their adapter. Use `ignore` to exclude files from a boundary's scope. The boundary rule needs `root: import.meta.dirname` to find that directory, and `createLintConfig` throws without it when `boundaries` or `electron` is set.
 - `serverActionGuards` requires every exported function in a `"use server"` module, and every inline `"use server"` function, to start by awaiting one of the named guards. Server-action modules must export each action where it is declared. A guard's name cannot prove it authorises the operation, so review the guard itself.
 - `clock` and `random` list the modules that may read the current time (`Date.now()`, argument-less `new Date()`) or generate random values and IDs (`Math.random()`, `crypto.randomUUID()`, `randomUUID`/`randomInt` from `node:crypto`). Other production code must receive them, so tests can control them without faking globals. Test files, parameter defaults such as `now = new Date()` and passing `Date.now` uncalled are allowed. Durations from `performance.now()` and secret generation are out of scope.
 

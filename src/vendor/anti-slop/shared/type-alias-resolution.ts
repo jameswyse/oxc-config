@@ -202,7 +202,7 @@ function aliasSubstitutions(
 ): Substitutions | null {
   const parameters = alias.typeParameters?.params ?? [];
   const arguments_ = reference.typeArguments?.params ?? [];
-  const next = new Map<string, Substitution>(base);
+  const next = new Map<string, Substitution>();
 
   for (const [index, parameter] of parameters.entries()) {
     const explicitArgument = arguments_[index];
@@ -263,6 +263,12 @@ function resolvedTypeMatches(
   return evaluate(type, new Map<string, Substitution>(), new Set<ESTree.TSTypeAliasDeclaration>());
 }
 
-export type { ResolvedTypeMatcher, TypeAliasEnvironment };
+export type { ResolvedTypeMatcher, Substitution, Substitutions, TypeAliasEnvironment };
 
-export { createTypeAliasEnvironment, hasVisibleTypeBinding, resolvedTypeMatches, visibleTypeAlias };
+export {
+  aliasSubstitutions,
+  createTypeAliasEnvironment,
+  hasVisibleTypeBinding,
+  resolvedTypeMatches,
+  visibleTypeAlias,
+};

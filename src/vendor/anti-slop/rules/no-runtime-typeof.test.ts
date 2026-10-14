@@ -11,6 +11,9 @@ ruleTester.run("no-runtime-typeof", noRuntimeTypeof, {
     'if (typeof globalThis.crypto === "undefined") throw new Error("no crypto");',
     'const missing = "undefined" === typeof process;',
     "const value = input;",
+    'export function label(value: string | Block[]) { return typeof value === "string" ? value : render(value); }',
+    'type Fixture = Promise<Input> | (() => Input); export function load(fixture: Fixture) { return typeof fixture === "function" ? fixture() : fixture; }',
+    'export function size(value: (string | number)) { return typeof value === "number" ? value : value.length; }',
     {
       code: 'function isString(value: unknown): value is string { return typeof value === "string"; }',
       options: allowInTypeGuards,
@@ -25,6 +28,22 @@ ruleTester.run("no-runtime-typeof", noRuntimeTypeof, {
     },
   ],
   invalid: [
+    {
+      code: 'export function label(value: unknown) { return typeof value === "string" ? value : ""; }',
+      errors: [error],
+    },
+    {
+      code: 'export function label(value: string | unknown) { return typeof value === "string" ? value : ""; }',
+      errors: [error],
+    },
+    {
+      code: 'type Maybe<T> = string | T; export function label(value: Maybe<unknown>) { return typeof value === "string" ? value : ""; }',
+      errors: [error],
+    },
+    {
+      code: 'export function label(input: { value: string | number }) { return typeof input.value === "string"; }',
+      errors: [error],
+    },
     { code: 'if (typeof input === "string") use(input);', errors: [error] },
     { code: "if (typeof input === undefined) use(input);", errors: [error] },
     {
