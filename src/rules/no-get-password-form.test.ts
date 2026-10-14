@@ -44,13 +44,13 @@ ruleTester.run("no-get-password-form", noGetPasswordForm, {
       ...tsx(
         'export const SignIn = () => <form method="post"><input type="password" /><input type="submit" formMethod="get" /></form>;',
       ),
-      errors: [error],
+      errors: [{ messageId: "override" }],
     },
     {
       ...tsx(
         'export const SignIn = () => <form method="post"><input type="password" /><button formMethod="get">Sign in</button></form>;',
       ),
-      errors: [error],
+      errors: [{ messageId: "override" }],
     },
     {
       ...tsx(
@@ -96,11 +96,17 @@ ruleTester.run("no-get-password-form", noGetPasswordForm, {
       ...tsx(
         'export const SignIn = () => <form method="post"><input type="password" /><button formMethod="">Sign in</button></form>;',
       ),
-      errors: [error],
+      errors: [{ messageId: "override" }],
     },
     {
       ...tsx('export const SignIn = () => <form method=" post "><input type="password" /></form>;'),
       errors: [error],
+    },
+    {
+      ...tsx(
+        'export const SignIn = () => <form action={signIn}><input type="password" /><button formMethod="get">Sign in</button></form>;',
+      ),
+      errors: [{ messageId: "override" }],
     },
     {
       ...tsx(

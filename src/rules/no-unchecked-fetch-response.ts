@@ -1,6 +1,7 @@
 import { defineRule } from "@oxlint/plugins";
 
 import {
+  isGlobal,
   isGlobalValue,
   outermostExpression,
   staticPropertyName,
@@ -29,7 +30,19 @@ function isFetch(sourceCode: SourceCode, node: ESTree.Node | null): boolean {
 
 type Use = "body" | "check" | "metadata" | "other";
 
-function use(reference: Reference): Use {
+function isLogged(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const position = node.parent;
+
+  return (
+    position?.type === "TemplateLiteral" ||
+    (position?.type === "CallExpression" &&
+      position.arguments.some((argument) => argument === node) &&
+      position.callee.type === "MemberExpression" &&
+      isGlobal(sourceCode, position.callee.object, "console"))
+  );
+}
+
+function use(sourceCode: SourceCode, reference: Reference): Use {
   const response = outermostExpression(reference.identifier);
   const member = response.parent;
 
@@ -40,7 +53,7 @@ function use(reference: Reference): Use {
   const name = staticPropertyName(member);
 
   if (name !== null && statusChecks.has(name)) {
-    return "check";
+    return isLogged(sourceCode, outermostExpression(member)) ? "metadata" : "check";
   }
 
   if (name !== null && metadata.has(name)) {
@@ -55,9 +68,11 @@ function use(reference: Reference): Use {
     : "other";
 }
 
-function readsBodyUnchecked(variables: readonly Variable[]): boolean {
+function readsBodyUnchecked(sourceCode: SourceCode, variables: readonly Variable[]): boolean {
   const uses = variables.flatMap((variable) =>
-    variable.references.filter((reference) => reference.isRead()).map(use),
+    variable.references
+      .filter((reference) => reference.isRead())
+      .map((reference) => use(sourceCode, reference)),
   );
 
   return uses.includes("body") && uses.every((item) => item === "body" || item === "metadata");
@@ -81,7 +96,7 @@ export const noUncheckedFetchResponse = defineRule({
         if (
           node.id.type === "Identifier" &&
           isFetch(sourceCode, node.init) &&
-          readsBodyUnchecked(sourceCode.getDeclaredVariables(node))
+          readsBodyUnchecked(sourceCode, sourceCode.getDeclaredVariables(node))
         ) {
           context.report({ node, messageId: "unchecked" });
         }
@@ -109,6 +124,7 @@ export const noUncheckedFetchResponse = defineRule({
             callback?.type === "FunctionExpression") &&
           callback.params[0]?.type === "Identifier" &&
           readsBodyUnchecked(
+            sourceCode,
             sourceCode
               .getDeclaredVariables(callback)
               .filter((variable) =>

@@ -113,6 +113,8 @@ export const noGetPasswordForm = defineRule({
     schema: [],
     messages: {
       get: 'This form has a password field but submits by GET, so a submission before JavaScript loads puts the password in the URL. Add `method="post"` or pass a function `action`.',
+      override:
+        'This button submits a form with a password field by GET, so a submission before JavaScript loads puts the password in the URL. Remove `formMethod` or set it to "post".',
     },
   },
   create(context) {
@@ -140,11 +142,16 @@ export const noGetPasswordForm = defineRule({
         }
 
         for (const [form, items] of owned) {
-          if (
-            items.some(isSecretInput) &&
-            (submitsByGet(form.openingElement) || items.some(submitsByGetOverride))
-          ) {
+          if (!items.some(isSecretInput)) {
+            continue;
+          }
+
+          if (submitsByGet(form.openingElement)) {
             context.report({ node: form.openingElement, messageId: "get" });
+          }
+
+          for (const submitter of items.filter(submitsByGetOverride)) {
+            context.report({ node: submitter, messageId: "override" });
           }
         }
       },

@@ -10,6 +10,7 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
     'import { mock, test } from "node:test"; mock.timers.enable({ apis: ["Date"] }); test("expires", () => { expect(expiry(new Date())).toBe(false); });',
     'import { mock as timersMock, test } from "node:test"; timersMock.timers.enable(); test("expires", () => { expect(expiry(Date.now())).toBe(false); });',
     'import { test, vi } from "vitest"; vi["useFakeTimers"](); test("expires", () => { expect(expiry(Date.now())).toBe(false); });',
+    'import { test, vi } from "vitest"; test("frozen", () => { vi.useFakeTimers(); expect(expiry(Date.now())).toBe(false); });',
     'import { test, vi } from "vitest"; vi.useFakeTimers({ toFake: [] }); test("expires", () => { expect(expiry(Date.now())).toBe(false); });',
     'import { test, vi } from "vitest"; vi.useFakeTimers({ toFake: ["Date" as const] }); test("expires", () => { expect(expiry(Date.now())).toBe(false); });',
     'import { mock, test } from "node:test"; const apis = ["Date"] as const; mock.timers.enable({ apis: [...apis] }); test("expires", () => { expect(expiry(Date.now())).toBe(false); });',
@@ -33,6 +34,18 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
     },
     {
       code: 'test("works without useFakeTimers", () => { expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
+    {
+      code: 'test("frozen", () => { vi.useFakeTimers(); expect(expiry(Date.now())).toBe(false); }); test("real", () => { expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
+    {
+      code: 'function setSystemTime() {} setSystemTime(); test("now", () => { expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
+    {
+      code: 'test("now", () => { expect(Date["now"]()).toBeGreaterThan(0); });',
       errors: [error],
     },
     {

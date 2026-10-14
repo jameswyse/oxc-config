@@ -85,6 +85,10 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
     { code: "save().then(() => true, () => false);", errors: [{ messageId: "swallowed" }] },
     { code: "await Promise.allSettled(tasks);", errors: [{ messageId: "settled" }] },
     {
+      code: "export const settled = void Promise.allSettled(tasks);",
+      errors: [{ messageId: "settled" }],
+    },
+    {
       code: "async function run() { const _results = await Promise.allSettled(tasks); }",
       errors: [{ messageId: "settled" }],
     },

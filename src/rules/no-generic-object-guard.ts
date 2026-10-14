@@ -108,8 +108,23 @@ function isPrototypeRead(sourceCode: SourceCode, node: ESTree.Node, subject: str
   );
 }
 
+function isObjectPrototype(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const value = unwrap(node);
+
+  return (
+    value.type === "MemberExpression" &&
+    propertyName(value) === "prototype" &&
+    isGlobal(sourceCode, value.object, "Object")
+  );
+}
+
 function isObjectTag(sourceCode: SourceCode, node: ESTree.Node, subject: string): boolean {
   const call = unwrap(node);
+
+  const tag =
+    call.type === "CallExpression" && call.callee.type === "MemberExpression"
+      ? call.callee.object
+      : null;
 
   return (
     call.type === "CallExpression" &&
@@ -117,7 +132,9 @@ function isObjectTag(sourceCode: SourceCode, node: ESTree.Node, subject: string)
     propertyName(call.callee) === "call" &&
     call.arguments[0] !== undefined &&
     isSubject(call.arguments[0], subject) &&
-    sourceCode.getText(call.callee.object).replace(/\s/gu, "") === "Object.prototype.toString"
+    tag?.type === "MemberExpression" &&
+    propertyName(tag) === "toString" &&
+    isObjectPrototype(sourceCode, tag.object)
   );
 }
 
@@ -129,8 +146,7 @@ function provesObject(
 ): boolean {
   return (
     (isPrototypeRead(sourceCode, value, subject) &&
-      (isLiteral(expected, null) ||
-        sourceCode.getText(expected).replace(/\s/gu, "") === "Object.prototype")) ||
+      (isLiteral(expected, null) || isObjectPrototype(sourceCode, expected))) ||
     (isObjectTag(sourceCode, value, subject) && isLiteral(expected, "[object Object]"))
   );
 }
@@ -256,6 +272,25 @@ const openTypes = new Set(["TSUnknownKeyword", "TSAnyKeyword"]);
 
 const weakClaims = new Set(["TSObjectKeyword", "TSUnknownKeyword", "TSAnyKeyword"]);
 
+function isWeakClaim(claim: ESTree.TSType): boolean {
+  if (
+    weakClaims.has(claim.type) ||
+    (claim.type === "TSTypeLiteral" && claim.members.length === 0)
+  ) {
+    return true;
+  }
+
+  const [argument] = claim.type === "TSTypeReference" ? (claim.typeArguments?.params ?? []) : [];
+
+  return (
+    claim.type === "TSTypeReference" &&
+    claim.typeName.type === "Identifier" &&
+    claim.typeName.name === "NonNullable" &&
+    argument !== undefined &&
+    isWeakClaim(argument)
+  );
+}
+
 function unprovenClaim(
   sourceCode: SourceCode,
   fn: FunctionNode,
@@ -277,17 +312,7 @@ function unprovenClaim(
 
   const claim = predicate.typeAnnotation.typeAnnotation;
 
-  if (
-    weakClaims.has(claim.type) ||
-    (claim.type === "TSTypeLiteral" && claim.members.length === 0) ||
-    (claim.type === "TSTypeReference" &&
-      claim.typeName.type === "Identifier" &&
-      claim.typeName.name === "NonNullable")
-  ) {
-    return null;
-  }
-
-  return sourceCode.getText(claim);
+  return isWeakClaim(claim) ? null : sourceCode.getText(claim);
 }
 
 function returnedCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string): Check | null {

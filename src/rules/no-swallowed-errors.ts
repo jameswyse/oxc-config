@@ -416,16 +416,19 @@ export const noSwallowedErrors = defineRule({
         }
       },
       VariableDeclarator(node) {
+        const voided = node.init?.type === "UnaryExpression" && node.init.operator === "void";
+
         const unread =
-          node.init === null || node.parent.parent?.type === "ExportNamedDeclaration"
+          node.init === null || (!voided && node.parent.parent?.type === "ExportNamedDeclaration")
             ? null
             : settlement(sourceCode, node.init);
 
         if (
           unread !== null &&
-          sourceCode
-            .getDeclaredVariables(node)
-            .every((variable) => !variable.references.some((reference) => reference.isRead()))
+          (voided ||
+            sourceCode
+              .getDeclaredVariables(node)
+              .every((variable) => !variable.references.some((reference) => reference.isRead())))
         ) {
           context.report({ node: unread, messageId: "settled" });
         }

@@ -4,9 +4,10 @@ import {
   importedBinding,
   isGlobalValue,
   isPlaywright,
-  propertyName,
   staticPropertyName,
+  testContext,
   unwrapExpression,
+  variableFor,
 } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
@@ -54,9 +55,15 @@ function isNodeMock(sourceCode: SourceCode, node: ESTree.Node): boolean {
   return nameOf(node) === "mock" || (binding?.source === "node:test" && binding.name === "mock");
 }
 
+function isLocalFunction(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const definition = variableFor(sourceCode, node)?.defs[0];
+
+  return definition !== undefined && definition.type !== "ImportBinding";
+}
+
 function controlsClock(sourceCode: SourceCode, call: ESTree.CallExpression): boolean {
   const callee = unwrapExpression(call.callee);
-  const name = nameOf(callee);
+  const name = isLocalFunction(sourceCode, callee) ? null : nameOf(callee);
 
   if (name === "setSystemTime") {
     return true;
@@ -104,15 +111,30 @@ export const noUncontrolledTestClock = defineRule({
     }
 
     const reads: ESTree.Node[] = [];
-    let controlled = false;
+    const controlledTests = new Set<ESTree.Node>();
+    let controlledFile = false;
+
+    function enclosingTest(node: ESTree.Node): ESTree.Node | null {
+      const test = testContext(sourceCode, node);
+
+      return test?.api.name === "test" || test?.api.name === "it" ? test.callback : null;
+    }
 
     return {
       CallExpression(node) {
-        controlled ||= controlsClock(sourceCode, node);
+        if (controlsClock(sourceCode, node)) {
+          const test = enclosingTest(node);
+
+          if (test === null) {
+            controlledFile = true;
+          } else {
+            controlledTests.add(test);
+          }
+        }
 
         if (
           node.callee.type === "MemberExpression" &&
-          propertyName(node.callee) === "now" &&
+          staticPropertyName(node.callee) === "now" &&
           isGlobalValue(sourceCode, node.callee.object, "Date")
         ) {
           reads.push(node);
@@ -124,8 +146,14 @@ export const noUncontrolledTestClock = defineRule({
         }
       },
       "Program:exit"() {
-        if (!controlled) {
-          for (const node of reads) {
+        if (controlledFile) {
+          return;
+        }
+
+        for (const node of reads) {
+          const test = enclosingTest(node);
+
+          if (test === null || !controlledTests.has(test)) {
             context.report({ node, messageId: "clock" });
           }
         }

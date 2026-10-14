@@ -7,6 +7,7 @@ ruleTester.run("no-generic-object-guard", noGenericObjectGuard, {
   valid: [
     "function isPresent<T>(value: T | null): value is T { return value !== null; }",
     "function isDefined(value: unknown): value is NonNullable<unknown> { return value !== null && value !== undefined; }",
+    "import { Object } from './model'; function isPlain(value: unknown): boolean { return Object.prototype.toString.call(value) === '[object Object]'; }",
     "function isCircle(shape: Shape): shape is Circle { return shape.kind === 'circle'; }",
     "function isUser(value: unknown): value is User { return userSchema.safeParse(value).success; }",
     "function isUser(value: unknown): value is User { return typeof value === 'object' && value !== null && 'id' in value; }",
@@ -71,6 +72,10 @@ ruleTester.run("no-generic-object-guard", noGenericObjectGuard, {
     {
       code: "function isPlainObject(value: unknown): boolean { return '[object Object]' === Object.prototype.toString.call(value); }",
       errors: [error],
+    },
+    {
+      code: "function isUser(value: unknown): value is NonNullable<User> { return value !== null && value !== undefined; }",
+      errors: [{ messageId: "unproven" }],
     },
     {
       code: "const guards = { isObjectLike(value: unknown) { return value != null && (typeof value === 'object' || typeof value === 'function'); } };",

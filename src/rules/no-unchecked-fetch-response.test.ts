@@ -19,6 +19,10 @@ ruleTester.run("no-unchecked-fetch-response", noUncheckedFetchResponse, {
       errors: [error],
     },
     {
+      code: "async function load() { const response = await fetch(url); console.info(`status ${response.status}`); return response.json(); }",
+      errors: [error],
+    },
+    {
       code: "async function load() { const bios = await (await fetch(url)).json(); return bios; }",
       errors: [error],
     },
