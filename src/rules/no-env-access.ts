@@ -1,8 +1,15 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { isGlobal, propertyName } from "../shared/index.ts";
+import {
+  importedBinding,
+  isGlobalValue,
+  propertyName,
+  staticPropertyName,
+} from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
+
+const processModules = new Set(["node:process", "process"]);
 
 function isImportMeta(node: ESTree.Node | null): boolean {
   return (
@@ -10,8 +17,49 @@ function isImportMeta(node: ESTree.Node | null): boolean {
   );
 }
 
-function isEnvironmentSource(sourceCode: SourceCode, node: ESTree.Node | null): boolean {
-  return isGlobal(sourceCode, node, "process") || isImportMeta(node);
+function isProcessModule(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const binding = importedBinding(sourceCode, node);
+
+  return (
+    binding !== null &&
+    processModules.has(binding.source) &&
+    (binding.name === "*" || binding.name === "default")
+  );
+}
+
+function isEnvironmentSource(
+  sourceCode: SourceCode,
+  node: ESTree.Node | null | undefined,
+): boolean {
+  if (!node) {
+    return false;
+  }
+
+  return (
+    isGlobalValue(sourceCode, node, "process") ||
+    isImportMeta(node) ||
+    isProcessModule(sourceCode, node)
+  );
+}
+
+function importedName(specifier: ESTree.ImportSpecifier): string {
+  return specifier.imported.type === "Identifier"
+    ? specifier.imported.name
+    : specifier.imported.value;
+}
+
+function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+  const [target, key] = node.arguments;
+
+  return (
+    node.callee.type === "MemberExpression" &&
+    propertyName(node.callee) === "get" &&
+    isGlobalValue(sourceCode, node.callee.object, "Reflect") &&
+    target?.type !== "SpreadElement" &&
+    isEnvironmentSource(sourceCode, target) &&
+    key?.type === "Literal" &&
+    key.value === "env"
+  );
 }
 
 export const noEnvAccess = defineRule({
@@ -28,7 +76,7 @@ export const noEnvAccess = defineRule({
 
     return {
       MemberExpression(node) {
-        if (propertyName(node) === "env" && isEnvironmentSource(sourceCode, node.object)) {
+        if (staticPropertyName(node) === "env" && isEnvironmentSource(sourceCode, node.object)) {
           context.report({ node, messageId: "env" });
         }
       },
@@ -37,10 +85,30 @@ export const noEnvAccess = defineRule({
           node.id.type === "ObjectPattern" &&
           isEnvironmentSource(sourceCode, node.init) &&
           node.id.properties.some(
-            (property) => property.type === "Property" && propertyName(property) === "env",
+            (property) => property.type === "Property" && staticPropertyName(property) === "env",
           )
         ) {
           context.report({ node, messageId: "env" });
+        }
+      },
+      CallExpression(node) {
+        if (isReflectGet(sourceCode, node)) {
+          context.report({ node, messageId: "env" });
+        }
+      },
+      ImportDeclaration(node) {
+        if (!processModules.has(node.source.value) || node.importKind === "type") {
+          return;
+        }
+
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportSpecifier" &&
+            specifier.importKind !== "type" &&
+            importedName(specifier) === "env"
+          ) {
+            context.report({ node: specifier, messageId: "env" });
+          }
         }
       },
     };
