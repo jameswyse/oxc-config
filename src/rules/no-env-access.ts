@@ -4,6 +4,7 @@ import {
   importedBinding,
   isGlobalValue,
   isNodeGlobalValue,
+  moduleExportName,
   staticPropertyName,
   staticString,
   unwrapExpression,
@@ -12,6 +13,8 @@ import {
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 const processModules = new Set(["node:process", "process"]);
+
+const environmentExports = new Set(["env", "default"]);
 
 function isImportMeta(node: ESTree.Node): boolean {
   const value = unwrapExpression(node);
@@ -44,12 +47,6 @@ function isEnvironmentSource(
     isImportMeta(node) ||
     isProcessModule(sourceCode, node)
   );
-}
-
-function importedName(specifier: ESTree.ImportSpecifier): string {
-  return specifier.imported.type === "Identifier"
-    ? specifier.imported.name
-    : specifier.imported.value;
 }
 
 function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
@@ -109,10 +106,29 @@ export const noEnvAccess = defineRule({
           if (
             specifier.type === "ImportSpecifier" &&
             specifier.importKind !== "type" &&
-            importedName(specifier) === "env"
+            moduleExportName(specifier.imported) === "env"
           ) {
             context.report({ node: specifier, messageId: "env" });
           }
+        }
+      },
+      ExportNamedDeclaration(node) {
+        if (!node.source || !processModules.has(node.source.value) || node.exportKind === "type") {
+          return;
+        }
+
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.exportKind !== "type" &&
+            environmentExports.has(moduleExportName(specifier.local))
+          ) {
+            context.report({ node: specifier, messageId: "env" });
+          }
+        }
+      },
+      ExportAllDeclaration(node) {
+        if (processModules.has(node.source.value) && node.exportKind !== "type") {
+          context.report({ node, messageId: "env" });
         }
       },
     };

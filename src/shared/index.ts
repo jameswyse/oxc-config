@@ -160,6 +160,10 @@ export function staticPropertyName(node: ESTree.Node): string | null {
   return "computed" in node && node.computed ? staticString(memberKey(node)) : propertyName(node);
 }
 
+export function moduleExportName(node: ESTree.ModuleExportName): string {
+  return node.type === "Identifier" ? node.name : node.value;
+}
+
 export function unwrapExpression(node: ESTree.Node): ESTree.Node {
   return node.type === "ParenthesizedExpression" ||
     node.type === "TSAsExpression" ||
@@ -265,10 +269,7 @@ function resolveBinding(
   return specifier.type === "ImportSpecifier"
     ? {
         source,
-        name:
-          specifier.imported.type === "Identifier"
-            ? specifier.imported.name
-            : specifier.imported.value,
+        name: moduleExportName(specifier.imported),
       }
     : null;
 }
