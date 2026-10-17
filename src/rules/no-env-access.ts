@@ -4,8 +4,8 @@ import {
   importedBinding,
   isGlobalValue,
   isNodeGlobalValue,
-  propertyName,
   staticPropertyName,
+  staticString,
   unwrapExpression,
 } from "../shared/index.ts";
 
@@ -58,12 +58,11 @@ function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression): bool
 
   return (
     callee.type === "MemberExpression" &&
-    propertyName(callee) === "get" &&
+    staticPropertyName(callee) === "get" &&
     isGlobalValue(sourceCode, callee.object, "Reflect") &&
     target?.type !== "SpreadElement" &&
     isEnvironmentSource(sourceCode, target) &&
-    key?.type === "Literal" &&
-    key.value === "env"
+    staticString(key) === "env"
   );
 }
 

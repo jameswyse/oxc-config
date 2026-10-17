@@ -17,6 +17,8 @@ ruleTester.run("no-env-access", noEnvAccess, {
     'const { argv } = await import("node:process");',
     'const { env } = await import("./config");',
     'const key = Reflect.get(process, "argv");',
+    "const key = Reflect.get(process, `${name}`);",
+    "const port = process[`${name}`].PORT;",
     'function read(process: object) { return Reflect.get(process, "env"); }',
     'window.process = { env: { theme: "dark" } }; const theme = window.process.env.theme;',
     "const theme = self.process.env.theme;",
@@ -106,6 +108,22 @@ ruleTester.run("no-env-access", noEnvAccess, {
     },
     {
       code: "const mode = (import.meta as ImportMeta).env.MODE;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const port = globalThis["process"].env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const values = Reflect["get"](process, "env");',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "const values = Reflect.get(process, `env`);",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "const port = process[`env`].PORT;",
       errors: [{ messageId: "env" }],
     },
     {
