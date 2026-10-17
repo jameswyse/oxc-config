@@ -37,6 +37,12 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import { isToday } from "date-fns"; const days = dates.filter(isToday);',
     'import { constructNow } from "date-fns"; function load(now = constructNow(undefined)) { return now; }',
     'const { isValid } = await import("date-fns"); const valid = isValid(x);',
+    'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy");',
+    'import { isMatchWithOptions } from "date-fns/fp"; const matchesYear = isMatchWithOptions({})("yyyy");',
+    'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy")();',
+    'import { isMatch } from "date-fns/fp"; const matches = isMatch("yyyy")(...values);',
+    'function isMatch(format: string) { return (value: string) => value.length === format.length; } const matches = isMatch("yyyy")("2026");',
+    'import { isMatch } from "./format"; const matches = isMatch(value, "yyyy");',
   ],
   invalid: [
     { code: "const at = Date.now();", errors: [{ messageId: "clock" }] },
@@ -116,10 +122,18 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     },
     {
       code: 'import { isMatch } from "date-fns/fp"; const matches = isMatch("yyyy-MM-dd")(value);',
-      errors: [{ messageId: "clock" }],
+      errors: [{ messageId: "clock", column: 55, endColumn: 83 }],
     },
     {
       code: 'import isMatchWithOptions from "date-fns/fp/isMatchWithOptions"; const matches = isMatchWithOptions({})("yyyy")(value);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; const matches = isMatch("yyyy", "2026");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as fp from "date-fns/fp"; const matches = fp.isMatchWithOptions({}, "yyyy")()("2026");',
       errors: [{ messageId: "clock" }],
     },
     {
