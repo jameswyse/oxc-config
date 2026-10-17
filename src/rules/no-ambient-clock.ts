@@ -163,6 +163,22 @@ function isFollowedAlias(node: ESTree.Node): boolean {
   );
 }
 
+function destructuredExports(
+  sourceCode: SourceCode,
+  node: ESTree.ExportNamedDeclaration,
+): ESTree.Node[] {
+  const declaration = node.declaration;
+
+  if (declaration?.type !== "VariableDeclaration") {
+    return [];
+  }
+
+  return declaration.declarations
+    .filter((declarator) => declarator.id.type === "ObjectPattern")
+    .flatMap((declarator) => sourceCode.getDeclaredVariables(declarator))
+    .flatMap((variable) => variable.identifiers);
+}
+
 function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node): boolean {
   const binding = importedBinding(sourceCode, node);
 
@@ -242,6 +258,12 @@ export const noAmbientClock = defineRule({
         }
       },
       ExportNamedDeclaration(node) {
+        for (const binding of destructuredExports(sourceCode, node)) {
+          if (isClockHelper(sourceCode, binding)) {
+            context.report({ node: binding, messageId: "clock" });
+          }
+        }
+
         if (!node.source || node.exportKind === "type") {
           return;
         }
