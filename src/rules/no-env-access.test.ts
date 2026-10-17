@@ -92,5 +92,26 @@ ruleTester.run("no-env-access", noEnvAccess, {
       code: 'import process from "node:process"; const proc = process; const port = proc.env.PORT;',
       errors: [{ messageId: "env" }],
     },
+    {
+      code: 'import p from "node:process"; const port = (p as typeof p).env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "const port = (process as NodeJS.Process).env.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const values = Reflect.get(process!, "env");',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "const mode = (import.meta as ImportMeta).env.MODE;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const { env } = await (import("node:process") as Promise<Process>);',
+      languageOptions: { sourceType: "module" },
+      errors: [{ messageId: "env" }],
+    },
   ],
 });
