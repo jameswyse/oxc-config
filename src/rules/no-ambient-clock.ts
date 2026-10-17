@@ -99,11 +99,27 @@ function isValueReference(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function helperUse(node: ESTree.Node): ESTree.Node {
-  const callee = outermostExpression(node);
-  const call = callee.parent;
+const functionMethods = new Set(["call", "apply", "bind"]);
 
-  return call?.type === "CallExpression" && call.callee === callee ? helperUse(call) : node;
+function helperUse(node: ESTree.Node): ESTree.Node {
+  const value = outermostExpression(node);
+  const parent = value.parent;
+
+  if (parent?.type === "CallExpression" && parent.callee === value) {
+    return helperUse(parent);
+  }
+
+  if (
+    parent?.type === "MemberExpression" &&
+    parent.object === value &&
+    functionMethods.has(staticPropertyName(parent) ?? "")
+  ) {
+    const use = helperUse(parent);
+
+    return use === parent ? node : use;
+  }
+
+  return node;
 }
 
 function isFollowedAlias(node: ESTree.Node): boolean {
