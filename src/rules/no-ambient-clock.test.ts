@@ -86,6 +86,7 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import * as d from "date-fns"; const checks = { check: (value: Date) => d.isPast.call(null, value) };',
     'const d = require("date-fns"); d.isPast = customCheck;',
     'const d = require("date-fns"); d["isToday"] = customCheck;',
+    'const isPast = require("date-fns/isPast"); const days = dates.filter(isPast);',
   ],
   invalid: [
     { code: "const at = Date.now();", errors: [{ messageId: "clock" }] },
@@ -458,6 +459,18 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     {
       code: 'import { isPast } from "date-fns"; const days = dates.filter(isPast.bind(null));',
       errors: [{ messageId: "clock", column: 61, endColumn: 78 }],
+    },
+    {
+      code: 'const { isPast } = require("date-fns/isPast"); const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const days = dates.filter(require("date-fns/isPast").isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isMatch } = require("date-fns/fp/isMatch"); const years = values.filter(isMatch("yyyy"));',
+      errors: [{ messageId: "clock" }],
     },
     {
       code: 'import { createRequire } from "node:module"; const today = createRequire(import.meta.url)("date-fns").isToday(d);',
