@@ -1,5 +1,13 @@
 # @jameswyse/oxc-config
 
+## 0.5.0
+
+### Minor Changes
+
+- 8ed41cc: `no-ambient-clock` reports a date-fns helper that reads the clock wherever it's used, not only where it's called: passed uncalled, such as `dates.filter(isPast)`, stored, such as `{ check: isToday }`, or exported by local name, such as `export { isPast }` or `export default isPast`. `isMatch` and `isMatchWithOptions` from `date-fns/fp` report once at the end of their call chain, so a partial application such as `values.filter(isMatch("yyyy"))` now reports. This covers helpers imported by name, through a namespace, from a `date-fns/<name>` subpath, by literal dynamic import or by `require`. Type positions such as `typeof isPast`, type-only imports and exports, parameter defaults such as `check = isPast`, and local bindings that shadow a helper still pass. Projects with a `clock` owner list may see new errors.
+- f72a77a: `no-env-access` reports `env` read from `require("node:process")` or `require("process")`, whether `require` is Node's own or a loader made with `createRequire` from `node:module` or `module`, stored as in `const require = createRequire(import.meta.url)`, copied to another `const` or called directly as in `createRequire(import.meta.url)("node:process").env`. Destructuring, aliases, computed keys and `Reflect.get` apply as they do to an imported `process`, and a `require` function the file defines itself, or a loader variable that's reassigned, still passes. `import-boundaries` now also checks a directly called `createRequire(import.meta.url)("…")` and a `const` copy of a loader, and no longer treats a function destructured from a `createRequire` loader, such as `resolve`, or a reassigned loader variable as `require`. Projects with an `env` owner list may see new errors.
+- 1d4e971: Test rules resolve test APIs read from a module loaded with `require`, such as `const { test, mock } = require("node:test")` or `const { setTimeout } = require("node:timers/promises")`. A required module resolves as a namespace, as a dynamic import does, so calling it directly, as in `const test = require("node:test"); test(...)`, still isn't recognised the way a default import is. `no-uncontrolled-test-clock`, `no-test-timeout-overrides`, `no-fixed-test-delay` and the other rules that recognise test callbacks now see tests registered through a required API. Projects with CommonJS tests may see new errors.
+
 ## 0.4.0
 
 ### Minor Changes
