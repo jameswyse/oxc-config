@@ -24,6 +24,7 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import { TZDate } from "@date-fns/tz"; const at = new TZDate(now, zone);',
     'import { TZDate } from "@date-fns/tz"; const at = new TZDate(2026, 0, 1);',
     'import { TZDate } from "./time-zone"; const at = new TZDate();',
+    'import { TZDate } from "@date-fns/tz/date"; const at = new TZDate(now, zone);',
     "class TZDate {} const at = new TZDate();",
     'import { tz } from "@date-fns/tz"; const zone = tz("Australia/Sydney");',
     'import { TZDate } from "@date-fns/tz"; const at = { now: () => TZDate.tz("UTC") };',
@@ -86,6 +87,18 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     },
     {
       code: 'import * as timeZone from "@date-fns/tz"; const at = new timeZone.TZDate();',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { TZDate } from "@date-fns/tz/date"; const at = new TZDate();',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { TZDate } from "@date-fns/tz/date"; const at = TZDate.tz("UTC");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { TZDateMini } from "@date-fns/tz/date/mini"; const at = new TZDateMini();',
       errors: [{ messageId: "clock" }],
     },
     {

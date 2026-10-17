@@ -11,6 +11,8 @@ import {
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
+const timeZoneModules = new Set(["@date-fns/tz", "@date-fns/tz/date", "@date-fns/tz/date/mini"]);
+
 const timeZoneDates = new Set(["TZDate", "TZDateMini"]);
 
 const clockHelpers = new Set([
@@ -77,7 +79,7 @@ function fullApplication(call: ESTree.CallExpression, arity: number): ESTree.Cal
 function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node): boolean {
   const binding = importedBinding(sourceCode, node);
 
-  return binding?.source === "@date-fns/tz" && timeZoneDates.has(binding.name);
+  return binding !== null && timeZoneModules.has(binding.source) && timeZoneDates.has(binding.name);
 }
 
 function isCurrentTimeZoneDate(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
