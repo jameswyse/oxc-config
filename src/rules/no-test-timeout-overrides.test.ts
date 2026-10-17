@@ -3,6 +3,7 @@ import { noTestTimeoutOverrides } from "./no-test-timeout-overrides.ts";
 
 ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
   valid: [
+    'const a = b; const b = a; a("works", { timeout: 30_000 }, () => {});',
     'import { vi } from "vitest"; vi.setConfig({ retry: 0 });',
     "jest.retryTimes(0);",
     'import { vi } from "vitest"; vi.setConfig({ retry: 0 as const });',

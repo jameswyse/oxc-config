@@ -3,6 +3,7 @@ import { noEnvAccess } from "./no-env-access.ts";
 
 ruleTester.run("no-env-access", noEnvAccess, {
   valid: [
+    "const a = b; const b = a; const port = a.env.PORT;",
     "export function read(config: { port: number }) { return config.port; }",
     "function load(process: { env: string }) { return process.env; }",
     "const meta = import.meta.url;",

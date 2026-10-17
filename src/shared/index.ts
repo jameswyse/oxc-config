@@ -193,6 +193,10 @@ type ConstAlias = {
   readonly name: string;
 };
 
+const bindingCache = new WeakMap<Variable, ImportedBinding | null>();
+
+const referenceCache = new WeakMap<Variable, ApiReference | null>();
+
 function memberBinding(owner: ImportedBinding | null, name: string | null): ImportedBinding | null {
   return (owner?.name === "*" || owner?.name === "default") && name !== null
     ? { source: owner.source, name }
@@ -247,6 +251,19 @@ function aliasTarget<T>(
   return initial !== null && name !== null ? member(initial, name) : null;
 }
 
+function cached<T>(
+  cache: WeakMap<Variable, T | null>,
+  variable: Variable,
+  resolve: () => T | null,
+): T | null {
+  if (!cache.has(variable)) {
+    cache.set(variable, null);
+    cache.set(variable, resolve());
+  }
+
+  return cache.get(variable) ?? null;
+}
+
 function importBinding(definition: Definition): ImportedBinding | null {
   const declaration = definition.parent;
   const specifier = definition.node;
@@ -273,11 +290,7 @@ function importBinding(definition: Definition): ImportedBinding | null {
     : null;
 }
 
-function resolveBinding(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-  seen: Set<Variable>,
-): ImportedBinding | null {
+export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): ImportedBinding | null {
   const value = unwrapExpression(node);
   const dynamicSource = dynamicImportSource(value);
 
@@ -286,27 +299,23 @@ function resolveBinding(
   }
 
   if (value.type === "MemberExpression") {
-    return memberBinding(resolveBinding(sourceCode, value.object, seen), staticPropertyName(value));
+    return memberBinding(importedBinding(sourceCode, value.object), staticPropertyName(value));
   }
 
   const variable = variableFor(sourceCode, value);
   const definition = variable?.defs[0];
 
-  if (variable === null || definition === undefined || seen.has(variable)) {
+  if (variable === null || definition === undefined) {
     return null;
   }
 
-  seen.add(variable);
+  return cached(bindingCache, variable, () => {
+    const alias = constAlias(definition);
 
-  const alias = constAlias(definition);
-
-  return alias === null
-    ? importBinding(definition)
-    : aliasTarget(alias, (init) => resolveBinding(sourceCode, init, seen), memberBinding);
-}
-
-export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): ImportedBinding | null {
-  return resolveBinding(sourceCode, node, new Set());
+    return alias === null
+      ? importBinding(definition)
+      : aliasTarget(alias, (init) => importedBinding(sourceCode, init), memberBinding);
+  });
 }
 
 function bindingReference(binding: ImportedBinding): ApiReference | null {
@@ -343,11 +352,7 @@ function memberReference(object: ApiReference, name: string): ApiReference | nul
   return object.name === "test" && testFunctions.has(name) ? { module: object.module, name } : null;
 }
 
-export function apiReference(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-  seen = new Set<Variable>(),
-): ApiReference | null {
+export function apiReference(sourceCode: SourceCode, node: ESTree.Node): ApiReference | null {
   const value = unwrapExpression(node);
 
   if (value.type === "Identifier") {
@@ -361,25 +366,25 @@ export function apiReference(
 
     const [definition] = variable.defs;
 
-    if (definition === undefined || variable.defs.length !== 1 || seen.has(variable)) {
+    if (definition === undefined || variable.defs.length !== 1) {
       return null;
     }
 
-    seen.add(variable);
+    return cached(referenceCache, variable, () => {
+      const alias = constAlias(definition);
 
-    const alias = constAlias(definition);
+      if (alias !== null) {
+        return aliasTarget(alias, (init) => apiReference(sourceCode, init), memberReference);
+      }
 
-    if (alias === null) {
       const binding = importBinding(definition);
 
       return binding && bindingReference(binding);
-    }
-
-    return aliasTarget(alias, (init) => apiReference(sourceCode, init, seen), memberReference);
+    });
   }
 
   if (value.type === "MemberExpression") {
-    const object = apiReference(sourceCode, value.object, seen);
+    const object = apiReference(sourceCode, value.object);
     const name = staticPropertyName(value);
 
     return object && name !== null ? memberReference(object, name) : null;
@@ -393,7 +398,7 @@ export function apiReference(
     }
 
     const name = staticPropertyName(callee);
-    const object = apiReference(sourceCode, callee.object, seen);
+    const object = apiReference(sourceCode, callee.object);
 
     if (object && name !== null && testFunctions.has(object.name) && testFactories.has(name)) {
       return object;
@@ -411,7 +416,7 @@ export function apiReference(
     const tag = unwrapExpression(value.tag);
 
     return tag.type === "MemberExpression" && staticPropertyName(tag) === "each"
-      ? apiReference(sourceCode, tag.object, seen)
+      ? apiReference(sourceCode, tag.object)
       : null;
   }
 
