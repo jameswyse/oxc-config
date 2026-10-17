@@ -6,15 +6,18 @@ import {
   isNodeGlobalValue,
   propertyName,
   staticPropertyName,
+  unwrapExpression,
 } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 const processModules = new Set(["node:process", "process"]);
 
-function isImportMeta(node: ESTree.Node | null): boolean {
+function isImportMeta(node: ESTree.Node): boolean {
+  const value = unwrapExpression(node);
+
   return (
-    node?.type === "MetaProperty" && node.meta.name === "import" && node.property.name === "meta"
+    value.type === "MetaProperty" && value.meta.name === "import" && value.property.name === "meta"
   );
 }
 
@@ -50,12 +53,13 @@ function importedName(specifier: ESTree.ImportSpecifier): string {
 }
 
 function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+  const callee = unwrapExpression(node.callee);
   const [target, key] = node.arguments;
 
   return (
-    node.callee.type === "MemberExpression" &&
-    propertyName(node.callee) === "get" &&
-    isGlobalValue(sourceCode, node.callee.object, "Reflect") &&
+    callee.type === "MemberExpression" &&
+    propertyName(callee) === "get" &&
+    isGlobalValue(sourceCode, callee.object, "Reflect") &&
     target?.type !== "SpreadElement" &&
     isEnvironmentSource(sourceCode, target) &&
     key?.type === "Literal" &&

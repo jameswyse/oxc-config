@@ -180,5 +180,34 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
       code: 'import * as d from "date-fns"; const { startOfToday } = d; const start = startOfToday();',
       errors: [{ messageId: "clock" }],
     },
+    {
+      code: 'import { isToday } from "date-fns"; const today = (isToday as typeof isToday)(d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as ns from "date-fns"; const today = ns!.isToday(d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isToday } = await (import("date-fns") as Promise<Calendar>); const today = isToday(d);',
+      languageOptions: { sourceType: "module" },
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { TZDate } from "@date-fns/tz"; const at = (TZDate satisfies typeof TZDate).tz("UTC");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { TZDate } from "@date-fns/tz"; const at = new (TZDate as typeof TZDate)();',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: "const at = (Date as DateConstructor).now();",
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: "const at = (globalThis.Date as DateConstructor).now();",
+      errors: [{ messageId: "clock" }],
+    },
   ],
 });

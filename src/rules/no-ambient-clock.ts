@@ -83,12 +83,13 @@ function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node): boolean {
 }
 
 function isCurrentTimeZoneDate(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+  const callee = unwrapExpression(node.callee);
   const [zone] = node.arguments;
 
   return (
-    node.callee.type === "MemberExpression" &&
-    propertyName(node.callee) === "tz" &&
-    isTimeZoneDate(sourceCode, node.callee.object) &&
+    callee.type === "MemberExpression" &&
+    propertyName(callee) === "tz" &&
+    isTimeZoneDate(sourceCode, callee.object) &&
     node.arguments.length === 1 &&
     zone?.type !== "SpreadElement"
   );

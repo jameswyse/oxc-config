@@ -50,7 +50,7 @@ function fakesDate(options: ESTree.Node | undefined): boolean {
 }
 
 function isNodeMock(sourceCode: SourceCode, node: ESTree.Node): boolean {
-  const binding = importedBinding(sourceCode, unwrapExpression(node));
+  const binding = importedBinding(sourceCode, node);
 
   return nameOf(node) === "mock" || (binding?.source === "node:test" && binding.name === "mock");
 }

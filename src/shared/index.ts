@@ -168,12 +168,13 @@ export function unwrapExpression(node: ESTree.Node): ESTree.Node {
 
 function dynamicImportSource(node: ESTree.Node): string | null {
   const awaited = unwrapExpression(node);
+  const loaded = awaited.type === "AwaitExpression" ? unwrapExpression(awaited.argument) : null;
 
-  if (awaited.type !== "AwaitExpression" || awaited.argument.type !== "ImportExpression") {
+  if (loaded?.type !== "ImportExpression") {
     return null;
   }
 
-  const source = awaited.argument.source;
+  const source = loaded.source;
 
   return source.type === "Literal" && typeof source.value === "string" ? source.value : null;
 }
@@ -199,17 +200,18 @@ function resolveBinding(
   node: ESTree.Node,
   seen: Set<Variable>,
 ): ImportedBinding | null {
-  const dynamicSource = dynamicImportSource(node);
+  const value = unwrapExpression(node);
+  const dynamicSource = dynamicImportSource(value);
 
   if (dynamicSource !== null) {
     return { source: dynamicSource, name: "*" };
   }
 
-  if (node.type === "MemberExpression") {
-    return memberBinding(resolveBinding(sourceCode, node.object, seen), staticPropertyName(node));
+  if (value.type === "MemberExpression") {
+    return memberBinding(resolveBinding(sourceCode, value.object, seen), staticPropertyName(value));
   }
 
-  const variable = variableFor(sourceCode, node);
+  const variable = variableFor(sourceCode, value);
   const definition = variable?.defs[0];
 
   if (variable === null || definition === undefined || seen.has(variable)) {
@@ -228,11 +230,11 @@ function resolveBinding(
     declarator.type === "VariableDeclarator" &&
     declarator.init
   ) {
-    const value = resolveBinding(sourceCode, declarator.init, seen);
+    const initial = resolveBinding(sourceCode, declarator.init, seen);
     const pattern = declarator.id;
 
     if (pattern.type === "Identifier") {
-      return value;
+      return initial;
     }
 
     const property =
@@ -240,7 +242,7 @@ function resolveBinding(
         ? pattern.properties.find((candidate) => bindsName(candidate, definition.name.name))
         : undefined;
 
-    return memberBinding(value, property ? staticPropertyName(property) : null);
+    return memberBinding(initial, property ? staticPropertyName(property) : null);
   }
 
   if (definition.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
@@ -430,14 +432,16 @@ function isGlobalThrough(
   name: string,
   objects: readonly string[],
 ): boolean {
-  if (isGlobal(sourceCode, node, name)) {
+  const value = node ? unwrapExpression(node) : null;
+
+  if (isGlobal(sourceCode, value, name)) {
     return true;
   }
 
   return (
-    node?.type === "MemberExpression" &&
-    propertyName(node) === name &&
-    objects.some((object) => isGlobal(sourceCode, node.object, object))
+    value?.type === "MemberExpression" &&
+    propertyName(value) === name &&
+    objects.some((object) => isGlobal(sourceCode, unwrapExpression(value.object), object))
   );
 }
 
