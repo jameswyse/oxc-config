@@ -150,5 +150,13 @@ ruleTester.run("no-env-access", noEnvAccess, {
     },
     { code: 'export * as p from "node:process";', errors: [{ messageId: "env" }] },
     { code: 'export * from "process";', errors: [{ messageId: "env" }] },
+    {
+      code: 'const port = process["env" as const].PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const values = Reflect.get(process, "env" as const);',
+      errors: [{ messageId: "env" }],
+    },
   ],
 });
