@@ -304,7 +304,9 @@ export function matchesAny(path: string, patterns: readonly string[] = []): bool
   return patterns.some((pattern) => matchesGlob(path, pattern));
 }
 
-const globalObjects = ["globalThis", "global", "window", "self"];
+const nodeGlobalObjects = ["globalThis", "global"];
+
+const globalObjects = [...nodeGlobalObjects, "window", "self"];
 
 function isFunctionNode(node: ESTree.Node): node is FunctionNode {
   return (
@@ -314,10 +316,11 @@ function isFunctionNode(node: ESTree.Node): node is FunctionNode {
   );
 }
 
-export function isGlobalValue(
+function isGlobalThrough(
   sourceCode: SourceCode,
   node: ESTree.Node | null | undefined,
   name: string,
+  objects: readonly string[],
 ): boolean {
   if (isGlobal(sourceCode, node, name)) {
     return true;
@@ -326,8 +329,24 @@ export function isGlobalValue(
   return (
     node?.type === "MemberExpression" &&
     propertyName(node) === name &&
-    globalObjects.some((object) => isGlobal(sourceCode, node.object, object))
+    objects.some((object) => isGlobal(sourceCode, node.object, object))
   );
+}
+
+export function isGlobalValue(
+  sourceCode: SourceCode,
+  node: ESTree.Node | null | undefined,
+  name: string,
+): boolean {
+  return isGlobalThrough(sourceCode, node, name, globalObjects);
+}
+
+export function isNodeGlobalValue(
+  sourceCode: SourceCode,
+  node: ESTree.Node | null | undefined,
+  name: string,
+): boolean {
+  return isGlobalThrough(sourceCode, node, name, nodeGlobalObjects);
 }
 
 function returns(callback: FunctionNode, value: ESTree.Node): boolean {

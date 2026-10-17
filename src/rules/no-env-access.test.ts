@@ -18,6 +18,9 @@ ruleTester.run("no-env-access", noEnvAccess, {
     'const { env } = await import("./config");',
     'const key = Reflect.get(process, "argv");',
     'function read(process: object) { return Reflect.get(process, "env"); }',
+    'window.process = { env: { theme: "dark" } }; const theme = window.process.env.theme;',
+    "const theme = self.process.env.theme;",
+    "const window = { process: { env: {} } }; const port = window.process.env.PORT;",
   ],
   invalid: [
     { code: "const port = process.env.PORT;", errors: [{ messageId: "env" }] },

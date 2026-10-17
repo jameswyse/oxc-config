@@ -3,6 +3,7 @@ import { defineRule } from "@oxlint/plugins";
 import {
   importedBinding,
   isGlobalValue,
+  isNodeGlobalValue,
   propertyName,
   staticPropertyName,
 } from "../shared/index.ts";
@@ -36,7 +37,7 @@ function isEnvironmentSource(
   }
 
   return (
-    isGlobalValue(sourceCode, node, "process") ||
+    isNodeGlobalValue(sourceCode, node, "process") ||
     isImportMeta(node) ||
     isProcessModule(sourceCode, node)
   );
