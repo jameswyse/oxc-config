@@ -1,6 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { isGlobal, propertyName, variableFor } from "../shared/index.ts";
+import { isGlobal, moduleExportName, propertyName, variableFor } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
@@ -60,10 +60,6 @@ function isElectronModule(sourceCode: SourceCode, node: ESTree.Node | null | und
   );
 }
 
-function specifierName(node: ESTree.ModuleExportName): string {
-  return node.type === "Identifier" ? node.name : node.value;
-}
-
 export const electronNoRemoteModule = defineRule({
   meta: {
     type: "problem",
@@ -95,7 +91,7 @@ export const electronNoRemoteModule = defineRule({
         for (const specifier of node.specifiers) {
           if (
             specifier.type === "ImportSpecifier" &&
-            specifierName(specifier.imported) === "remote"
+            moduleExportName(specifier.imported) === "remote"
           ) {
             context.report({ node: specifier, messageId: "remote" });
           }
@@ -107,7 +103,7 @@ export const electronNoRemoteModule = defineRule({
         }
 
         for (const specifier of node.specifiers) {
-          if (specifierName(specifier.local) === "remote") {
+          if (moduleExportName(specifier.local) === "remote") {
             context.report({ node: specifier, messageId: "remote" });
           }
         }
