@@ -427,6 +427,11 @@ function memberReference(object: ApiReference, name: string): ApiReference | nul
 
 export function apiReference(sourceCode: SourceCode, node: ESTree.Node): ApiReference | null {
   const value = unwrapExpression(node);
+  const source = loadedSource(sourceCode, value, (callee) => importedBinding(sourceCode, callee));
+
+  if (source !== null) {
+    return { module: source, name: "*" };
+  }
 
   if (value.type === "Identifier") {
     const variable = variableFor(sourceCode, value);
@@ -493,9 +498,7 @@ export function apiReference(sourceCode: SourceCode, node: ESTree.Node): ApiRefe
       : null;
   }
 
-  const dynamicSource = dynamicImportSource(value);
-
-  return dynamicSource === null ? null : { module: dynamicSource, name: "*" };
+  return null;
 }
 
 export function testContext(sourceCode: SourceCode, node: ESTree.Node): TestContext | null {

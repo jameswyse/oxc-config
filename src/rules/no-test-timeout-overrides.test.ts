@@ -60,6 +60,10 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
       errors: [{ messageId: "override" }],
     },
     {
+      code: 'const { test } = require("node:test"); test("works", { timeout: 60_000 }, async () => {});',
+      errors: [{ messageId: "override" }],
+    },
+    {
       code: 'import { beforeAll } from "vitest"; beforeAll(async () => {}, 30_000);',
       errors: [{ messageId: "override" }],
     },
