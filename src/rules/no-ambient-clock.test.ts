@@ -113,7 +113,7 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
       errors: [{ messageId: "clock" }],
     },
     {
-      code: 'import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict.js"; const label = formatDistanceToNowStrict(x);',
+      code: 'import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict"; const label = formatDistanceToNowStrict(x);',
       errors: [{ messageId: "clock" }],
     },
     {
