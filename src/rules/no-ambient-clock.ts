@@ -51,11 +51,9 @@ function exportPath(sourceCode: SourceCode, node: ESTree.Node): string | null {
     return null;
   }
 
-  const module = binding.source.replace(/\.c?js$/, "");
-
-  return binding.name === "default" || module.endsWith(`/${binding.name}`)
-    ? module
-    : `${module}/${binding.name}`;
+  return binding.name === "default" || binding.source.endsWith(`/${binding.name}`)
+    ? binding.source
+    : `${binding.source}/${binding.name}`;
 }
 
 function fullApplication(call: ESTree.CallExpression, arity: number): ESTree.CallExpression | null {
