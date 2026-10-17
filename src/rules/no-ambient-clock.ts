@@ -1,6 +1,13 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { importedBinding, isGlobalValue, isInjectionSeam, propertyName } from "../shared/index.ts";
+import {
+  importedBinding,
+  isGlobalValue,
+  isInjectionSeam,
+  outermostExpression,
+  propertyName,
+  unwrapExpression,
+} from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
@@ -30,8 +37,11 @@ const clockHelpers = new Set([
   "date-fns/formatDistanceToNow",
   "date-fns/formatDistanceToNowStrict",
   "date-fns/isMatch",
-  "date-fns/fp/isMatch",
-  "date-fns/fp/isMatchWithOptions",
+]);
+
+const curriedClockHelpers = new Map([
+  ["date-fns/fp/isMatch", 2],
+  ["date-fns/fp/isMatchWithOptions", 3],
 ]);
 
 function exportPath(sourceCode: SourceCode, node: ESTree.Node): string | null {
@@ -46,6 +56,24 @@ function exportPath(sourceCode: SourceCode, node: ESTree.Node): string | null {
   return binding.name === "default" || module.endsWith(`/${binding.name}`)
     ? module
     : `${module}/${binding.name}`;
+}
+
+function fullApplication(call: ESTree.CallExpression, arity: number): ESTree.CallExpression | null {
+  if (call.arguments.some((argument) => argument.type === "SpreadElement")) {
+    return null;
+  }
+
+  const remaining = arity - call.arguments.length;
+
+  if (remaining <= 0) {
+    return call;
+  }
+
+  const parent = outermostExpression(call).parent;
+
+  return parent?.type === "CallExpression" && unwrapExpression(parent.callee) === call
+    ? fullApplication(parent, remaining)
+    : null;
 }
 
 function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node): boolean {
@@ -102,6 +130,12 @@ export const noAmbientClock = defineRule({
       },
       CallExpression(node) {
         const helper = exportPath(sourceCode, node.callee);
+        const arity = helper === null ? undefined : curriedClockHelpers.get(helper);
+        const applied = arity === undefined ? null : fullApplication(node, arity);
+
+        if (applied !== null) {
+          report(applied);
+        }
 
         if (
           isGlobalValue(sourceCode, node.callee, "Date") ||
