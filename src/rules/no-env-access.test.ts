@@ -84,5 +84,13 @@ ruleTester.run("no-env-access", noEnvAccess, {
       code: 'const { default: process } = await import("process"); const port = process.env.PORT;',
       errors: [{ messageId: "env" }],
     },
+    {
+      code: 'const { default: p = {} } = await import("node:process"); const port = p.env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import process from "node:process"; const proc = process; const port = proc.env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
   ],
 });

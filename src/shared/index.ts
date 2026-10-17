@@ -1,9 +1,14 @@
 import { matchesGlob, relative, sep } from "node:path";
 
-import type { Definition, ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
+import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
 
 export type ApiReference = {
   readonly module: string;
+  readonly name: string;
+};
+
+export type ImportedBinding = {
+  readonly source: string;
   readonly name: string;
 };
 
@@ -161,10 +166,10 @@ export function unwrapExpression(node: ESTree.Node): ESTree.Node {
     : node;
 }
 
-function dynamicImportSource(node: ESTree.Node | null | undefined): string | null {
-  const awaited = node ? unwrapExpression(node) : null;
+function dynamicImportSource(node: ESTree.Node): string | null {
+  const awaited = unwrapExpression(node);
 
-  if (awaited?.type !== "AwaitExpression" || awaited.argument.type !== "ImportExpression") {
+  if (awaited.type !== "AwaitExpression" || awaited.argument.type !== "ImportExpression") {
     return null;
   }
 
@@ -173,49 +178,27 @@ function dynamicImportSource(node: ESTree.Node | null | undefined): string | nul
   return source.type === "Literal" && typeof source.value === "string" ? source.value : null;
 }
 
-function dynamicImportBinding(
-  definition: Definition,
-): { readonly source: string; readonly name: string } | null {
-  const declarator = definition.node;
-
-  if (
-    definition.type !== "Variable" ||
-    definition.parent?.type !== "VariableDeclaration" ||
-    definition.parent.kind !== "const" ||
-    declarator.type !== "VariableDeclarator"
-  ) {
-    return null;
-  }
-
-  const source = dynamicImportSource(declarator.init);
-
-  if (source === null) {
-    return null;
-  }
-
-  if (declarator.id.type === "Identifier") {
-    return { source, name: "*" };
-  }
-
-  const property =
-    declarator.id.type === "ObjectPattern"
-      ? declarator.id.properties.find(
-          (candidate) =>
-            candidate.type === "Property" &&
-            candidate.value.type === "Identifier" &&
-            candidate.value.name === definition.name.name,
-        )
-      : undefined;
-
-  const name = property ? staticPropertyName(property) : null;
-
-  return name === null ? null : { source, name };
+function memberBinding(owner: ImportedBinding | null, name: string | null): ImportedBinding | null {
+  return (owner?.name === "*" || owner?.name === "default") && name !== null
+    ? { source: owner.source, name }
+    : null;
 }
 
-export function importedBinding(
+function bindsName(property: ESTree.ObjectPattern["properties"][number], name: string): boolean {
+  if (property.type !== "Property") {
+    return false;
+  }
+
+  const target = property.value.type === "AssignmentPattern" ? property.value.left : property.value;
+
+  return target.type === "Identifier" && target.name === name;
+}
+
+function resolveBinding(
   sourceCode: SourceCode,
   node: ESTree.Node,
-): { readonly source: string; readonly name: string } | null {
+  seen: Set<Variable>,
+): ImportedBinding | null {
   const dynamicSource = dynamicImportSource(node);
 
   if (dynamicSource !== null) {
@@ -223,22 +206,44 @@ export function importedBinding(
   }
 
   if (node.type === "MemberExpression") {
-    const owner = importedBinding(sourceCode, node.object);
-    const name = staticPropertyName(node);
-
-    return (owner?.name === "*" || owner?.name === "default") && name !== null
-      ? { source: owner.source, name }
-      : null;
+    return memberBinding(resolveBinding(sourceCode, node.object, seen), staticPropertyName(node));
   }
 
-  const definition = variableFor(sourceCode, node)?.defs[0];
-  const declaration = definition?.parent;
+  const variable = variableFor(sourceCode, node);
+  const definition = variable?.defs[0];
 
-  if (definition?.type === "Variable") {
-    return dynamicImportBinding(definition);
+  if (variable === null || definition === undefined || seen.has(variable)) {
+    return null;
   }
 
-  if (definition?.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
+  seen.add(variable);
+
+  const declaration = definition.parent;
+  const declarator = definition.node;
+
+  if (
+    definition.type === "Variable" &&
+    declaration?.type === "VariableDeclaration" &&
+    declaration.kind === "const" &&
+    declarator.type === "VariableDeclarator" &&
+    declarator.init
+  ) {
+    const value = resolveBinding(sourceCode, declarator.init, seen);
+    const pattern = declarator.id;
+
+    if (pattern.type === "Identifier") {
+      return value;
+    }
+
+    const property =
+      pattern.type === "ObjectPattern"
+        ? pattern.properties.find((candidate) => bindsName(candidate, definition.name.name))
+        : undefined;
+
+    return memberBinding(value, property ? staticPropertyName(property) : null);
+  }
+
+  if (definition.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
     return null;
   }
 
@@ -262,6 +267,10 @@ export function importedBinding(
             : specifier.imported.value,
       }
     : null;
+}
+
+export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): ImportedBinding | null {
+  return resolveBinding(sourceCode, node, new Set());
 }
 
 export function apiReference(

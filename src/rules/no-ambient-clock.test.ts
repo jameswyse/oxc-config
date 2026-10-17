@@ -38,6 +38,9 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import { isToday } from "date-fns"; const days = dates.filter(isToday);',
     'import { constructNow } from "date-fns"; function load(now = constructNow(undefined)) { return now; }',
     'const { isValid } = await import("date-fns"); const valid = isValid(x);',
+    'const d = await import("date-fns"); const alias = somethingElse; const today = alias.isToday(value);',
+    'const d = await import("date-fns"); let alias = d; alias = calendar; const today = alias.isToday(value);',
+    "const { isToday: check = () => false } = calendar; const today = check(d);",
     'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy");',
     'import { isMatchWithOptions } from "date-fns/fp"; const matchesYear = isMatchWithOptions({})("yyyy");',
     'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy")();',
@@ -159,6 +162,22 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     },
     {
       code: 'const d = await import("date-fns"); const tomorrow = d.isTomorrow(x);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isToday = () => false } = await import("date-fns"); const today = isToday(d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const isToday = (await import("date-fns")).isToday; const today = isToday(d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const d = await import("date-fns"); const alias = d; const today = alias.isToday(value);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const { startOfToday } = d; const start = startOfToday();',
       errors: [{ messageId: "clock" }],
     },
   ],
