@@ -1,5 +1,12 @@
 # @jameswyse/oxc-config
 
+## 0.4.0
+
+### Minor Changes
+
+- 949d25c: `no-ambient-clock` reports more current-time reads outside the `clock` owners: argument-less `new TZDate()` and `new TZDateMini()` and one-argument `TZDate.tz(zone)` from `@date-fns/tz`, `@date-fns/tz/date` or `@date-fns/tz/date/mini`, and calls to the date-fns helpers that read the clock, such as `constructNow`, `startOfToday`, `isToday`, `isPast`, `isThisWeek`, `formatDistanceToNow` and `isMatch`, whether imported by name, through a namespace, from a `date-fns/<name>` subpath, from `date-fns/fp` once fully applied, or by literal dynamic import. Re-exporting those helpers by name, or with `export * from "date-fns"`, `date-fns/fp` or a helper's subpath, also reports. Parentheses, `as`, `satisfies` and `!` around a read no longer change the result: `(Date.now as typeof Date.now)()` and `Date.now!()` now report, and a provider such as `{ now: () => startOfToday() as Date }` passes. `no-ambient-random` treats `(Math.random as () => number)()` the same way. Projects with a `clock` owner list may see new errors.
+- 316e3af: `no-env-access` reports more environment reads outside the `env` owners: `env` imported from `node:process` or `process`, `env` read from those modules' default, namespace or literal dynamic import, re-exports of `env`, the default or the whole module from them, `globalThis.process.env`, `global.process.env`, `process["env"]` and `Reflect.get(process, "env")`, including with `"env" as const`. Other `node:process` imports and re-exports such as `argv`, and `window.process` or `self.process`, still pass. Projects with an `env` owner list may see new errors.
+
 ## 0.3.0
 
 ### Minor Changes
