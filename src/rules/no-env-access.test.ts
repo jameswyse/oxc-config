@@ -40,6 +40,10 @@ ruleTester.run("no-env-access", noEnvAccess, {
     'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const { argv } = require("node:process");',
     'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require("./process").env.PORT;',
     'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require(name).env.PORT;',
+    'var require = require("node:module").createRequire(__filename); const port = require("process").env.PORT;',
+    'import { createRequire } from "node:module"; let load = createRequire(import.meta.url); load = customLoader; const port = load("process").env.PORT;',
+    'import { createRequire } from "node:module"; var require = createRequire(import.meta.url); require = customLoader; const port = require("process").env.PORT;',
+    'let load = require; load = customLoader; const port = load("process").env.PORT;',
   ],
   invalid: [
     { code: "const port = process.env.PORT;", errors: [{ messageId: "env" }] },
@@ -225,6 +229,18 @@ ruleTester.run("no-env-access", noEnvAccess, {
     },
     {
       code: 'const { env } = require("process");',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; let load = createRequire(import.meta.url); const port = load("process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const req = createRequire(import.meta.url); const load = req; const port = load("process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const load = require; const port = load("node:process").env.PORT;',
       errors: [{ messageId: "env" }],
     },
   ],

@@ -276,49 +276,61 @@ function cached<T>(
 
 const nodeModuleSources = new Set(["module", "node:module"]);
 
+const loaderCache = new WeakMap<Variable, boolean | null>();
+
 type BindingResolver = (node: ESTree.Node) => ImportedBinding | null;
 
+function unchangedInit(variable: Variable): ESTree.Expression | null {
+  const [definition, ...otherDefinitions] = variable.defs;
+  const declarator = definition?.node;
+
+  return otherDefinitions.length === 0 &&
+    definition?.type === "Variable" &&
+    declarator?.type === "VariableDeclarator" &&
+    declarator.id === definition.name &&
+    variable.references.every((reference) => reference.init || !reference.isWrite())
+    ? declarator.init
+    : null;
+}
+
 function isRequireFactory(node: ESTree.Node, resolve: BindingResolver): boolean {
-  const value = unwrapExpression(node);
-  const binding = value.type === "CallExpression" ? resolve(value.callee) : null;
+  const binding = node.type === "CallExpression" ? resolve(node.callee) : null;
 
   return (
     binding !== null && nodeModuleSources.has(binding.source) && binding.name === "createRequire"
   );
 }
 
-function isRequireThrough(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-  resolve: BindingResolver,
-): boolean {
+function isLoader(sourceCode: SourceCode, node: ESTree.Node, resolve: BindingResolver): boolean {
   const callee = unwrapExpression(node);
 
   if (isGlobal(sourceCode, callee, "require") || isRequireFactory(callee, resolve)) {
     return true;
   }
 
-  const definition = variableFor(sourceCode, callee)?.defs[0];
-  const declarator = definition?.node;
+  const variable = variableFor(sourceCode, callee);
 
   return (
-    declarator?.type === "VariableDeclarator" &&
-    declarator.id === definition?.name &&
-    declarator.init !== null &&
-    isRequireFactory(declarator.init, resolve)
+    variable !== null &&
+    cached(loaderCache, variable, () => {
+      const init = unchangedInit(variable);
+
+      return init !== null && isLoader(sourceCode, init, resolve);
+    }) === true
   );
 }
 
-function requiredSource(
+function loadedSource(
   sourceCode: SourceCode,
   node: ESTree.Node,
   resolve: BindingResolver,
 ): string | null {
-  return node.type === "CallExpression" &&
+  const required =
+    node.type === "CallExpression" &&
     node.arguments.length === 1 &&
-    isRequireThrough(sourceCode, node.callee, resolve)
-    ? staticString(node.arguments[0])
-    : null;
+    isLoader(sourceCode, node.callee, resolve);
+
+  return required ? staticString(node.arguments[0]) : dynamicImportSource(node);
 }
 
 function importBinding(definition: Definition): ImportedBinding | null {
@@ -349,13 +361,10 @@ function importBinding(definition: Definition): ImportedBinding | null {
 
 export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): ImportedBinding | null {
   const value = unwrapExpression(node);
+  const source = loadedSource(sourceCode, value, (callee) => importedBinding(sourceCode, callee));
 
-  const loadedSource =
-    dynamicImportSource(value) ??
-    requiredSource(sourceCode, value, (callee) => importedBinding(sourceCode, callee));
-
-  if (loadedSource !== null) {
-    return { source: loadedSource, name: "*" };
+  if (source !== null) {
+    return { source, name: "*" };
   }
 
   if (value.type === "MemberExpression") {
@@ -379,7 +388,7 @@ export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): Impo
 }
 
 export function isRequire(sourceCode: SourceCode, node: ESTree.Node): boolean {
-  return isRequireThrough(sourceCode, node, (callee) => importedBinding(sourceCode, callee));
+  return isLoader(sourceCode, node, (callee) => importedBinding(sourceCode, callee));
 }
 
 function bindingReference(binding: ImportedBinding): ApiReference | null {

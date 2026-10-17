@@ -400,12 +400,12 @@ test("import boundaries check require calls and reject type imports when a bound
   write(
     root,
     "src/features/loader.ts",
-    "import { createRequire as makeRequire } from 'node:module';\n\nconst load = makeRequire(import.meta.url);\nconst lookup = cache.createRequire('graphql');\nconst { createRequire: makeLoader = makeRequire } = await import('node:module');\nconst loadLater = makeLoader(import.meta.url);\n\nexport const graphql = load('../generated/graphql');\nexport const cached = lookup('../generated/graphql');\nexport const later = loadLater('../generated/graphql');\nexport const inline = makeRequire(import.meta.url)('../generated/graphql');\n",
+    "import { createRequire as makeRequire } from 'node:module';\n\nconst load = makeRequire(import.meta.url);\nconst lookup = cache.createRequire('graphql');\nconst { createRequire: makeLoader = makeRequire } = await import('node:module');\nconst loadLater = makeLoader(import.meta.url);\n\nexport const graphql = load('../generated/graphql');\nexport const cached = lookup('../generated/graphql');\nexport const later = loadLater('../generated/graphql');\nexport const inline = makeRequire(import.meta.url)('../generated/graphql');\nconst copy = load;\nexport const copied = copy('../generated/graphql');\n",
   );
   const required = lint(root, "src/legacy/files.cjs");
   assert.equal(required.output.match(/import-boundaries/g)?.length, 1, required.output);
   const created = lint(root, "src/features/loader.ts");
-  assert.equal(created.output.match(/import-boundaries/g)?.length, 3, created.output);
+  assert.equal(created.output.match(/import-boundaries/g)?.length, 4, created.output);
 });
 
 test("server actions must await a configured guard outside tests", (t) => {
