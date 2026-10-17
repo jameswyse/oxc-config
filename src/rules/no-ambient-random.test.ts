@@ -48,5 +48,9 @@ ruleTester.run("no-ambient-random", noAmbientRandom, {
       code: "const id = options.id ?? `quote-${crypto.randomUUID()}`;",
       errors: [{ messageId: "random" }],
     },
+    {
+      code: "const value = (Math.random as () => number)();",
+      errors: [{ messageId: "random" }],
+    },
   ],
 });

@@ -3,6 +3,13 @@ import { noAmbientClock } from "./no-ambient-clock.ts";
 
 ruleTester.run("no-ambient-clock", noAmbientClock, {
   valid: [
+    'import { startOfToday } from "date-fns"; const dependencies = { now: () => startOfToday() as Date };',
+    'import { isMatch } from "date-fns/fp"; const dependencies = { matches: () => isMatch("yyyy")("2026") satisfies boolean };',
+    "const dependencies = { now: () => new Date()! };",
+    "const dependencies = { now: () => (new Date()) };",
+    "const dependencies = { now() { return Date.now() as number; } };",
+    "const dependencies = { now: (() => new Date()) satisfies () => Date };",
+    "function load(now = (() => Date.now()) as () => number) { return now; }",
     "const at = new Date(value);",
     "const at = Date.parse(value) + Date.UTC(2026, 0, 1);",
     "function age(birth: Date, now = new Date()) { return now.getFullYear() - birth.getFullYear(); }",
@@ -267,5 +274,17 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     { code: 'export * as d from "date-fns";', errors: [{ messageId: "clock" }] },
     { code: 'export * from "date-fns/fp";', errors: [{ messageId: "clock" }] },
     { code: 'export * from "date-fns/isToday";', errors: [{ messageId: "clock" }] },
+    {
+      code: "const at = (Date.now as typeof Date.now)();",
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: "const at = Date.now!();",
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { startOfToday } from "date-fns"; const at = startOfToday() as Date;',
+      errors: [{ messageId: "clock" }],
+    },
   ],
 });
