@@ -141,6 +141,129 @@ export function isPlaywright(module: string): boolean {
   return module === "@playwright/test" || module === "playwright/test";
 }
 
+export function staticPropertyName(node: ESTree.Node): string | null {
+  if (!("computed" in node && node.computed)) {
+    return propertyName(node);
+  }
+
+  const key = memberKey(node);
+
+  return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
+}
+
+export function unwrapExpression(node: ESTree.Node): ESTree.Node {
+  return node.type === "ParenthesizedExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSTypeAssertion"
+    ? unwrapExpression(node.expression)
+    : node;
+}
+
+function dynamicImportSource(node: ESTree.Node | null | undefined): string | null {
+  const awaited = node ? unwrapExpression(node) : null;
+
+  if (awaited?.type !== "AwaitExpression" || awaited.argument.type !== "ImportExpression") {
+    return null;
+  }
+
+  const source = awaited.argument.source;
+
+  return source.type === "Literal" && typeof source.value === "string" ? source.value : null;
+}
+
+function dynamicImportBinding(
+  definition: Definition,
+): { readonly source: string; readonly name: string } | null {
+  const declarator = definition.node;
+
+  if (
+    definition.type !== "Variable" ||
+    definition.parent?.type !== "VariableDeclaration" ||
+    definition.parent.kind !== "const" ||
+    declarator.type !== "VariableDeclarator"
+  ) {
+    return null;
+  }
+
+  const source = dynamicImportSource(declarator.init);
+
+  if (source === null) {
+    return null;
+  }
+
+  if (declarator.id.type === "Identifier") {
+    return { source, name: "*" };
+  }
+
+  const property =
+    declarator.id.type === "ObjectPattern"
+      ? declarator.id.properties.find(
+          (candidate) =>
+            candidate.type === "Property" &&
+            candidate.value.type === "Identifier" &&
+            candidate.value.name === definition.name.name,
+        )
+      : undefined;
+
+  const name = property ? staticPropertyName(property) : null;
+
+  return name === null ? null : { source, name };
+}
+
+export function importedBinding(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+): { readonly source: string; readonly name: string } | null {
+  const dynamicSource = dynamicImportSource(node);
+
+  if (dynamicSource !== null) {
+    return { source: dynamicSource, name: "*" };
+  }
+
+  if (node.type === "MemberExpression") {
+    const owner = importedBinding(sourceCode, node.object);
+    const name = staticPropertyName(node);
+
+    return (owner?.name === "*" || owner?.name === "default") && name !== null
+      ? { source: owner.source, name }
+      : null;
+  }
+
+  const definition = variableFor(sourceCode, node)?.defs[0];
+  const declaration = definition?.parent;
+
+  if (definition?.type === "Variable") {
+    return dynamicImportBinding(definition);
+  }
+
+  if (definition?.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
+    return null;
+  }
+
+  const specifier = definition.node;
+  const source = declaration.source.value;
+
+  if (specifier.type === "ImportNamespaceSpecifier") {
+    return { source, name: "*" };
+  }
+
+  if (specifier.type === "ImportDefaultSpecifier") {
+    return { source, name: "default" };
+  }
+
+  return specifier.type === "ImportSpecifier"
+    ? {
+        source,
+        name:
+          specifier.imported.type === "Identifier"
+            ? specifier.imported.name
+            : specifier.imported.value,
+      }
+    : null;
+}
+
 export function apiReference(
   sourceCode: SourceCode,
   node: ESTree.Node,
@@ -162,38 +285,14 @@ export function apiReference(
     }
 
     seen.add(variable);
+    const binding = importedBinding(sourceCode, node);
     const specifier = definition.node;
     const declaration = definition.parent;
 
-    if (definition.type === "ImportBinding" && declaration?.type === "ImportDeclaration") {
-      const module = declaration.source.value;
+    if (binding !== null) {
+      const name = binding.name === "default" ? defaultImports.get(binding.source) : binding.name;
 
-      if (
-        specifier.type === "ImportDefaultSpecifier" ||
-        (specifier.type === "ImportSpecifier" &&
-          specifier.imported.type === "Identifier" &&
-          specifier.imported.name === "default")
-      ) {
-        const name = defaultImports.get(module);
-
-        return name ? { module, name } : null;
-      }
-
-      if (specifier.type === "ImportNamespaceSpecifier") {
-        return { module, name: "*" };
-      }
-
-      if (specifier.type === "ImportSpecifier") {
-        return {
-          module,
-          name:
-            specifier.imported.type === "Identifier"
-              ? specifier.imported.name
-              : specifier.imported.value,
-        };
-      }
-
-      return null;
+      return name ? { module: binding.source, name } : null;
     }
 
     if (
@@ -426,129 +525,6 @@ export function isShortCircuited(call: ESTree.CallExpression): boolean {
   }
 
   return false;
-}
-
-export function staticPropertyName(node: ESTree.Node): string | null {
-  if (!("computed" in node && node.computed)) {
-    return propertyName(node);
-  }
-
-  const key = memberKey(node);
-
-  return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
-}
-
-export function unwrapExpression(node: ESTree.Node): ESTree.Node {
-  return node.type === "ParenthesizedExpression" ||
-    node.type === "TSAsExpression" ||
-    node.type === "TSSatisfiesExpression" ||
-    node.type === "TSNonNullExpression" ||
-    node.type === "TSTypeAssertion"
-    ? unwrapExpression(node.expression)
-    : node;
-}
-
-function dynamicImportSource(node: ESTree.Node | null | undefined): string | null {
-  const awaited = node ? unwrapExpression(node) : null;
-
-  if (awaited?.type !== "AwaitExpression" || awaited.argument.type !== "ImportExpression") {
-    return null;
-  }
-
-  const source = awaited.argument.source;
-
-  return source.type === "Literal" && typeof source.value === "string" ? source.value : null;
-}
-
-function dynamicImportBinding(
-  definition: Definition,
-): { readonly source: string; readonly name: string } | null {
-  const declarator = definition.node;
-
-  if (
-    definition.type !== "Variable" ||
-    definition.parent?.type !== "VariableDeclaration" ||
-    definition.parent.kind !== "const" ||
-    declarator.type !== "VariableDeclarator"
-  ) {
-    return null;
-  }
-
-  const source = dynamicImportSource(declarator.init);
-
-  if (source === null) {
-    return null;
-  }
-
-  if (declarator.id.type === "Identifier") {
-    return { source, name: "*" };
-  }
-
-  const property =
-    declarator.id.type === "ObjectPattern"
-      ? declarator.id.properties.find(
-          (candidate) =>
-            candidate.type === "Property" &&
-            candidate.value.type === "Identifier" &&
-            candidate.value.name === definition.name.name,
-        )
-      : undefined;
-
-  const name = property ? staticPropertyName(property) : null;
-
-  return name === null ? null : { source, name };
-}
-
-export function importedBinding(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-): { readonly source: string; readonly name: string } | null {
-  const dynamicSource = dynamicImportSource(node);
-
-  if (dynamicSource !== null) {
-    return { source: dynamicSource, name: "*" };
-  }
-
-  if (node.type === "MemberExpression") {
-    const owner = importedBinding(sourceCode, node.object);
-    const name = staticPropertyName(node);
-
-    return (owner?.name === "*" || owner?.name === "default") && name !== null
-      ? { source: owner.source, name }
-      : null;
-  }
-
-  const definition = variableFor(sourceCode, node)?.defs[0];
-  const declaration = definition?.parent;
-
-  if (definition?.type === "Variable") {
-    return dynamicImportBinding(definition);
-  }
-
-  if (definition?.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
-    return null;
-  }
-
-  const specifier = definition.node;
-  const source = declaration.source.value;
-
-  if (specifier.type === "ImportNamespaceSpecifier") {
-    return { source, name: "*" };
-  }
-
-  if (specifier.type === "ImportDefaultSpecifier") {
-    return { source, name: "default" };
-  }
-
-  return specifier.type === "ImportSpecifier"
-    ? {
-        source,
-        name:
-          specifier.imported.type === "Identifier"
-            ? specifier.imported.name
-            : specifier.imported.value,
-      }
-    : null;
 }
 
 export function isEffectModule(sourceCode: SourceCode, node: ESTree.Node, module: string): boolean {

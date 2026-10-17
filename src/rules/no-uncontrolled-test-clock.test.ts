@@ -17,9 +17,15 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
     'beforeEach(() => { clock.setFixedTime(new Date("2026-10-14")); }); test("expires", () => { expect(expiry(Date.now())).toBe(false); });',
     "const Date = fixedDate; test('now', () => { expect(Date.now()).toBe(1); });",
     "test('runs', () => { expect(clock.now()).toBe(1); });",
+    'const { mock: m } = await import("node:test"); const test = (name: string, run: () => void) => run(); test("frozen", () => { m.timers.enable({ apis: ["Date"] }); }); test("reads", () => { expect(expiry(Date.now())).toBe(false); });',
+    'const { test, mock: m } = await import("node:test"); test("frozen", () => { m.timers.enable({ apis: ["Date"] }); expect(expiry(Date.now())).toBe(false); });',
     'import { test } from "@playwright/test"; test("books tomorrow", async ({ page }) => { await book(page, new Date(Date.now() + 86_400_000)); });',
   ],
   invalid: [
+    {
+      code: 'const { test, mock: m } = await import("node:test"); test("frozen", () => { m.timers.enable({ apis: ["Date"] }); }); test("reads", () => { m.timers.reset(); expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
     {
       code: "test('ends', () => { const before = Date.now(); expect(run().endTime).toBeGreaterThanOrEqual(before); });",
       errors: [error],
