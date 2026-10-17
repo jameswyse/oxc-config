@@ -31,6 +31,15 @@ ruleTester.run("no-env-access", noEnvAccess, {
     'export type * from "node:process";',
     'export { env } from "./config";',
     'export * from "./config";',
+    'function require(id: string) { return modules[id]; } const port = require("node:process").env.PORT;',
+    'const require = makeLoader(import.meta.url); const port = require("node:process").env.PORT;',
+    'import { createRequire } from "./loader"; const require = createRequire(import.meta.url); const port = require("node:process").env.PORT;',
+    'import { createRequire } from "node:module"; const { resolve } = createRequire(import.meta.url); const port = resolve("node:process").env;',
+    'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const args = require("node:process").argv;',
+    'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); require("process").exitCode = 1;',
+    'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const { argv } = require("node:process");',
+    'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require("./process").env.PORT;',
+    'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require(name).env.PORT;',
   ],
   invalid: [
     { code: "const port = process.env.PORT;", errors: [{ messageId: "env" }] },
@@ -156,6 +165,66 @@ ruleTester.run("no-env-access", noEnvAccess, {
     },
     {
       code: 'const values = Reflect.get(process, "env" as const);',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require("node:process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require("process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const port = createRequire(import.meta.url)("node:process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "module"; const port = createRequire(import.meta.url)("process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const { env } = require("node:process");',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const { env: environment } = createRequire(import.meta.url)("process");',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const proc = require("node:process"); const port = proc.env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require("node:process")["env"].PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const values = Reflect.get(require("process"), "env");',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = (require("node:process") as NodeJS.Process).env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire as makeRequire } from "node:module"; const load = makeRequire(import.meta.url); const port = load("node:process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import * as nodeModule from "node:module"; const load = nodeModule.createRequire(import.meta.url); const port = load("process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const { createRequire } = await import("node:module"); const port = createRequire(import.meta.url)("node:process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const port = require("node:process").env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'const { env } = require("process");',
       errors: [{ messageId: "env" }],
     },
   ],
