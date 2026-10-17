@@ -607,19 +607,10 @@ function isProvider(callback: FunctionNode, value: ESTree.Node): boolean {
   );
 }
 
-export function isInjectionSeam(source: ESTree.Node): boolean {
-  const parent = source.parent;
-
-  if (source.type !== "NewExpression" && source.type !== "CallExpression") {
-    const callee = outermostExpression(source);
-    const call = callee.parent;
-
-    return call?.type === "CallExpression" && call.callee === callee ? isInjectionSeam(call) : true;
-  }
-
+export function isInjectedValue(source: ESTree.Node): boolean {
   let child: ESTree.Node = source;
 
-  for (let ancestor = parent; ancestor; child = ancestor, ancestor = ancestor.parent) {
+  for (let ancestor = source.parent; ancestor; child = ancestor, ancestor = ancestor.parent) {
     if (ancestor.type === "AssignmentPattern") {
       return ancestor.right === child;
     }
@@ -630,6 +621,17 @@ export function isInjectionSeam(source: ESTree.Node): boolean {
   }
 
   return false;
+}
+
+export function isInjectionSeam(source: ESTree.Node): boolean {
+  if (source.type !== "NewExpression" && source.type !== "CallExpression") {
+    const callee = outermostExpression(source);
+    const call = callee.parent;
+
+    return call?.type === "CallExpression" && call.callee === callee ? isInjectionSeam(call) : true;
+  }
+
+  return isInjectedValue(source);
 }
 
 export function isShortCircuited(call: ESTree.CallExpression): boolean {

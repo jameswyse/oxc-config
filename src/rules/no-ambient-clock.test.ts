@@ -42,16 +42,11 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import { isToday } from "./calendar"; const today = isToday(d);',
     "function isToday(date: Date) { return date.getDate() === 1; } const today = isToday(d);",
     'import { isToday } from "date-fns"; function check(isToday: (d: Date) => boolean) { return isToday(d); }',
-    'import { isToday } from "date-fns"; const days = dates.filter(isToday);',
     'import { constructNow } from "date-fns"; function load(now = constructNow(undefined)) { return now; }',
     'const { isValid } = await import("date-fns"); const valid = isValid(x);',
     'const d = await import("date-fns"); const alias = somethingElse; const today = alias.isToday(value);',
     'const d = await import("date-fns"); let alias = d; alias = calendar; const today = alias.isToday(value);',
     "const { isToday: check = () => false } = calendar; const today = check(d);",
-    'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy");',
-    'import { isMatchWithOptions } from "date-fns/fp"; const matchesYear = isMatchWithOptions({})("yyyy");',
-    'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy")();',
-    'import { isMatch } from "date-fns/fp"; const matches = isMatch("yyyy")(...values);',
     'function isMatch(format: string) { return (value: string) => value.length === format.length; } const matches = isMatch("yyyy")("2026");',
     'import { isMatch } from "./format"; const matches = isMatch(value, "yyyy");',
     'export { TZDate, TZDateMini } from "@date-fns/tz";',
@@ -65,6 +60,26 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'export type * from "date-fns";',
     'export { isToday } from "./calendar";',
     'export * from "./calendar";',
+    'import { isPast } from "date-fns"; type Check = typeof isPast;',
+    'import { isPast } from "date-fns"; const check: typeof isPast.length = 1;',
+    'import * as d from "date-fns"; type Check = typeof d.isPast;',
+    'import type { isPast } from "date-fns"; type Check = typeof isPast;',
+    'import type { isPast } from "date-fns"; export { isPast };',
+    'import { type isPast } from "date-fns"; export { isPast };',
+    'import { isPast } from "date-fns"; export type { isPast };',
+    'import { isPast } from "date-fns"; export { type isPast };',
+    'import { isPast } from "date-fns"; const labels = { isPast: "Past" }; const flag = options.isPast;',
+    'import { isPast } from "date-fns"; function keep(isPast: (d: Date) => boolean) { return dates.filter(isPast); }',
+    'import { isPast } from "date-fns"; const days = dates.map((isPast) => isPast);',
+    'import { isPast } from "./calendar"; const days = dates.filter(isPast);',
+    'import { isValid } from "date-fns"; const days = dates.filter(isValid);',
+    'import * as d from "date-fns"; const days = dates.filter(d.isValid);',
+    'import { format } from "date-fns/fp"; const label = format("yyyy");',
+    'import { isMatch } from "./format"; const years = values.filter(isMatch("yyyy"));',
+    'import { isPast } from "date-fns"; function expired(dates: Date[], check = isPast) { return dates.filter(check); }',
+    'import { isPast } from "date-fns"; function expired({ check = isPast }: Options) { return check; }',
+    'import { isMatch } from "date-fns/fp"; function years(values: string[], matches = isMatch("yyyy")) { return values.filter(matches); }',
+    'import { isPast } from "date-fns"; const check = isPast;',
   ],
   invalid: [
     { code: "const at = Date.now();", errors: [{ messageId: "clock" }] },
@@ -284,6 +299,158 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     },
     {
       code: 'import { startOfToday } from "date-fns"; const at = startOfToday() as Date;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock", column: 61, endColumn: 67 }],
+    },
+    {
+      code: 'import { isToday } from "date-fns"; const checks = { check: isToday };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isToday } from "date-fns"; const checks = { isToday };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast as hasPassed } from "date-fns"; const days = dates.filter(hasPassed);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const days = dates.filter(d.isPast);',
+      errors: [{ messageId: "clock", column: 57, endColumn: 65 }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const days = dates.filter(d["isPast"]);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import isPast from "date-fns/isPast"; const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns/isPast"; const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isPast } = await import("date-fns"); const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const days = dates.filter((await import("date-fns")).isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; const days = dates.filter(isPast as (d: Date) => boolean);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; const past = isPast.call(undefined, d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; function expired(dates: Date[]) { return dates.filter(isPast); }',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; const check = options.check ?? isPast;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; let check = isPast;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; const check = isPast; const days = dates.filter(check);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; const check = isPast; const past = check(d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; export const check = isPast;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; const years = values.filter(isMatch("yyyy"));',
+      errors: [{ messageId: "clock", column: 67, endColumn: 82 }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isMatchWithOptions } from "date-fns/fp"; const matchesYear = isMatchWithOptions({})("yyyy");',
+      errors: [{ messageId: "clock", column: 70, endColumn: 100 }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; const matchesYear = isMatch("yyyy")();',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; const matches = isMatch("yyyy")(...values);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; const matchers = [isMatch];',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as fp from "date-fns/fp"; const years = values.filter(fp.isMatch("yyyy"));',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import isMatch from "date-fns/fp/isMatch"; const years = values.filter(isMatch("yyyy"));',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isMatch } = await import("date-fns/fp"); const years = values.filter(isMatch("yyyy"));',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; export { isPast };',
+      errors: [{ messageId: "clock", column: 44, endColumn: 50 }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; export { isPast as hasPassed };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns"; export default isPast;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import isPast from "date-fns/isPast"; export { isPast };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isPast } from "date-fns/isPast"; export { isPast };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const isPast = d.isPast; export { isPast };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isPast } = await import("date-fns"); export { isPast };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { isMatch } from "date-fns/fp"; export { isMatch };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import isMatchWithOptions from "date-fns/fp/isMatchWithOptions"; export { isMatchWithOptions };',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { isPast } = require("date-fns"); const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const today = createRequire(import.meta.url)("date-fns").isToday(d);',
       errors: [{ messageId: "clock" }],
     },
   ],

@@ -3,14 +3,16 @@ import { defineRule } from "@oxlint/plugins";
 import {
   importedBinding,
   isGlobalValue,
+  isInjectedValue,
   isInjectionSeam,
   moduleExportName,
   outermostExpression,
   staticPropertyName,
   unwrapExpression,
+  variableFor,
 } from "../shared/index.ts";
 
-import type { ESTree, SourceCode } from "@oxlint/plugins";
+import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
 
 const timeZoneModules = new Set(["@date-fns/tz", "@date-fns/tz/date", "@date-fns/tz/date/mini"]);
 
@@ -40,47 +42,83 @@ const clockHelpers = new Set([
   "date-fns/formatDistanceToNow",
   "date-fns/formatDistanceToNowStrict",
   "date-fns/isMatch",
+  "date-fns/fp/isMatch",
+  "date-fns/fp/isMatchWithOptions",
 ]);
-
-const curriedClockHelpers = new Map([
-  ["date-fns/fp/isMatch", 2],
-  ["date-fns/fp/isMatchWithOptions", 3],
-]);
-
-const clockExports = new Set([...clockHelpers, ...curriedClockHelpers.keys()]);
 
 function helperPath(source: string, name: string): string {
   return name === "default" || source.endsWith(`/${name}`) ? source : `${source}/${name}`;
 }
 
-function exportPath(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function isClockHelper(sourceCode: SourceCode, node: ESTree.Node): boolean {
   const binding = importedBinding(sourceCode, node);
 
-  return binding === null ? null : helperPath(binding.source, binding.name);
+  return binding !== null && clockHelpers.has(helperPath(binding.source, binding.name));
 }
 
 function exposesClockHelper(source: string): boolean {
-  return [...clockExports].some(
+  return [...clockHelpers].some(
     (helper) => helperPath(source, helper.slice(helper.lastIndexOf("/") + 1)) === helper,
   );
 }
 
-function fullApplication(call: ESTree.CallExpression, arity: number): ESTree.CallExpression | null {
-  if (call.arguments.some((argument) => argument.type === "SpreadElement")) {
-    return null;
-  }
+function isTypeImport(definition: Variable["defs"][number]): boolean {
+  const declaration = definition.parent;
+  const specifier = definition.node;
 
-  const remaining = arity - call.arguments.length;
+  return (
+    declaration?.type === "ImportDeclaration" &&
+    (declaration.importKind === "type" ||
+      (specifier.type === "ImportSpecifier" && specifier.importKind === "type"))
+  );
+}
 
-  if (remaining <= 0) {
-    return call;
-  }
+function isTypePosition(node: ESTree.Node): boolean {
+  const parent = node.parent;
+  const declaration = parent?.parent;
 
-  const parent = outermostExpression(call).parent;
+  return (
+    parent?.type === "TSTypeQuery" ||
+    parent?.type === "TSQualifiedName" ||
+    (parent?.type === "ExportSpecifier" &&
+      (parent.exportKind === "type" ||
+        (declaration?.type === "ExportNamedDeclaration" && declaration.exportKind === "type")))
+  );
+}
 
-  return parent?.type === "CallExpression" && unwrapExpression(parent.callee) === call
-    ? fullApplication(parent, remaining)
-    : null;
+function isValueReference(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const variable = variableFor(sourceCode, node);
+  const definition = variable?.defs[0];
+
+  return (
+    variable !== null &&
+    definition !== undefined &&
+    !isTypeImport(definition) &&
+    !isTypePosition(node) &&
+    variable.references.some((reference) => reference.identifier === node && reference.isRead())
+  );
+}
+
+function helperUse(node: ESTree.Node): ESTree.Node {
+  const callee = outermostExpression(node);
+  const call = callee.parent;
+
+  return call?.type === "CallExpression" && call.callee === callee ? helperUse(call) : node;
+}
+
+function isFollowedAlias(node: ESTree.Node): boolean {
+  const value = outermostExpression(node);
+  const declarator = value.parent;
+  const declaration = declarator?.parent;
+
+  return (
+    declarator?.type === "VariableDeclarator" &&
+    declarator.init === value &&
+    declarator.id.type === "Identifier" &&
+    declaration?.type === "VariableDeclaration" &&
+    declaration.kind === "const" &&
+    declaration.parent.type !== "ExportNamedDeclaration"
+  );
 }
 
 function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node): boolean {
@@ -121,10 +159,27 @@ export const noAmbientClock = defineRule({
       }
     }
 
+    function reportHelper(reference: ESTree.Node): void {
+      const use = helperUse(reference);
+
+      if ((use !== reference || !isFollowedAlias(reference)) && !isInjectedValue(use)) {
+        context.report({ node: use, messageId: "clock" });
+      }
+    }
+
     return {
+      Identifier(node) {
+        if (isClockHelper(sourceCode, node) && isValueReference(sourceCode, node)) {
+          reportHelper(node);
+        }
+      },
       MemberExpression(node) {
         if (staticPropertyName(node) === "now" && isGlobalValue(sourceCode, node.object, "Date")) {
           report(node);
+        }
+
+        if (isClockHelper(sourceCode, node)) {
+          reportHelper(node);
         }
       },
       NewExpression(node) {
@@ -137,17 +192,8 @@ export const noAmbientClock = defineRule({
         }
       },
       CallExpression(node) {
-        const helper = exportPath(sourceCode, node.callee);
-        const arity = helper === null ? undefined : curriedClockHelpers.get(helper);
-        const applied = arity === undefined ? null : fullApplication(node, arity);
-
-        if (applied !== null) {
-          report(applied);
-        }
-
         if (
           isGlobalValue(sourceCode, node.callee, "Date") ||
-          (helper !== null && clockHelpers.has(helper)) ||
           isCurrentTimeZoneDate(sourceCode, node)
         ) {
           report(node);
@@ -161,7 +207,7 @@ export const noAmbientClock = defineRule({
         for (const specifier of node.specifiers) {
           if (
             specifier.exportKind !== "type" &&
-            clockExports.has(helperPath(node.source.value, moduleExportName(specifier.local)))
+            clockHelpers.has(helperPath(node.source.value, moduleExportName(specifier.local)))
           ) {
             context.report({ node: specifier, messageId: "clock" });
           }
