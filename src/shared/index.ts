@@ -185,6 +185,14 @@ function dynamicImportSource(node: ESTree.Node): string | null {
   return staticString(loaded.source);
 }
 
+type Definition = Variable["defs"][number];
+
+type ConstAlias = {
+  readonly init: ESTree.Expression;
+  readonly pattern: ESTree.VariableDeclarator["id"];
+  readonly name: string;
+};
+
 function memberBinding(owner: ImportedBinding | null, name: string | null): ImportedBinding | null {
   return (owner?.name === "*" || owner?.name === "default") && name !== null
     ? { source: owner.source, name }
@@ -199,6 +207,70 @@ function bindsName(property: ESTree.ObjectPattern["properties"][number], name: s
   const target = property.value.type === "AssignmentPattern" ? property.value.left : property.value;
 
   return target.type === "Identifier" && target.name === name;
+}
+
+function constAlias(definition: Definition): ConstAlias | null {
+  const declaration = definition.parent;
+  const declarator = definition.node;
+
+  return definition.type === "Variable" &&
+    declaration?.type === "VariableDeclaration" &&
+    declaration.kind === "const" &&
+    declarator.type === "VariableDeclarator" &&
+    declarator.init
+    ? { init: declarator.init, pattern: declarator.id, name: definition.name.name }
+    : null;
+}
+
+function destructuredName(pattern: ConstAlias["pattern"], name: string): string | null {
+  const property =
+    pattern.type === "ObjectPattern"
+      ? pattern.properties.find((candidate) => bindsName(candidate, name))
+      : undefined;
+
+  return property ? staticPropertyName(property) : null;
+}
+
+function aliasTarget<T>(
+  alias: ConstAlias,
+  resolve: (node: ESTree.Node) => T | null,
+  member: (owner: T, name: string) => T | null,
+): T | null {
+  const initial = resolve(alias.init);
+
+  if (alias.pattern.type === "Identifier") {
+    return initial;
+  }
+
+  const name = destructuredName(alias.pattern, alias.name);
+
+  return initial !== null && name !== null ? member(initial, name) : null;
+}
+
+function importBinding(definition: Definition): ImportedBinding | null {
+  const declaration = definition.parent;
+  const specifier = definition.node;
+
+  if (definition.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
+    return null;
+  }
+
+  const source = declaration.source.value;
+
+  if (specifier.type === "ImportNamespaceSpecifier") {
+    return { source, name: "*" };
+  }
+
+  if (specifier.type === "ImportDefaultSpecifier") {
+    return { source, name: "default" };
+  }
+
+  return specifier.type === "ImportSpecifier"
+    ? {
+        source,
+        name: moduleExportName(specifier.imported),
+      }
+    : null;
 }
 
 function resolveBinding(
@@ -226,56 +298,49 @@ function resolveBinding(
 
   seen.add(variable);
 
-  const declaration = definition.parent;
-  const declarator = definition.node;
+  const alias = constAlias(definition);
 
-  if (
-    definition.type === "Variable" &&
-    declaration?.type === "VariableDeclaration" &&
-    declaration.kind === "const" &&
-    declarator.type === "VariableDeclarator" &&
-    declarator.init
-  ) {
-    const initial = resolveBinding(sourceCode, declarator.init, seen);
-    const pattern = declarator.id;
-
-    if (pattern.type === "Identifier") {
-      return initial;
-    }
-
-    const property =
-      pattern.type === "ObjectPattern"
-        ? pattern.properties.find((candidate) => bindsName(candidate, definition.name.name))
-        : undefined;
-
-    return memberBinding(initial, property ? staticPropertyName(property) : null);
-  }
-
-  if (definition.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
-    return null;
-  }
-
-  const specifier = definition.node;
-  const source = declaration.source.value;
-
-  if (specifier.type === "ImportNamespaceSpecifier") {
-    return { source, name: "*" };
-  }
-
-  if (specifier.type === "ImportDefaultSpecifier") {
-    return { source, name: "default" };
-  }
-
-  return specifier.type === "ImportSpecifier"
-    ? {
-        source,
-        name: moduleExportName(specifier.imported),
-      }
-    : null;
+  return alias === null
+    ? importBinding(definition)
+    : aliasTarget(alias, (init) => resolveBinding(sourceCode, init, seen), memberBinding);
 }
 
 export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): ImportedBinding | null {
   return resolveBinding(sourceCode, node, new Set());
+}
+
+function bindingReference(binding: ImportedBinding): ApiReference | null {
+  const defaultExport = defaultImports.get(binding.source);
+
+  if (binding.name === "default") {
+    return defaultExport ? { module: binding.source, name: defaultExport } : null;
+  }
+
+  return defaultExport !== undefined &&
+    testFunctions.has(defaultExport) &&
+    testModifiers.has(binding.name)
+    ? { module: binding.source, name: defaultExport }
+    : { module: binding.source, name: binding.name };
+}
+
+function memberReference(object: ApiReference, name: string): ApiReference | null {
+  if (object.name === "*") {
+    return bindingReference({ source: object.module, name });
+  }
+
+  if (testFunctions.has(object.name) && (testModifiers.has(name) || testFactories.has(name))) {
+    return object;
+  }
+
+  if (
+    object.module === "@effect/vitest" &&
+    ["test", "it"].includes(object.name) &&
+    effectModifiers.has(name)
+  ) {
+    return object;
+  }
+
+  return object.name === "test" && testFunctions.has(name) ? { module: object.module, name } : null;
 }
 
 export function apiReference(
@@ -283,104 +348,76 @@ export function apiReference(
   node: ESTree.Node,
   seen = new Set<Variable>(),
 ): ApiReference | null {
-  if (node.type === "Identifier") {
-    const variable = variableFor(sourceCode, node);
+  const value = unwrapExpression(node);
+
+  if (value.type === "Identifier") {
+    const variable = variableFor(sourceCode, value);
 
     if (!variable?.defs.length) {
-      return testFunctions.has(node.name) || node.name === "expect"
-        ? { module: "global", name: node.name }
+      return testFunctions.has(value.name) || value.name === "expect"
+        ? { module: "global", name: value.name }
         : null;
     }
 
     const [definition] = variable.defs;
 
-    if (seen.has(variable) || definition === undefined || variable.defs.length !== 1) {
+    if (definition === undefined || variable.defs.length !== 1 || seen.has(variable)) {
       return null;
     }
 
     seen.add(variable);
-    const binding = importedBinding(sourceCode, node);
-    const specifier = definition.node;
-    const declaration = definition.parent;
 
-    if (binding !== null) {
-      const name = binding.name === "default" ? defaultImports.get(binding.source) : binding.name;
+    const alias = constAlias(definition);
 
-      return name ? { module: binding.source, name } : null;
+    if (alias === null) {
+      const binding = importBinding(definition);
+
+      return binding && bindingReference(binding);
     }
 
-    if (
-      definition.type === "Variable" &&
-      declaration?.type === "VariableDeclaration" &&
-      declaration.kind === "const" &&
-      specifier.type === "VariableDeclarator" &&
-      specifier.id.type === "Identifier" &&
-      specifier.init
-    ) {
-      return apiReference(sourceCode, specifier.init, seen);
-    }
-
-    return null;
+    return aliasTarget(alias, (init) => apiReference(sourceCode, init, seen), memberReference);
   }
 
-  if (node.type === "MemberExpression") {
-    const object = apiReference(sourceCode, node.object, seen);
-    const name = propertyName(node);
+  if (value.type === "MemberExpression") {
+    const object = apiReference(sourceCode, value.object, seen);
+    const name = staticPropertyName(value);
 
-    if (!object || !name) {
+    return object && name !== null ? memberReference(object, name) : null;
+  }
+
+  if (value.type === "CallExpression") {
+    const callee = unwrapExpression(value.callee);
+
+    if (callee.type !== "MemberExpression") {
       return null;
     }
 
-    if (object.name === "*") {
-      return { module: object.module, name };
-    }
-
-    if (testFunctions.has(object.name) && (testModifiers.has(name) || testFactories.has(name))) {
-      return object;
-    }
-
-    if (
-      object.module === "@effect/vitest" &&
-      ["test", "it"].includes(object.name) &&
-      effectModifiers.has(name)
-    ) {
-      return object;
-    }
-
-    if (object.name === "test" && testFunctions.has(name)) {
-      return { module: object.module, name };
-    }
-
-    return null;
-  }
-
-  if (node.type === "CallExpression" && node.callee.type === "MemberExpression") {
-    const name = propertyName(node.callee);
-    const object = apiReference(sourceCode, node.callee.object, seen);
+    const name = staticPropertyName(callee);
+    const object = apiReference(sourceCode, callee.object, seen);
 
     if (object && name !== null && testFunctions.has(object.name) && testFactories.has(name)) {
       return object;
     }
 
-    if (
-      object &&
+    return object &&
       ["test", "it"].includes(object.name) &&
       (isPlaywright(object.module) || ["vitest", "@effect/vitest"].includes(object.module)) &&
       name === "extend"
-    ) {
-      return object;
-    }
+      ? object
+      : null;
   }
 
-  if (
-    node.type === "TaggedTemplateExpression" &&
-    node.tag.type === "MemberExpression" &&
-    propertyName(node.tag) === "each"
-  ) {
-    return apiReference(sourceCode, node.tag.object, seen);
+  if (value.type === "TaggedTemplateExpression") {
+    const tag = unwrapExpression(value.tag);
+
+    return tag.type === "MemberExpression" && staticPropertyName(tag) === "each"
+      ? apiReference(sourceCode, tag.object, seen)
+      : null;
   }
 
-  return null;
+  const dynamicSource = dynamicImportSource(value);
+
+  return dynamicSource === null ? null : { module: dynamicSource, name: "*" };
 }
 
 export function testContext(sourceCode: SourceCode, node: ESTree.Node): TestContext | null {

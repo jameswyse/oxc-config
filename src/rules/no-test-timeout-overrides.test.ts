@@ -86,5 +86,21 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
       code: "jest.setTimeout(30_000);",
       errors: [{ messageId: "override" }],
     },
+    {
+      code: 'import test from "node:test"; const focused = test.only; focused("works", { timeout: 30_000 }, () => {});',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import test from "node:test"; const { only } = test; only("works", { timeout: 30_000 }, () => {});',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { only as focused } from "node:test"; focused("works", { timeout: 30_000 }, () => {});',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { test } from "vitest"; (test.only as typeof test)("works", () => {}, 30_000);',
+      errors: [{ messageId: "override" }],
+    },
   ],
 });

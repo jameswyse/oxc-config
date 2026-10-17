@@ -154,5 +154,9 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
       code: 'test("ready", async () => { await new Promise(resolve => setTimeout(function () { return resolve(); }, 100)); });',
       errors: [{ messageId: "delay" }],
     },
+    {
+      code: 'import test from "node:test"; import { setTimeout } from "node:timers/promises"; const focused = test.only; focused("ready", async () => { await setTimeout(100); });',
+      errors: [{ messageId: "delay" }],
+    },
   ],
 });
