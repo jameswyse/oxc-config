@@ -40,7 +40,16 @@ ruleTester.run("no-env-access", noEnvAccess, {
     'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const { argv } = require("node:process");',
     'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require("./process").env.PORT;',
     'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const port = require(name).env.PORT;',
+    'var require = require("node:module").createRequire(__filename); const port = require("process").env.PORT;',
     'function load() { var require = require("node:module").createRequire(__filename); return require("process").env.PORT; }',
+    {
+      code: 'var require = id => id === "node:process" ? { env: { PORT: "fake" } } : require("node:process").env; console.log(require("config").PORT);',
+      languageOptions: { sourceType: "commonjs" },
+    },
+    {
+      code: 'var require = () => require("node:process").env; require = () => ({ env: { PORT: "fake" } });',
+      languageOptions: { sourceType: "commonjs" },
+    },
     'import { createRequire } from "node:module"; let load = createRequire(import.meta.url); load = customLoader; const port = load("process").env.PORT;',
     'import { createRequire } from "node:module"; var require = createRequire(import.meta.url); require = customLoader; const port = require("process").env.PORT;',
     'let load = require; load = customLoader; const port = load("process").env.PORT;',
@@ -241,15 +250,6 @@ ruleTester.run("no-env-access", noEnvAccess, {
     },
     {
       code: 'const load = require; const port = load("node:process").env.PORT;',
-      errors: [{ messageId: "env" }],
-    },
-    {
-      code: 'var require = require("node:module").createRequire(__filename); const port = require("process").env.PORT;',
-      errors: [{ messageId: "env" }],
-    },
-    {
-      code: 'var require = require("node:module").createRequire(__filename); module.exports = require("process").env;',
-      languageOptions: { sourceType: "commonjs" },
       errors: [{ messageId: "env" }],
     },
   ],

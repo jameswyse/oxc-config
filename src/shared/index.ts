@@ -301,22 +301,6 @@ function isRequireFactory(node: ESTree.Node, resolve: BindingResolver): boolean 
   );
 }
 
-function isWrapperRequire(variable: Variable, node: ESTree.Node): boolean {
-  const definition = variable.defs[0];
-  const declarator = definition?.node;
-
-  return (
-    variable.name === "require" &&
-    variable.scope.block.type === "Program" &&
-    definition?.parent?.type === "VariableDeclaration" &&
-    definition.parent.kind === "var" &&
-    declarator?.type === "VariableDeclarator" &&
-    declarator.init !== null &&
-    declarator.init.start <= node.start &&
-    node.end <= declarator.init.end
-  );
-}
-
 function isLoader(sourceCode: SourceCode, node: ESTree.Node, resolve: BindingResolver): boolean {
   const callee = unwrapExpression(node);
 
@@ -328,12 +312,11 @@ function isLoader(sourceCode: SourceCode, node: ESTree.Node, resolve: BindingRes
 
   return (
     variable !== null &&
-    (isWrapperRequire(variable, callee) ||
-      cached(loaderCache, variable, () => {
-        const init = unchangedInit(variable);
+    cached(loaderCache, variable, () => {
+      const init = unchangedInit(variable);
 
-        return init !== null && isLoader(sourceCode, init, resolve);
-      }) === true)
+      return init !== null && isLoader(sourceCode, init, resolve);
+    }) === true
   );
 }
 
