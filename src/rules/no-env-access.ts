@@ -49,6 +49,20 @@ function isEnvironmentSource(
   );
 }
 
+function destructuresEnvironment(
+  sourceCode: SourceCode,
+  pattern: ESTree.Node,
+  value: ESTree.Node | null | undefined,
+): boolean {
+  return (
+    pattern.type === "ObjectPattern" &&
+    isEnvironmentSource(sourceCode, value) &&
+    pattern.properties.some(
+      (property) => property.type === "Property" && staticPropertyName(property) === "env",
+    )
+  );
+}
+
 function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
   const callee = unwrapExpression(node.callee);
   const [target, key] = node.arguments;
@@ -82,13 +96,17 @@ export const noEnvAccess = defineRule({
         }
       },
       VariableDeclarator(node) {
-        if (
-          node.id.type === "ObjectPattern" &&
-          isEnvironmentSource(sourceCode, node.init) &&
-          node.id.properties.some(
-            (property) => property.type === "Property" && staticPropertyName(property) === "env",
-          )
-        ) {
+        if (destructuresEnvironment(sourceCode, node.id, node.init)) {
+          context.report({ node, messageId: "env" });
+        }
+      },
+      AssignmentPattern(node) {
+        if (destructuresEnvironment(sourceCode, node.left, node.right)) {
+          context.report({ node, messageId: "env" });
+        }
+      },
+      AssignmentExpression(node) {
+        if (destructuresEnvironment(sourceCode, node.left, node.right)) {
           context.report({ node, messageId: "env" });
         }
       },

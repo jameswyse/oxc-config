@@ -53,6 +53,15 @@ ruleTester.run("no-env-access", noEnvAccess, {
     'import { createRequire } from "node:module"; let load = createRequire(import.meta.url); load = customLoader; const port = load("process").env.PORT;',
     'import { createRequire } from "node:module"; var require = createRequire(import.meta.url); require = customLoader; const port = require("process").env.PORT;',
     'let load = require; load = customLoader; const port = load("process").env.PORT;',
+    "export const read = ({ argv } = process) => argv;",
+    "export const read = ({ env } = config) => env;",
+    "export const read = ({ env } = window.process) => env;",
+    "export function read({ env }: typeof process) { return env; }",
+    "function load(process: { env: object }) { return ({ env } = process) => env; }",
+    'import process from "./process"; export const read = ({ env } = process) => env;',
+    'let load = require; load = customLoader; export const read = ({ env } = load("process")) => env;',
+    "let env; ({ env } = settings);",
+    "let args; ({ argv: args } = process);",
   ],
   invalid: [
     { code: "const port = process.env.PORT;", errors: [{ messageId: "env" }] },
@@ -251,6 +260,86 @@ ruleTester.run("no-env-access", noEnvAccess, {
     {
       code: 'const load = require; const port = load("node:process").env.PORT;',
       errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import process from "node:process"; export const read = ({ env } = process) => env.DHF_REVIEW;',
+      errors: [{ messageId: "env", column: 57, endColumn: 74 }],
+    },
+    {
+      code: "export const read = ({ env } = process) => env.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ env } = globalThis.process) => env.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import * as p from "node:process"; export function read({ env } = p) { return env.PORT; }',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import * as p from "node:process"; export function read({ env } = p.default) { return env.PORT; }',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'export const read = ({ env } = require("node:process")) => env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); export const read = ({ env } = require("process")) => env.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ env: e } = process) => e.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: 'export const read = ({ ["env"]: e } = process) => e.PORT;',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ env: { PORT } } = process) => PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ options: { env } = process } = {}) => env.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ env }: NodeJS.Process = process) => env.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ env } = process as NodeJS.Process) => env.PORT;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = function ({ env } = process) { return env.PORT; };",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export class Settings { read({ env } = process) { return env.PORT; } }",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const settings = { read({ env } = process) { return env.PORT; } };",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = ({ env } = import.meta) => env.MODE;",
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "let env; ({ env } = process);",
+      errors: [{ messageId: "env", column: 10, endColumn: 27 }],
+    },
+    {
+      code: 'let e; ({ env: e } = require("node:process"));',
+      errors: [{ messageId: "env" }],
+    },
+    {
+      code: "export const read = (env = process.env) => env.PORT;",
+      errors: [{ messageId: "env", column: 27, endColumn: 38 }],
     },
   ],
 });
