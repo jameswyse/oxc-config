@@ -4,6 +4,7 @@ import {
   importedBinding,
   isGlobalValue,
   isInjectionSeam,
+  moduleExportName,
   outermostExpression,
   staticPropertyName,
   unwrapExpression,
@@ -46,16 +47,22 @@ const curriedClockHelpers = new Map([
   ["date-fns/fp/isMatchWithOptions", 3],
 ]);
 
+const clockExports = new Set([...clockHelpers, ...curriedClockHelpers.keys()]);
+
+function helperPath(source: string, name: string): string {
+  return name === "default" || source.endsWith(`/${name}`) ? source : `${source}/${name}`;
+}
+
 function exportPath(sourceCode: SourceCode, node: ESTree.Node): string | null {
   const binding = importedBinding(sourceCode, node);
 
-  if (binding === null) {
-    return null;
-  }
+  return binding === null ? null : helperPath(binding.source, binding.name);
+}
 
-  return binding.name === "default" || binding.source.endsWith(`/${binding.name}`)
-    ? binding.source
-    : `${binding.source}/${binding.name}`;
+function exposesClockHelper(source: string): boolean {
+  return [...clockExports].some(
+    (helper) => helperPath(source, helper.slice(helper.lastIndexOf("/") + 1)) === helper,
+  );
 }
 
 function fullApplication(call: ESTree.CallExpression, arity: number): ESTree.CallExpression | null {
@@ -144,6 +151,25 @@ export const noAmbientClock = defineRule({
           isCurrentTimeZoneDate(sourceCode, node)
         ) {
           report(node);
+        }
+      },
+      ExportNamedDeclaration(node) {
+        if (!node.source || node.exportKind === "type") {
+          return;
+        }
+
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.exportKind !== "type" &&
+            clockExports.has(helperPath(node.source.value, moduleExportName(specifier.local)))
+          ) {
+            context.report({ node: specifier, messageId: "clock" });
+          }
+        }
+      },
+      ExportAllDeclaration(node) {
+        if (node.exportKind !== "type" && exposesClockHelper(node.source.value)) {
+          context.report({ node, messageId: "clock" });
         }
       },
     };
