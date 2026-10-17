@@ -97,6 +97,12 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'const d = require("date-fns"); for (d.isPast of other) {}',
     'const d = require("date-fns"); for (d.isPast in other) {}',
     'const d = require("date-fns"); delete d.isPast;',
+    'import * as d from "date-fns"; delete d?.isPast;',
+    'import * as d from "date-fns"; delete (d?.isPast);',
+    'import * as d from "date-fns"; delete (d?.isPast as any);',
+    'import * as d from "date-fns"; delete (d?.isPast satisfies unknown);',
+    'import * as d from "date-fns"; delete d?.isPast!;',
+    'import * as d from "date-fns"; delete (<any>d?.isPast);',
     'const isPast = require("date-fns/isPast"); const days = dates.filter(isPast);',
   ],
   invalid: [
@@ -109,6 +115,26 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
       errors: [{ messageId: "clock" }],
     },
     { code: 'const d = require("date-fns"); d.isPast++;', errors: [{ messageId: "clock" }] },
+    {
+      code: 'import * as d from "date-fns"; delete d.isPast.foo;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; delete d?.isPast.foo;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; delete d?.isPast(x);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const past = d?.isPast(x);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const days = f(d?.isPast);',
+      errors: [{ messageId: "clock" }],
+    },
     {
       code: 'const d = require("date-fns"); for (const check of [d.isPast]) {}',
       errors: [{ messageId: "clock" }],

@@ -123,7 +123,13 @@ function helperUse(node: ESTree.Node): ESTree.Node {
 }
 
 function isWriteTarget(node: ESTree.Node): boolean {
-  const target = outermostExpression(node);
+  const expression = outermostExpression(node);
+
+  const target =
+    expression.parent?.type === "ChainExpression"
+      ? outermostExpression(expression.parent)
+      : expression;
+
   const parent = target.parent;
 
   return (
