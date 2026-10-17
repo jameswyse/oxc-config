@@ -174,6 +174,14 @@ export function unwrapExpression(node: ESTree.Node): ESTree.Node {
     : node;
 }
 
+export function outermostExpression(node: ESTree.Node): ESTree.Node {
+  const parent = node.parent;
+
+  return parent !== null && unwrapExpression(parent) === unwrapExpression(node)
+    ? outermostExpression(parent)
+    : node;
+}
+
 function dynamicImportSource(node: ESTree.Node): string | null {
   const awaited = unwrapExpression(node);
   const loaded = awaited.type === "AwaitExpression" ? unwrapExpression(awaited.argument) : null;
@@ -509,26 +517,26 @@ export function isNodeGlobalValue(
 function returns(callback: FunctionNode, value: ESTree.Node): boolean {
   const body = callback.body;
 
-  if (body === value) {
-    return true;
-  }
-
   if (body?.type !== "BlockStatement") {
-    return false;
+    return body !== null && unwrapExpression(body) === value;
   }
 
   const [statement] = body.body;
 
   return (
-    body.body.length === 1 && statement?.type === "ReturnStatement" && statement.argument === value
+    body.body.length === 1 &&
+    statement?.type === "ReturnStatement" &&
+    statement.argument !== null &&
+    unwrapExpression(statement.argument) === value
   );
 }
 
 function isProvider(callback: FunctionNode, value: ESTree.Node): boolean {
-  const holder = callback.parent;
+  const provider = outermostExpression(callback);
+  const holder = provider.parent;
 
-  if (holder.type === "AssignmentPattern") {
-    return holder.right === callback;
+  if (holder?.type === "AssignmentPattern") {
+    return holder.right === provider;
   }
 
   if (!returns(callback, value)) {
@@ -536,9 +544,9 @@ function isProvider(callback: FunctionNode, value: ESTree.Node): boolean {
   }
 
   return (
-    (holder.type === "Property" && holder.value === callback) ||
-    (holder.type === "LogicalExpression" &&
-      holder.right === callback &&
+    (holder?.type === "Property" && holder.value === provider) ||
+    (holder?.type === "LogicalExpression" &&
+      holder.right === provider &&
       ["??", "||"].includes(holder.operator))
   );
 }
@@ -547,9 +555,10 @@ export function isInjectionSeam(source: ESTree.Node): boolean {
   const parent = source.parent;
 
   if (source.type !== "NewExpression" && source.type !== "CallExpression") {
-    return parent?.type === "CallExpression" && parent.callee === source
-      ? isInjectionSeam(parent)
-      : true;
+    const callee = outermostExpression(source);
+    const call = callee.parent;
+
+    return call?.type === "CallExpression" && call.callee === callee ? isInjectionSeam(call) : true;
   }
 
   let child: ESTree.Node = source;
@@ -592,12 +601,4 @@ export function isEffectModule(sourceCode: SourceCode, node: ESTree.Node, module
     (binding?.source === "effect" && binding.name === module) ||
     (binding?.source === `effect/${module}` && binding.name === "*")
   );
-}
-
-export function outermostExpression(node: ESTree.Node): ESTree.Node {
-  const parent = node.parent;
-
-  return parent !== null && unwrapExpression(parent) === unwrapExpression(node)
-    ? outermostExpression(parent)
-    : node;
 }
