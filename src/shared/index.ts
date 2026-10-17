@@ -1,6 +1,6 @@
 import { matchesGlob, relative, sep } from "node:path";
 
-import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
+import type { Definition, ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
 
 export type ApiReference = {
   readonly module: string;
@@ -419,10 +419,77 @@ export function staticPropertyName(node: ESTree.Node): string | null {
   return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
 }
 
+export function unwrapExpression(node: ESTree.Node): ESTree.Node {
+  return node.type === "ParenthesizedExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSTypeAssertion"
+    ? unwrapExpression(node.expression)
+    : node;
+}
+
+function dynamicImportSource(node: ESTree.Node | null | undefined): string | null {
+  const awaited = node ? unwrapExpression(node) : null;
+
+  if (awaited?.type !== "AwaitExpression" || awaited.argument.type !== "ImportExpression") {
+    return null;
+  }
+
+  const source = awaited.argument.source;
+
+  return source.type === "Literal" && typeof source.value === "string" ? source.value : null;
+}
+
+function dynamicImportBinding(
+  definition: Definition,
+): { readonly source: string; readonly name: string } | null {
+  const declarator = definition.node;
+
+  if (
+    definition.type !== "Variable" ||
+    definition.parent?.type !== "VariableDeclaration" ||
+    definition.parent.kind !== "const" ||
+    declarator.type !== "VariableDeclarator"
+  ) {
+    return null;
+  }
+
+  const source = dynamicImportSource(declarator.init);
+
+  if (source === null) {
+    return null;
+  }
+
+  if (declarator.id.type === "Identifier") {
+    return { source, name: "*" };
+  }
+
+  const property =
+    declarator.id.type === "ObjectPattern"
+      ? declarator.id.properties.find(
+          (candidate) =>
+            candidate.type === "Property" &&
+            candidate.value.type === "Identifier" &&
+            candidate.value.name === definition.name.name,
+        )
+      : undefined;
+
+  const name = property ? staticPropertyName(property) : null;
+
+  return name === null ? null : { source, name };
+}
+
 export function importedBinding(
   sourceCode: SourceCode,
   node: ESTree.Node,
 ): { readonly source: string; readonly name: string } | null {
+  const dynamicSource = dynamicImportSource(node);
+
+  if (dynamicSource !== null) {
+    return { source: dynamicSource, name: "*" };
+  }
+
   if (node.type === "MemberExpression") {
     const owner = importedBinding(sourceCode, node.object);
     const name = staticPropertyName(node);
@@ -434,6 +501,10 @@ export function importedBinding(
 
   const definition = variableFor(sourceCode, node)?.defs[0];
   const declaration = definition?.parent;
+
+  if (definition?.type === "Variable") {
+    return dynamicImportBinding(definition);
+  }
 
   if (definition?.type !== "ImportBinding" || declaration?.type !== "ImportDeclaration") {
     return null;
@@ -468,16 +539,6 @@ export function isEffectModule(sourceCode: SourceCode, node: ESTree.Node, module
     (binding?.source === "effect" && binding.name === module) ||
     (binding?.source === `effect/${module}` && binding.name === "*")
   );
-}
-
-export function unwrapExpression(node: ESTree.Node): ESTree.Node {
-  return node.type === "ParenthesizedExpression" ||
-    node.type === "TSAsExpression" ||
-    node.type === "TSSatisfiesExpression" ||
-    node.type === "TSNonNullExpression" ||
-    node.type === "TSTypeAssertion"
-    ? unwrapExpression(node.expression)
-    : node;
 }
 
 export function outermostExpression(node: ESTree.Node): ESTree.Node {

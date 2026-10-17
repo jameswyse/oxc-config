@@ -13,7 +13,7 @@ Extend `@jameswyse/oxc-config/tsconfig` unless the project's existing compiler s
 Survey the code before choosing options. Pass each option the evidence supports:
 
 - `react`, `nextjs`, `node`, `vitest`, `jest`, `effect`, `electron` and `tests`: the frameworks, runtimes and test runners each package uses, scoped to the files that use them.
-- `env`: the modules that read `process.env` or `import.meta.env`. Each runtime should have one module that parses configuration and passes typed values on. If reads are scattered, list them as owners for now and record the consolidation as follow-up.
+- `env`: the modules that read `process.env`, `import.meta.env` or `env` from `node:process`. Each runtime should have one module that parses configuration and passes typed values on. If reads are scattered, list them as owners for now and record the consolidation as follow-up.
 - `boundaries`: code that must not import from another part of the project, such as browser code importing server modules, Node built-ins or database clients, an Electron renderer importing main-process code, or a shared package importing an application.
 - `serverActionGuards`: the functions that `"use server"` actions call to check authentication or permissions.
 - `clock` and `random`: the modules that own the current time and ID or random value generation.

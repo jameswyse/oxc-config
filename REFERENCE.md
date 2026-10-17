@@ -72,7 +72,7 @@ Native rules: `prefer-const`, `no-param-reassign` and `oxc/no-accumulating-sprea
 
 These rules run only once the project names its owners through the [project boundary options](docs/configuration.md#enforce-project-boundaries).
 
-- `wyse/no-env-access` (`env`): reading `process.env` or `import.meta.env`, or destructuring `env` from either, outside the owners, config files and scripts. It doesn't check that the owner validates what it reads.
+- `wyse/no-env-access` (`env`): reading `process.env` or `import.meta.env` outside the owners, config files and scripts. That includes destructuring `env`, `globalThis.process.env`, `Reflect.get(process, "env")`, importing `env` from `node:process` or `process`, and reading `env` from those modules' default, namespace or literal dynamic import. Other `node:process` imports, such as `argv`, pass. It doesn't check that the owner validates what it reads.
 - `wyse/import-boundaries` (`boundaries`): a value import, re-export, literal dynamic import, or `require` call, including a loader made with `createRequire` from `node:module`, that matches a `deny` glob. Type-only imports and `import("…")` types pass unless the boundary sets `types: true`. It doesn't check computed imports.
 - `wyse/server-action-guard` (`serverActionGuards`): a `"use server"` action that doesn't start by awaiting a guard, and indirect or default exports from server-action modules. Non-exported helpers and test files pass.
 - `wyse/no-ambient-clock` (`clock`): `Date.now()` and argument-less `new Date()`, including through `globalThis` or `window`. Parameter defaults, uncalled `Date.now`, provider functions that only return the read, and test files pass.
