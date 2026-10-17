@@ -122,12 +122,23 @@ function helperUse(node: ESTree.Node): ESTree.Node {
   return node;
 }
 
-function isAssigned(node: ESTree.Node): boolean {
+function isWriteTarget(node: ESTree.Node): boolean {
   const target = outermostExpression(node);
   const parent = target.parent;
 
   return (
-    parent?.type === "AssignmentExpression" && parent.left === target && parent.operator === "="
+    (parent?.type === "AssignmentExpression" &&
+      parent.left === target &&
+      parent.operator === "=") ||
+    ((parent?.type === "ForOfStatement" || parent?.type === "ForInStatement") &&
+      parent.left === target) ||
+    (parent?.type === "UnaryExpression" && parent.operator === "delete") ||
+    (parent?.type === "AssignmentPattern" && parent.left === target) ||
+    (parent?.type === "Property" &&
+      parent.value === target &&
+      parent.parent.type === "ObjectPattern") ||
+    parent?.type === "ArrayPattern" ||
+    parent?.type === "RestElement"
   );
 }
 
@@ -203,7 +214,7 @@ export const noAmbientClock = defineRule({
           report(node);
         }
 
-        if (isClockHelper(sourceCode, node) && !isAssigned(node)) {
+        if (isClockHelper(sourceCode, node) && !isWriteTarget(node)) {
           reportHelper(node);
         }
       },
