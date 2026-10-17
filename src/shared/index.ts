@@ -146,24 +146,6 @@ export function isPlaywright(module: string): boolean {
   return module === "@playwright/test" || module === "playwright/test";
 }
 
-export function staticString(node: ESTree.Node | null | undefined): string | null {
-  if (node?.type === "TemplateLiteral") {
-    const [quasi] = node.quasis;
-
-    return node.expressions.length === 0 && quasi ? (quasi.value.cooked ?? null) : null;
-  }
-
-  return node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
-}
-
-export function staticPropertyName(node: ESTree.Node): string | null {
-  return "computed" in node && node.computed ? staticString(memberKey(node)) : propertyName(node);
-}
-
-export function moduleExportName(node: ESTree.ModuleExportName): string {
-  return node.type === "Identifier" ? node.name : node.value;
-}
-
 export function unwrapExpression(node: ESTree.Node): ESTree.Node {
   return node.type === "ParenthesizedExpression" ||
     node.type === "TSAsExpression" ||
@@ -180,6 +162,26 @@ export function outermostExpression(node: ESTree.Node): ESTree.Node {
   return parent !== null && unwrapExpression(parent) === unwrapExpression(node)
     ? outermostExpression(parent)
     : node;
+}
+
+export function staticString(node: ESTree.Node | null | undefined): string | null {
+  const value = node ? unwrapExpression(node) : null;
+
+  if (value?.type === "TemplateLiteral") {
+    const [quasi] = value.quasis;
+
+    return value.expressions.length === 0 && quasi ? (quasi.value.cooked ?? null) : null;
+  }
+
+  return value?.type === "Literal" && typeof value.value === "string" ? value.value : null;
+}
+
+export function staticPropertyName(node: ESTree.Node): string | null {
+  return "computed" in node && node.computed ? staticString(memberKey(node)) : propertyName(node);
+}
+
+export function moduleExportName(node: ESTree.ModuleExportName): string {
+  return node.type === "Identifier" ? node.name : node.value;
 }
 
 function dynamicImportSource(node: ESTree.Node): string | null {
