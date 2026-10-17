@@ -27,6 +27,10 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
       errors: [error],
     },
     {
+      code: 'const { test, mock: m } = require("node:test"); test("frozen", () => { m.timers.enable({ apis: ["Date"] }); }); test("reads", () => { m.timers.reset(); expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
+    {
       code: "test('ends', () => { const before = Date.now(); expect(run().endTime).toBeGreaterThanOrEqual(before); });",
       errors: [error],
     },

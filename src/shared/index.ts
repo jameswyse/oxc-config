@@ -274,6 +274,65 @@ function cached<T>(
   return cache.get(variable) ?? null;
 }
 
+const nodeModuleSources = new Set(["module", "node:module"]);
+
+const loaderCache = new WeakMap<Variable, boolean | null>();
+
+type BindingResolver = (node: ESTree.Node) => ImportedBinding | null;
+
+function unchangedInit(variable: Variable): ESTree.Expression | null {
+  const [definition, ...otherDefinitions] = variable.defs;
+  const declarator = definition?.node;
+
+  return otherDefinitions.length === 0 &&
+    definition?.type === "Variable" &&
+    declarator?.type === "VariableDeclarator" &&
+    declarator.id === definition.name &&
+    variable.references.every((reference) => reference.init || !reference.isWrite())
+    ? declarator.init
+    : null;
+}
+
+function isRequireFactory(node: ESTree.Node, resolve: BindingResolver): boolean {
+  const binding = node.type === "CallExpression" ? resolve(node.callee) : null;
+
+  return (
+    binding !== null && nodeModuleSources.has(binding.source) && binding.name === "createRequire"
+  );
+}
+
+function isLoader(sourceCode: SourceCode, node: ESTree.Node, resolve: BindingResolver): boolean {
+  const callee = unwrapExpression(node);
+
+  if (isGlobal(sourceCode, callee, "require") || isRequireFactory(callee, resolve)) {
+    return true;
+  }
+
+  const variable = variableFor(sourceCode, callee);
+
+  return (
+    variable !== null &&
+    cached(loaderCache, variable, () => {
+      const init = unchangedInit(variable);
+
+      return init !== null && isLoader(sourceCode, init, resolve);
+    }) === true
+  );
+}
+
+function loadedSource(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+  resolve: BindingResolver,
+): string | null {
+  const required =
+    node.type === "CallExpression" &&
+    node.arguments.length === 1 &&
+    isLoader(sourceCode, node.callee, resolve);
+
+  return required ? staticString(node.arguments[0]) : dynamicImportSource(node);
+}
+
 function importBinding(definition: Definition): ImportedBinding | null {
   const declaration = definition.parent;
   const specifier = definition.node;
@@ -302,10 +361,10 @@ function importBinding(definition: Definition): ImportedBinding | null {
 
 export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): ImportedBinding | null {
   const value = unwrapExpression(node);
-  const dynamicSource = dynamicImportSource(value);
+  const source = loadedSource(sourceCode, value, (callee) => importedBinding(sourceCode, callee));
 
-  if (dynamicSource !== null) {
-    return { source: dynamicSource, name: "*" };
+  if (source !== null) {
+    return { source, name: "*" };
   }
 
   if (value.type === "MemberExpression") {
@@ -326,6 +385,10 @@ export function importedBinding(sourceCode: SourceCode, node: ESTree.Node): Impo
       ? importBinding(definition)
       : aliasTarget(alias, (init) => importedBinding(sourceCode, init), memberBinding);
   });
+}
+
+export function isRequire(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  return isLoader(sourceCode, node, (callee) => importedBinding(sourceCode, callee));
 }
 
 function bindingReference(binding: ImportedBinding): ApiReference | null {
@@ -364,6 +427,11 @@ function memberReference(object: ApiReference, name: string): ApiReference | nul
 
 export function apiReference(sourceCode: SourceCode, node: ESTree.Node): ApiReference | null {
   const value = unwrapExpression(node);
+  const source = loadedSource(sourceCode, value, (callee) => importedBinding(sourceCode, callee));
+
+  if (source !== null) {
+    return { module: source, name: "*" };
+  }
 
   if (value.type === "Identifier") {
     const variable = variableFor(sourceCode, value);
@@ -430,9 +498,7 @@ export function apiReference(sourceCode: SourceCode, node: ESTree.Node): ApiRefe
       : null;
   }
 
-  const dynamicSource = dynamicImportSource(value);
-
-  return dynamicSource === null ? null : { module: dynamicSource, name: "*" };
+  return null;
 }
 
 export function testContext(sourceCode: SourceCode, node: ESTree.Node): TestContext | null {
@@ -553,19 +619,10 @@ function isProvider(callback: FunctionNode, value: ESTree.Node): boolean {
   );
 }
 
-export function isInjectionSeam(source: ESTree.Node): boolean {
-  const parent = source.parent;
-
-  if (source.type !== "NewExpression" && source.type !== "CallExpression") {
-    const callee = outermostExpression(source);
-    const call = callee.parent;
-
-    return call?.type === "CallExpression" && call.callee === callee ? isInjectionSeam(call) : true;
-  }
-
+export function isInjectedValue(source: ESTree.Node): boolean {
   let child: ESTree.Node = source;
 
-  for (let ancestor = parent; ancestor; child = ancestor, ancestor = ancestor.parent) {
+  for (let ancestor = source.parent; ancestor; child = ancestor, ancestor = ancestor.parent) {
     if (ancestor.type === "AssignmentPattern") {
       return ancestor.right === child;
     }
@@ -576,6 +633,17 @@ export function isInjectionSeam(source: ESTree.Node): boolean {
   }
 
   return false;
+}
+
+export function isInjectionSeam(source: ESTree.Node): boolean {
+  if (source.type !== "NewExpression" && source.type !== "CallExpression") {
+    const callee = outermostExpression(source);
+    const call = callee.parent;
+
+    return call?.type === "CallExpression" && call.callee === callee ? isInjectionSeam(call) : true;
+  }
+
+  return isInjectedValue(source);
 }
 
 export function isShortCircuited(call: ESTree.CallExpression): boolean {

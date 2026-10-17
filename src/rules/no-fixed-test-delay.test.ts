@@ -75,6 +75,10 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
       errors: [{ messageId: "delay" }],
     },
     {
+      code: 'const { test } = require("vitest"); const { setTimeout: delay } = require("node:timers/promises"); test("ready", async () => { await delay(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
       code: 'import { it as scenario } from "@jest/globals"; import * as timers from "timers/promises"; scenario.only("ready", async () => { await timers.setTimeout(100); });',
       errors: [{ messageId: "delay" }],
     },
