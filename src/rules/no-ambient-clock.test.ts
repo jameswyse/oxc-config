@@ -84,6 +84,8 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import { isPast } from "date-fns"; const checks = { check: (d: Date) => isPast.apply(null, [d]) };',
     'import { isPast } from "date-fns"; const checks = { check: () => isPast.bind(null) };',
     'import * as d from "date-fns"; const checks = { check: (value: Date) => d.isPast.call(null, value) };',
+    'const d = require("date-fns"); d.isPast = customCheck;',
+    'const d = require("date-fns"); d["isToday"] = customCheck;',
   ],
   invalid: [
     { code: "const at = Date.now();", errors: [{ messageId: "clock" }] },

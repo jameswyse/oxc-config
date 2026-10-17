@@ -122,6 +122,15 @@ function helperUse(node: ESTree.Node): ESTree.Node {
   return node;
 }
 
+function isAssigned(node: ESTree.Node): boolean {
+  const target = outermostExpression(node);
+  const parent = target.parent;
+
+  return (
+    parent?.type === "AssignmentExpression" && parent.left === target && parent.operator === "="
+  );
+}
+
 function isFollowedAlias(node: ESTree.Node): boolean {
   const value = outermostExpression(node);
   const declarator = value.parent;
@@ -194,7 +203,7 @@ export const noAmbientClock = defineRule({
           report(node);
         }
 
-        if (isClockHelper(sourceCode, node)) {
+        if (isClockHelper(sourceCode, node) && !isAssigned(node)) {
           reportHelper(node);
         }
       },
