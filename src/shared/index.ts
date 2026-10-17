@@ -146,14 +146,18 @@ export function isPlaywright(module: string): boolean {
   return module === "@playwright/test" || module === "playwright/test";
 }
 
-export function staticPropertyName(node: ESTree.Node): string | null {
-  if (!("computed" in node && node.computed)) {
-    return propertyName(node);
+export function staticString(node: ESTree.Node | null | undefined): string | null {
+  if (node?.type === "TemplateLiteral") {
+    const [quasi] = node.quasis;
+
+    return node.expressions.length === 0 && quasi ? (quasi.value.cooked ?? null) : null;
   }
 
-  const key = memberKey(node);
+  return node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
+}
 
-  return key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
+export function staticPropertyName(node: ESTree.Node): string | null {
+  return "computed" in node && node.computed ? staticString(memberKey(node)) : propertyName(node);
 }
 
 export function unwrapExpression(node: ESTree.Node): ESTree.Node {
@@ -174,9 +178,7 @@ function dynamicImportSource(node: ESTree.Node): string | null {
     return null;
   }
 
-  const source = loaded.source;
-
-  return source.type === "Literal" && typeof source.value === "string" ? source.value : null;
+  return staticString(loaded.source);
 }
 
 function memberBinding(owner: ImportedBinding | null, name: string | null): ImportedBinding | null {
@@ -440,7 +442,7 @@ function isGlobalThrough(
 
   return (
     value?.type === "MemberExpression" &&
-    propertyName(value) === name &&
+    staticPropertyName(value) === name &&
     objects.some((object) => isGlobal(sourceCode, unwrapExpression(value.object), object))
   );
 }

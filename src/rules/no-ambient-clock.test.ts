@@ -209,5 +209,25 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
       code: "const at = (globalThis.Date as DateConstructor).now();",
       errors: [{ messageId: "clock" }],
     },
+    {
+      code: 'import { TZDate } from "@date-fns/tz"; const at = TZDate["tz"]("UTC");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const at = Date["now"]();',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const at = new globalThis["Date"]();',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: "const start = (await import(`date-fns`)).startOfToday();",
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as d from "date-fns"; const start = d[`startOfToday`]();',
+      errors: [{ messageId: "clock" }],
+    },
   ],
 });

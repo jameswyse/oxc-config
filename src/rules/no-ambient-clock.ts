@@ -5,7 +5,7 @@ import {
   isGlobalValue,
   isInjectionSeam,
   outermostExpression,
-  propertyName,
+  staticPropertyName,
   unwrapExpression,
 } from "../shared/index.ts";
 
@@ -88,7 +88,7 @@ function isCurrentTimeZoneDate(sourceCode: SourceCode, node: ESTree.CallExpressi
 
   return (
     callee.type === "MemberExpression" &&
-    propertyName(callee) === "tz" &&
+    staticPropertyName(callee) === "tz" &&
     isTimeZoneDate(sourceCode, callee.object) &&
     node.arguments.length === 1 &&
     zone?.type !== "SpreadElement"
@@ -116,7 +116,7 @@ export const noAmbientClock = defineRule({
 
     return {
       MemberExpression(node) {
-        if (propertyName(node) === "now" && isGlobalValue(sourceCode, node.object, "Date")) {
+        if (staticPropertyName(node) === "now" && isGlobalValue(sourceCode, node.object, "Date")) {
           report(node);
         }
       },
