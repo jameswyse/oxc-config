@@ -70,5 +70,9 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
       code: 'it.effect("expires", () => Effect.gen(function* () { yield* TestClock.adjust("1 hour"); const now = Date.now(); }));',
       errors: [error],
     },
+    {
+      code: 'import test, { mock } from "node:test"; const focused = test.only; focused("fixed", () => { mock.timers.enable({ apis: ["Date"] }); Date.now(); }); test("real", () => { mock.timers.reset(); Date.now(); });',
+      errors: [{ ...error, column: 190 }],
+    },
   ],
 });
