@@ -104,6 +104,14 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     'import * as d from "date-fns"; delete d?.isPast!;',
     'import * as d from "date-fns"; delete (<any>d?.isPast);',
     'const isPast = require("date-fns/isPast"); const days = dates.filter(isPast);',
+    'import * as dates from "date-fns"; export const { addDays, isSameDay: sameDay } = dates;',
+    'import * as dates from "./dates"; export const { isPast } = dates;',
+    "const dates = { isPast: (d: Date) => d.getTime() > 0 }; export const { isPast } = dates;",
+    'import * as dates from "date-fns"; export const { isPast: { name } } = dates;',
+    'import * as dates from "date-fns"; const { isPast: { name } } = dates; const label = name;',
+    'import { isPast } from "date-fns"; export const { check = isPast } = options;',
+    'import * as dates from "date-fns"; export function load(dates: Calendar) { const { isPast } = dates; return isPast(d); }',
+    'let load = require; load = customLoader; export const { isPast } = load("date-fns");',
   ],
   invalid: [
     {
@@ -524,6 +532,65 @@ ruleTester.run("no-ambient-clock", noAmbientClock, {
     },
     {
       code: 'import { createRequire } from "node:module"; const today = createRequire(import.meta.url)("date-fns").isToday(d);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as dates from "date-fns"; export const { isPast } = dates;',
+      errors: [{ messageId: "clock", column: 50, endColumn: 56 }],
+    },
+    {
+      code: 'import * as dates from "date-fns"; export const { isPast: past } = dates;',
+      errors: [{ messageId: "clock", column: 58, endColumn: 62 }],
+    },
+    {
+      code: 'import * as dates from "date-fns"; export const { isPast = fallback } = dates;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as dates from "date-fns"; export const { addDays, isPast, isToday: today } = dates;',
+      errors: [
+        { messageId: "clock", column: 59, endColumn: 65 },
+        { messageId: "clock", column: 76, endColumn: 81 },
+      ],
+    },
+    {
+      code: 'import * as dates from "date-fns"; export const { isPast } = dates as typeof dates;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as dates from "date-fns"; export const { "isPast": past } = dates;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'export const { default: { isPast } } = await import("date-fns");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const { default: { isPast } } = await import("date-fns"); const days = dates.filter(isPast);',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'export const { isPast } = await import("date-fns");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'export const { isPast } = require("date-fns");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'const dates = require("date-fns"); export const { isPast: past } = dates;',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'export const { isPast } = require("date-fns/isPast");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); export const { isToday } = require("date-fns");',
+      errors: [{ messageId: "clock" }],
+    },
+    {
+      code: 'import * as dates from "date-fns/fp"; export const { isMatch } = dates;',
       errors: [{ messageId: "clock" }],
     },
   ],

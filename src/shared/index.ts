@@ -213,16 +213,6 @@ function memberBinding(owner: ImportedBinding | null, name: string | null): Impo
     : null;
 }
 
-function bindsName(property: ESTree.ObjectPattern["properties"][number], name: string): boolean {
-  if (property.type !== "Property") {
-    return false;
-  }
-
-  const target = property.value.type === "AssignmentPattern" ? property.value.left : property.value;
-
-  return target.type === "Identifier" && target.name === name;
-}
-
 function constAlias(definition: Definition): ConstAlias | null {
   const declaration = definition.parent;
   const declarator = definition.node;
@@ -236,13 +226,33 @@ function constAlias(definition: Definition): ConstAlias | null {
     : null;
 }
 
-function destructuredName(pattern: ConstAlias["pattern"], name: string): string | null {
-  const property =
-    pattern.type === "ObjectPattern"
-      ? pattern.properties.find((candidate) => bindsName(candidate, name))
-      : undefined;
+function destructuredPath(pattern: ESTree.Node, name: string): string[] | null {
+  if (pattern.type !== "ObjectPattern") {
+    return null;
+  }
 
-  return property ? staticPropertyName(property) : null;
+  for (const property of pattern.properties) {
+    const key = property.type === "Property" ? staticPropertyName(property) : null;
+
+    if (property.type !== "Property" || key === null) {
+      continue;
+    }
+
+    const target =
+      property.value.type === "AssignmentPattern" ? property.value.left : property.value;
+
+    if (target.type === "Identifier" && target.name === name) {
+      return [key];
+    }
+
+    const path = destructuredPath(target, name);
+
+    if (path !== null) {
+      return [key, ...path];
+    }
+  }
+
+  return null;
 }
 
 function aliasTarget<T>(
@@ -256,9 +266,14 @@ function aliasTarget<T>(
     return initial;
   }
 
-  const name = destructuredName(alias.pattern, alias.name);
+  const path = destructuredPath(alias.pattern, alias.name);
 
-  return initial !== null && name !== null ? member(initial, name) : null;
+  return path === null
+    ? null
+    : path.reduce<T | null>(
+        (owner, name) => (owner === null ? null : member(owner, name)),
+        initial,
+      );
 }
 
 function cached<T>(
