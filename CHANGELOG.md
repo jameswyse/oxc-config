@@ -1,5 +1,12 @@
 # @jameswyse/oxc-config
 
+## 0.6.0
+
+### Minor Changes
+
+- 2ca61ac: `no-env-access` reports `env` destructured from `process` in a parameter default or a destructuring assignment, not only in a variable declaration, such as `({ env } = process) => env.PORT`, `function read({ env: e } = process)`, a method parameter, or `({ env } = process);`. This covers renamed and computed-literal keys, a pattern nested under `env` such as `({ env: { PORT } } = process)`, and the global `process`, `globalThis.process`, `import.meta`, the default or namespace import of `node:process` or `process`, and a required `process`. Destructuring `env` through a namespace's `default`, such as `({ default: { env } } = p)`, and a rest element such as `({ ...rest } = process)` still pass. Projects with an `env` owner list may see new errors.
+- 2ca61ac: `no-ambient-clock` reports a date-fns helper that reads the clock when it's exported as a name destructured from a namespace, such as `export const { isPast } = dates` or `export const { isPast: past } = require("date-fns")`, matching an exported `const` alias such as `export const check = isPast`. Destructuring now follows nested keys, so `const { default: { isPast } } = await import("date-fns")` resolves like `.default.isPast`. Other names destructured from date-fns, and properties of a helper such as `{ isPast: { name } }`, still pass. Projects with a `clock` owner list may see new errors.
+
 ## 0.5.0
 
 ### Minor Changes
