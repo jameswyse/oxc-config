@@ -170,7 +170,7 @@ importers:
         specifier: 0.8.1
         version: 0.8.1(oxlint@1.88.0(oxlint-tsgolint@7.0.2004))
       '@oxlint/plugins':
-        specifier: 1.88.0
+        specifier: '>=1.86.0 <2'
         version: 1.88.0
       eslint-plugin-react-you-might-not-need-an-effect:
         specifier: 1.0.2

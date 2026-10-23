@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@e18e/eslint-plugin": "0.8.1",
-    "@oxlint/plugins": "1.88.0",
+    "@oxlint/plugins": ">=1.86.0 <2",
     "eslint-plugin-react-you-might-not-need-an-effect": "1.0.2"
   },
   "devDependencies": {
