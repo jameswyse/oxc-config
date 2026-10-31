@@ -1,5 +1,11 @@
 # @jameswyse/oxc-config
 
+## 0.6.2
+
+### Patch Changes
+
+- 64d7525: Update `eslint-plugin-react-you-might-not-need-an-effect` to 1.0.3.
+
 ## 0.6.1
 
 ### Patch Changes
