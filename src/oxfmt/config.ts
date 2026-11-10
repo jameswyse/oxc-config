@@ -1,13 +1,7 @@
-import { defaultIgnores } from "./lint.ts";
+import { defaultIgnores } from "../ignores.ts";
+import { defineFormatPreset } from "./preset.ts";
 
-import type { OxfmtConfig } from "oxfmt";
-
-type SortImportsOptions = Exclude<OxfmtConfig["sortImports"], boolean | undefined>;
-
-export const formatConfig: Omit<OxfmtConfig, "ignorePatterns" | "sortImports"> & {
-  ignorePatterns: string[];
-  sortImports: SortImportsOptions;
-} = {
+export const createFormatConfig = defineFormatPreset({
   printWidth: 100,
   tabWidth: 2,
   useTabs: false,
@@ -52,4 +46,4 @@ export const formatConfig: Omit<OxfmtConfig, "ignorePatterns" | "sortImports"> &
     ],
   },
   sortPackageJson: { sortScripts: true },
-};
+});

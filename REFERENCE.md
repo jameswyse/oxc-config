@@ -4,7 +4,11 @@ Rules are errors, which fail the run, unless marked as warnings. Warnings flag p
 
 Framework profiles and project options add rules only when enabled. The [configuration guide](docs/configuration.md) explains how to turn them on.
 
+Each section names the profile that holds its rules. `createLintConfig` always applies the `core`, `types`, `security`, `errors`, `modules`, `comments`, `mutation`, `tests` and `spacing` profiles. A [preset](docs/presets.md) chooses its own.
+
 ## Base rules
+
+Profile: `core`.
 
 Oxlint's correctness and suspicious categories are errors. Unused variables are errors unless their names start with `_`, and suppression comments that no longer suppress anything are errors too. `no-underscore-dangle` is off, so fields such as `_id` and `__typename` stay valid.
 
@@ -12,15 +16,14 @@ Native rules also catch legacy and error-prone built-ins: `no-var`, `no-proto`, 
 
 ## Types and external data
 
+Profile: `types`.
+
 Native rules: `typescript/no-explicit-any`, `no-non-null-assertion`, `no-unsafe-function-type` and `no-import-type-side-effects`. `consistent-type-assertions` allows only `as` assertions and rejects them on object and array literals, and `method-signature-style` requires property signatures such as `run: () => void`. `ban-ts-comment` rejects `@ts-ignore` and `@ts-nocheck`, and requires a reason after `--` on `@ts-expect-error`.
 
 Type-aware checking, which is on by default, adds the `no-unsafe-*` rules, `no-unsafe-type-assertion`, `no-unnecessary-type-assertion`, `switch-exhaustiveness-check`, `prefer-reduce-type-parameter`, `restrict-plus-operands` with every mixed-type allowance turned off, and `no-unnecessary-condition`, a nursery rule in Oxlint 1.86. `typescript/no-deprecated` is a warning outside tests.
 
 - `wyse/no-runtime-typeof` (warning): `typeof` outside a type guard. `typeof x === "undefined"` passes, as does `typeof` on a variable or parameter declared in the same file with a union type that has no `unknown` or `any` member. Turn it off in modules that validate external input.
 - `wyse/no-generic-object-guard`: a named helper such as `isRecord` whose whole body proves only that a value is a non-null object, through `typeof`, `instanceof Object`, prototype or `Object.prototype.toString` checks. Guards that also check a field pass, as do inline callbacks. It also reports any guard that takes `unknown` or `any` and claims a specific type while only checking that the value exists, or always returns `true`.
-- `wyse/no-hardcoded-credential`: a string containing a private key or a token in a well-known format, such as an AWS access key or a GitHub, Stripe live, Slack, Google, Anthropic or OpenAI key. Placeholders containing `example`, `fake`, `dummy`, `placeholder`, `redacted` or a run such as `abcdefgh` pass.
-- `wyse/no-disabled-tls-verification`: `rejectUnauthorized: false`, or setting `NODE_TLS_REJECT_UNAUTHORIZED` to `"0"`.
-- `wyse/no-secret-fallback`: a string fallback for an environment variable whose name contains `SECRET`, `TOKEN`, `PASSWORD`, `PRIVATE`, `CREDENTIAL`, `SALT`, `SIGNING` or `API_KEY`, or ends in `KEY`, such as `process.env.SESSION_SECRET ?? "dev"` or a destructuring default.
 - `wyse/type-guard-name`: a named type predicate such as `checkUser(value): value is User`. Names such as `isUser` and `hasId` pass, as do assertion functions and anonymous callbacks.
 - `wyse/no-unknown-returns`: a declared return type of `unknown` or `Promise<unknown>`.
 - `wyse/no-unknown-type-aliases`: a type alias that resolves to `unknown`.
@@ -33,7 +36,17 @@ Type-aware checking, which is on by default, adds the `no-unsafe-*` rules, `no-u
 
 These custom rules check one file at a time, without type information from other files. None of them bans `unknown` outright or rejects `as const`.
 
+## Security
+
+Profile: `security`.
+
+- `wyse/no-hardcoded-credential`: a string containing a private key or a token in a well-known format, such as an AWS access key or a GitHub, Stripe live, Slack, Google, Anthropic or OpenAI key. Placeholders containing `example`, `fake`, `dummy`, `placeholder`, `redacted` or a run such as `abcdefgh` pass.
+- `wyse/no-disabled-tls-verification`: `rejectUnauthorized: false`, or setting `NODE_TLS_REJECT_UNAUTHORIZED` to `"0"`.
+- `wyse/no-secret-fallback`: a string fallback for an environment variable whose name contains `SECRET`, `TOKEN`, `PASSWORD`, `PRIVATE`, `CREDENTIAL`, `SALT`, `SIGNING` or `API_KEY`, or ends in `KEY`, such as `process.env.SESSION_SECRET ?? "dev"` or a destructuring default.
+
 ## Control flow and errors
+
+Profile: `errors`.
 
 Native rules: `curly`, `eqeqeq`, `no-empty`, `no-useless-catch`, Oxlint's promise checks, `array-callback-return`, `no-case-declarations`, `no-constructor-return`, `no-fallthrough`, `no-loop-func`, `no-self-compare`, `no-unreachable-loop`, `no-useless-assignment` and `unicorn/error-message`. JavaScript files also get `no-throw-literal` and `prefer-promise-reject-errors`. Type-aware checking adds floating and misused promise checks, `await-thenable`, `return-await`, `only-throw-error`, `prefer-promise-reject-errors` and `use-unknown-in-catch-callback-variable`.
 
@@ -46,6 +59,8 @@ Native rules: `curly`, `eqeqeq`, `no-empty`, `no-useless-catch`, Oxlint's promis
 
 ## Modules, files and names
 
+Profile: `modules`.
+
 Native rules: `import/first`, `import/no-default-export`, `import/no-duplicates`, `import/no-self-import` and `import/no-unassigned-import`. `import/no-cycle` and `oxc/no-barrel-file` are warnings. Default exports are allowed in the files that tools load them from, listed in the [configuration guide](docs/configuration.md#select-framework-and-runtime-profiles).
 
 - `wyse/no-forwarding-module` (warning): a module made only of re-exports, or one that re-exports its imports unchanged. Package entrypoints, Next.js `app` special files and `pages`, root `middleware`, `proxy` and `instrumentation` files, and modules with directives or side-effect imports pass.
@@ -56,11 +71,15 @@ Native rules: `import/first`, `import/no-default-export`, `import/no-duplicates`
 
 ## Comments, suppressions and logging
 
+Profile: `comments`.
+
 - `wyse/no-comments`: line, block and JSDoc comments. Shebangs, JSDoc type tags in JavaScript files and tool directives pass. The directives include lint suppressions, `@ts-expect-error`, triple-slash references, `#__PURE__`, formatter and coverage ignores, bundler magic comments, and test-environment and JSX pragmas. The `allow` option adds more patterns.
 - `wyse/require-suppression-reason`: an `oxlint-disable` or `eslint-disable` directive that names no rule, or gives no reason after `--`. Oxlint applies a blanket `oxlint-disable` or `oxlint-disable-line` to this rule too, so it can't report those two forms. It does report a blanket `oxlint-disable-next-line`.
 - `eslint/no-console`: console calls outside config files and scripts.
 
 ## Mutation and copying
+
+Profile: `mutation`.
 
 Native rules: `prefer-const`, `no-param-reassign` and `oxc/no-accumulating-spread`. Type-aware checking adds `prefer-readonly`.
 
@@ -70,7 +89,7 @@ Native rules: `prefer-const`, `no-param-reassign` and `oxc/no-accumulating-sprea
 
 ## Project ownership
 
-These rules run only once the project names its owners through the [project boundary options](docs/configuration.md#enforce-project-boundaries).
+Each rule has a profile named after its option, shown in brackets. These rules run only once the project names its owners through the [project boundary options](docs/configuration.md#enforce-project-boundaries).
 
 - `wyse/no-env-access` (`env`): reading `process.env` or `import.meta.env` outside the owners, config files and scripts. That includes `globalThis.process.env`, `global.process.env`, `process["env"]` and `Reflect.get(process, "env")`, including with `"env" as const`, importing `env` from `node:process` or `process`, reading `env` from those modules' default, namespace, literal dynamic import or `require`, including through a loader made with `createRequire` from `node:module` or `module` or a `const` copy of a loader, and re-exporting `env`, the default or the whole module from them with `export { ... } from` or `export * from`. Destructuring `env` from any of these counts in a declaration, a parameter default such as `({ env } = process) => env`, or an assignment. Destructuring `env` through a namespace's `default`, such as `({ default: { env } } = p)`, or into a rest element, such as `({ ...rest } = process)`, isn't followed. Other `node:process` imports and re-exports, such as `argv`, type-only re-exports, a `require` function the file defines itself, a loader variable that's reassigned, and a `process` property on `window` or `self` pass. It doesn't check that the owner validates what it reads.
 - `wyse/import-boundaries` (`boundaries`): a value import, re-export, literal dynamic import, or `require` call, including a loader made with `createRequire` from `node:module` or `module`, whether stored, copied to another `const` or called directly as `createRequire(import.meta.url)("…")`, that matches a `deny` glob. A loader variable that's reassigned doesn't count. Type-only imports and `import("…")` types pass unless the boundary sets `types: true`. It doesn't check computed imports.
@@ -79,6 +98,8 @@ These rules run only once the project names its owners through the [project boun
 - `wyse/no-ambient-random` (`random`): `Math.random()`, `crypto.randomUUID()`, and `randomUUID` or `randomInt` from `node:crypto`. The same exceptions and wrapper handling apply. `randomBytes` and `getRandomValues` pass because they generate secrets.
 
 ## Tests
+
+Profiles: `tests`, `vitest` and `jest`.
 
 These rules run on the default test globs, the `tests` paths and the Jest and Vitest profile scopes. The `vitest` and `jest` profiles add native checks for focused, disabled and conditional tests, standalone expectations, valid `expect` calls, interpolated snapshots and redundant async `expect` callbacks. They also require the specific matcher, such as `toStrictEqual` over `toEqual`, `toHaveLength`, `toContain`, and comparison or equality matchers over `toBe(true)`. The `jest` profile rejects `done` callbacks.
 
@@ -103,5 +124,7 @@ These rules run on the default test globs, the `tests` paths and the Jest and Vi
   - `wyse/electron-no-raw-ipc-renderer-exposure`: exposing `ipcRenderer` or its methods through `contextBridge`, forwarding renderer-chosen channels or arguments, or passing renderer callbacks straight to `on` or `once`.
 
 ## Formatting
+
+Profile: `spacing`.
 
 Oxfmt formats the code. `wyse/statement-spacing` requires a blank line after the imports, around multiline blocks and declarations, and before `return`. Consecutive imports, consecutive one-line statements, and a type alias directly after the multiline declaration it derives from stay together. It's the only custom rule with an autofix.

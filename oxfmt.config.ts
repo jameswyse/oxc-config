@@ -1,3 +1,3 @@
-import { formatConfig } from "./src/format.ts";
+import { createFormatConfig } from "./src/oxfmt/config.ts";
 
-export default formatConfig;
+export default createFormatConfig();

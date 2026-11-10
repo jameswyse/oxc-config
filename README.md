@@ -54,16 +54,21 @@ export default createLintConfig();
 ```
 
 ```ts
-import { formatConfig } from "@jameswyse/oxc-config/oxfmt";
+import { createFormatConfig } from "@jameswyse/oxc-config/oxfmt";
 
-export default formatConfig;
+export default createFormatConfig();
 ```
 
 Type-aware checking is on by default and needs a `tsconfig.json` that TypeScript 7 accepts. The defaults enable no framework profiles or project boundaries. The [configuration guide](docs/configuration.md) covers supported versions, scripts, framework profiles, project boundaries, the shared tsconfig, exceptions and formatter options.
 
+## Build a preset for a team
+
+These configs are one preset built from the package's profiles. A team can publish its own preset that picks different profiles, changes rules and adds profiles for its stack, while the rules stay in this package. [Build a preset](docs/presets.md) shows how.
+
 ## Documentation
 
 - [Configuration guide](docs/configuration.md)
+- [Build a preset](docs/presets.md)
 - [Agent setup instructions](docs/agent-setup.md)
 - [Rule reference](REFERENCE.md)
 - [Contributing](CONTRIBUTING.md)

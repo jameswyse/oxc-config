@@ -1,37 +1,27 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { readFileSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 
-import { formatConfig } from "./format.ts";
-import { createLintConfig } from "./lint.ts";
+import { createFormatConfig } from "../oxfmt/config.ts";
+import {
+  formatBin,
+  lint,
+  lintBin,
+  run,
+  temporaryProject,
+  write,
+} from "../shared/config-fixture.ts";
+import { createLintConfig } from "./config.ts";
 
-import type { OxfmtConfig } from "oxfmt";
+import type { LintOptions } from "./config.ts";
 
-import type { LintOptions } from "./lint.ts";
+const lintUrl = new URL("./config.ts", import.meta.url).href;
 
-const require = createRequire(import.meta.url);
-
-const lintBin = join(dirname(require.resolve("oxlint/package.json")), "bin/oxlint");
-
-const formatBin = join(dirname(require.resolve("oxfmt/package.json")), "bin/oxfmt");
-
-const lintUrl = new URL("./lint.ts", import.meta.url).href;
-
-const formatUrl = new URL("./format.ts", import.meta.url).href;
-
-function write(root: string, path: string, contents: string): void {
-  const target = join(root, path);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, contents);
-}
+const formatUrl = new URL("../oxfmt/config.ts", import.meta.url).href;
 
 function fixture(t: TestContext, options: LintOptions = {}): string {
-  const root = mkdtempSync(join(tmpdir(), "oxc-config-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const root = temporaryProject(t);
   write(
     root,
     "oxlint.config.ts",
@@ -40,21 +30,10 @@ function fixture(t: TestContext, options: LintOptions = {}): string {
   write(
     root,
     "oxfmt.config.ts",
-    `import { formatConfig } from ${JSON.stringify(formatUrl)};\nexport default formatConfig;\n`,
+    `import { createFormatConfig } from ${JSON.stringify(formatUrl)};\nexport default createFormatConfig();\n`,
   );
 
   return root;
-}
-
-function run(root: string, bin: string, args: string[]) {
-  const result = spawnSync(process.execPath, [bin, ...args], { cwd: root, encoding: "utf8" });
-  assert.ifError(result.error);
-
-  return { status: result.status, output: `${result.stdout}\n${result.stderr}` };
-}
-
-function lint(root: string, ...args: string[]) {
-  return run(root, lintBin, ["--format", "json", ...args]);
 }
 
 test("a relocated consumer loads both plugins without a package manifest or tsconfig", (t) => {
@@ -100,7 +79,11 @@ test("every optional profile and their combination load in the actual CLI", (t) 
 
 test("type-aware checking catches promises and unsafe assignments with a real tsconfig", (t) => {
   const root = fixture(t, { typeAware: true });
-  symlinkSync(new URL("../node_modules", import.meta.url), join(root, "node_modules"), "junction");
+  symlinkSync(
+    new URL("../../node_modules", import.meta.url),
+    join(root, "node_modules"),
+    "junction",
+  );
   write(
     root,
     "tsconfig.json",
@@ -281,13 +264,9 @@ test("lint fixes and formatting converge while side-effect import order is prese
 test("an extended sortImports keeps the shared groups and adds an internal prefix", (t) => {
   const root = fixture(t);
 
-  const config: OxfmtConfig = {
-    ...formatConfig,
-    sortImports: {
-      ...formatConfig.sortImports,
-      internalPattern: ["@/", "#", "@my-workspace/"],
-    },
-  };
+  const config = createFormatConfig({
+    sortImports: { internalPattern: ["@/", "#", "@my-workspace/"] },
+  });
 
   write(root, "oxfmt.config.ts", `export default ${JSON.stringify(config)};\n`);
   write(
@@ -564,4 +543,133 @@ test("production, unit-test and React rules stay in their scopes", (t) => {
 
   const forms = lint(root, "src/ui/SignIn.tsx", "src/SignIn.tsx");
   assert.equal(forms.output.match(/no-get-password-form/g)?.length, 1, forms.output);
+});
+
+test("a rule change applies where the preset enables the rule and keeps its options and exemptions", (t) => {
+  const root = fixture(t, {
+    rules: {
+      "eslint/no-console": "warn",
+      "eslint/no-unused-vars": "warn",
+      "wyse/no-unchecked-fetch-response": "off",
+    },
+  });
+
+  const logging = 'export function report(): void {\n  console.log("report");\n}\n';
+  write(root, "src/report.ts", logging);
+  write(root, "scripts/report.ts", logging);
+  write(root, "src/unused.ts", "const _kept = 1;\nconst dropped = 2;\n\nexport const value = 3;\n");
+  write(
+    root,
+    "src/load.ts",
+    "export async function load(url: string) {\n  const response = await fetch(url);\n\n  return response.json();\n}\n",
+  );
+
+  const source = lint(root, "src/report.ts");
+  assert.equal(source.status, 0, source.output);
+  assert.match(source.output, /no-console/);
+  assert.doesNotMatch(lint(root, "scripts/report.ts").output, /no-console/);
+
+  const unused = lint(root, "src/unused.ts");
+  assert.equal(unused.status, 0, unused.output);
+  assert.match(unused.output, /dropped/);
+  assert.doesNotMatch(unused.output, /_kept/);
+
+  const load = lint(root, "src/load.ts");
+  assert.equal(load.status, 0, load.output);
+});
+
+test("turning off a rule whose plugin is not loaded changes nothing", (t) => {
+  const root = fixture(t, { rules: { "e18e/prefer-static-regex": "off" } });
+  write(
+    root,
+    "src/add.ts",
+    "export function add(left: number, right: number): number {\n  return left + right;\n}\n",
+  );
+  const result = lint(root, "src/add.ts");
+  assert.equal(result.status, 0, result.output);
+});
+
+test("a rule the preset turns off is changed where the preset sets it", (t) => {
+  const root = fixture(t, {
+    react: ["src/ui/**"],
+    rules: { "jsx-a11y/prefer-tag-over-role": "error" },
+  });
+
+  const source = 'export function Banner() {\n  return <div role="banner">Site</div>;\n}\n';
+  write(root, "src/ui/Banner.tsx", source);
+  const result = lint(root, "src/ui/Banner.tsx");
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /prefer-tag-over-role/);
+});
+
+test("project overrides and ignore patterns add to the preset's", (t) => {
+  const root = fixture(t, {
+    ignorePatterns: ["src/generated/**"],
+    overrides: [{ files: ["src/validation/**"], rules: { "typescript/no-explicit-any": "off" } }],
+  });
+
+  for (const path of [
+    "src/generated/api.ts",
+    "dist/api.ts",
+    "src/validation/parse.ts",
+    "src/api.ts",
+  ]) {
+    write(root, path, "export const value: any = 1;\n");
+  }
+
+  const result = lint(root, ".");
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /src\/api\.ts/);
+  assert.doesNotMatch(result.output, /generated|dist|validation/);
+});
+
+test("a project override changes a framework rule for its files", (t) => {
+  const root = fixture(t, {
+    react: true,
+    overrides: [
+      {
+        files: ["src/legacy/**"],
+        plugins: ["react", "jsx-a11y"],
+        rules: { "jsx-a11y/no-autofocus": "off" },
+      },
+    ],
+  });
+
+  const source = "export function Search() {\n  return <input autoFocus />;\n}\n";
+  write(root, "src/legacy/Search.tsx", source);
+  write(root, "src/Search.tsx", source);
+  const legacy = lint(root, "src/legacy/Search.tsx");
+  assert.equal(legacy.status, 0, legacy.output);
+  const current = lint(root, "src/Search.tsx");
+  assert.equal(current.status, 1, current.output);
+  assert.match(current.output, /no-autofocus/);
+});
+
+test("extra formatter ignore patterns add to the shared ones", (t) => {
+  const root = fixture(t);
+  const config = createFormatConfig({ ignorePatterns: ["generated/**"] });
+  write(root, "oxfmt.config.ts", `export default ${JSON.stringify(config)};\n`);
+  write(root, "dist/value.ts", "export const value=1\n");
+  write(root, "generated/value.ts", "export const value=1\n");
+  write(root, "src/value.ts", "export const value = 1;\n");
+  const ignored = run(root, formatBin, ["--check", "dist", "generated", "src"]);
+  assert.equal(ignored.status, 0, ignored.output);
+  write(root, "src/other.ts", "export const value=1\n");
+  const checked = run(root, formatBin, ["--check", "dist", "generated", "src"]);
+  assert.equal(checked.status, 1, checked.output);
+  assert.match(checked.output, /src\/other\.ts/);
+});
+
+test("import sorting can be turned off", (t) => {
+  const root = fixture(t);
+  const config = createFormatConfig({ sortImports: false });
+  write(root, "oxfmt.config.ts", `export default ${JSON.stringify(config)};\n`);
+
+  const unsorted =
+    'import { z } from "zod";\nimport { useState } from "react";\n\nexport { useState, z };\n';
+
+  write(root, "imports.ts", unsorted);
+  const result = run(root, formatBin, ["imports.ts"]);
+  assert.equal(result.status, 0, result.output);
+  assert.equal(readFileSync(join(root, "imports.ts"), "utf8"), unsorted);
 });

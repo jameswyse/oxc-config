@@ -1,0 +1,17 @@
+export const defaultIgnores: string[] = [
+  "**/node_modules/**",
+  "**/coverage/**",
+  "**/dist/**",
+  "**/.next/**",
+  "**/.nuxt/**",
+  "**/.output/**",
+  "**/.turbo/**",
+  "**/playwright-report/**",
+  "**/test-results/**",
+  "**/.agent/**",
+  "**/.claude/**",
+  "**/.codex/**",
+  "**/.cursor/**",
+  "**/.gemini/**",
+  "**/.playwright-cli/**",
+];
