@@ -1,15 +1,13 @@
-import { createLintConfig } from "./src/lint.ts";
+import { createLintConfig } from "./src/oxlint/config.ts";
 
-const config = createLintConfig({ node: true });
-
-export default {
-  ...config,
-  rules: { ...config.rules, "wyse/no-comments": ["error", { allow: ["^Adapted from "] }] },
+export default createLintConfig({
+  node: true,
+  rules: { "wyse/no-comments": ["error", { allow: ["^Adapted from "] }] },
   overrides: [
-    ...config.overrides,
     {
       files: ["src/**/*.ts"],
       rules: { "import/no-default-export": "off", "wyse/no-runtime-typeof": "off" },
     },
+    { files: ["src/oxlint/profiles.ts"], rules: { "wyse/no-forwarding-module": "off" } },
   ],
-};
+});

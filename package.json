@@ -32,8 +32,11 @@
   ],
   "type": "module",
   "exports": {
-    "./oxlint": "./dist/lint.js",
-    "./oxfmt": "./dist/format.js",
+    "./oxlint": "./dist/oxlint/config.js",
+    "./oxlint/preset": "./dist/oxlint/preset.js",
+    "./oxlint/profiles": "./dist/oxlint/profiles.js",
+    "./oxfmt": "./dist/oxfmt/config.js",
+    "./oxfmt/preset": "./dist/oxfmt/preset.js",
     "./wyse": "./dist/index.js",
     "./tsconfig": "./tsconfig.base.json"
   },

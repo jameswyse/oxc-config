@@ -36,9 +36,9 @@ Type-aware checking is on by default. It needs the project's `tsconfig.json` and
 Create `oxfmt.config.ts` beside it:
 
 ```ts
-import { formatConfig } from "@jameswyse/oxc-config/oxfmt";
+import { createFormatConfig } from "@jameswyse/oxc-config/oxfmt";
 
-export default formatConfig;
+export default createFormatConfig();
 ```
 
 Add the scripts:
@@ -139,18 +139,21 @@ In an existing project, `noUncheckedIndexedAccess` and `exactOptionalPropertyTyp
 
 ## Add project-specific exceptions
 
-Append overrides to the returned config so its framework and test overrides stay active. Oxlint applies file overrides after top-level `rules`, so type-aware and framework rules can only be changed by a later override.
+`createLintConfig` takes three Oxlint keys beside its own options and merges each into the shared config:
+
+- `rules` changes a rule wherever the shared config enables it. A rule the config enables only for test files stays scoped to test files, and files the config exempts stay exempt. A severity on its own, such as `"warn"`, keeps the rule's options. A rule the config only turns off, such as `jsx-a11y/prefer-tag-over-role`, changes in the files where the config sets it. A rule the config doesn't set applies to every file.
+- `overrides` are added after the shared overrides, so they win. Use one to change a rule for some files. Oxlint ignores a framework rule in an override that doesn't list the rule's plugin, so an override that changes one must list the profile's plugins: `react` and `jsx-a11y` for a React rule, those two and `nextjs` for a Next.js rule, or `node`, `vitest` or `jest` for theirs. The config adds its base plugins to the list.
+- `ignorePatterns` are added to the shared ignore patterns.
 
 ```ts
 import { createLintConfig } from "@jameswyse/oxc-config/oxlint";
 
-const base = createLintConfig({ react: true, vitest: true });
-
-export default {
-  ...base,
-  ignorePatterns: [...base.ignorePatterns, "src/routeTree.gen.ts"],
+export default createLintConfig({
+  react: true,
+  vitest: true,
+  ignorePatterns: ["src/routeTree.gen.ts"],
+  rules: { "wyse/no-swallowed-errors": "error" },
   overrides: [
-    ...base.overrides,
     {
       files: ["src/validation/**/*.ts"],
       rules: {
@@ -159,26 +162,32 @@ export default {
       },
     },
   ],
-};
+});
 ```
 
-Use this for validated input seams, real timer tests, external module mocks, framework-required default exports and generated files. Keep each exception to the smallest scope. Suppression comments that no longer suppress anything are errors.
+Write rule names as [the rule reference](../REFERENCE.md) does, with the plugin prefix, such as `eslint/no-console` and `typescript/no-explicit-any`. `rules` matches names exactly, so an alias such as `no-console` is added as a new rule instead of changing the shared one.
+
+Use overrides for validated input seams, real timer tests, external module mocks, framework-required default exports and generated files. Keep each exception to the smallest scope. Suppression comments that no longer suppress anything are errors.
+
+`createLintConfig` returns a plain Oxlint config object, so anything these keys don't cover can still be changed by spreading the result.
 
 ## Adjust the formatter
 
-The formatter uses 100 columns, two spaces, double quotes, semicolons and trailing commas. It sorts imports into value and type groups and sorts `package.json` scripts. To use single quotes or add a workspace import prefix:
+The formatter uses 100 columns, two spaces, double quotes, semicolons and trailing commas. It sorts imports into value and type groups and sorts `package.json` scripts. `createFormatConfig` takes Oxfmt options. To use single quotes or add a workspace import prefix:
 
 ```ts
-import { formatConfig } from "@jameswyse/oxc-config/oxfmt";
+import { createFormatConfig } from "@jameswyse/oxc-config/oxfmt";
 
-export default {
-  ...formatConfig,
+export default createFormatConfig({
   singleQuote: true,
-  sortImports: {
-    ...formatConfig.sortImports,
-    internalPattern: ["@/", "#", "@my-workspace/"],
-  },
-};
+  sortImports: { internalPattern: ["@/", "#", "@my-workspace/"] },
+});
 ```
 
+`sortImports` merges into the shared import sorting, so the groups stay, and `ignorePatterns` are added to the shared ignore patterns. Pass `sortImports: false` to turn import sorting off.
+
 Tailwind class sorting depends on the project's Tailwind version and stylesheet, so configure Oxfmt's `sortTailwindcss` option in the project.
+
+## Share a team's defaults
+
+A team that wants its own defaults can publish a preset built from this package's profiles. See [Build a preset](presets.md).

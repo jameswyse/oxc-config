@@ -1,0 +1,409 @@
+import { extname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { defaultIgnores } from "../ignores.ts";
+
+import type {
+  AllowWarnDeny,
+  DummyRule,
+  DummyRuleMap,
+  ExternalPluginEntry,
+  OxlintConfig,
+  OxlintEnv,
+  OxlintOverride,
+} from "oxlint";
+
+export type FileScope = true | string[];
+
+export type AppRoots = true | string[];
+
+export type OneOrMore<Item> = [Item, ...Item[]];
+
+export interface ImportBoundary {
+  files: string[];
+  ignore?: string[];
+  deny: string[];
+  message: string;
+  types?: boolean;
+}
+
+export type LintPlugin = NonNullable<OxlintConfig["plugins"]>[number];
+
+interface LayerSettings {
+  plugins?: LintPlugin[];
+  jsPlugins?: ExternalPluginEntry[];
+  env?: OxlintEnv;
+  rules: DummyRuleMap;
+  boundaries?: never;
+}
+
+export type ScopedLayer = LayerSettings & { files: string[]; excludeFiles?: string[] };
+
+export type GlobalLayer = LayerSettings & { files?: never; excludeFiles?: never };
+
+export type BoundaryLayer = { boundaries: ImportBoundary[] } & {
+  [Setting in keyof ScopedLayer as Exclude<Setting, "boundaries">]?: never;
+};
+
+export type LintLayer = ScopedLayer | GlobalLayer | BoundaryLayer;
+
+type RuleLayer = ScopedLayer | GlobalLayer;
+
+export interface LintScope {
+  typeAware: boolean;
+  source: string[];
+  typeScript: string[];
+  javaScript: string[];
+  tests: string[];
+  endToEnd: string[];
+  entrypoints: string[];
+  programs: string[];
+}
+
+export type BaseProfile = (scope: LintScope) => LintLayer[];
+
+export interface Profile<Option> {
+  (scope: LintScope, option: Option): LintLayer[];
+  testFiles?: (option: Option) => string[];
+}
+
+export type StandardLintOptions = Pick<OxlintConfig, "rules" | "overrides" | "ignorePatterns"> & {
+  root?: string;
+  typeAware?: boolean;
+  tests?: string[];
+};
+
+type ProfileOptions<Options> = { [Name in keyof Options]?: Options[Name] | false };
+
+type Profiles<Options> = { [Name in keyof Options]: Profile<Options[Name]> };
+
+export type LintOptions<Options> = StandardLintOptions & ProfileOptions<Options>;
+
+export interface LintPresetDefinition<Options> {
+  base: BaseProfile[];
+  profiles: Profiles<Options> & { [Name in keyof StandardLintOptions]?: never };
+  rules?: DummyRuleMap;
+  ignorePatterns?: string[];
+}
+
+export type SharedLintConfig = OxlintConfig & {
+  ignorePatterns: string[];
+  overrides: OxlintOverride[];
+  rules: DummyRuleMap;
+};
+
+const basePlugins: LintPlugin[] = ["eslint", "unicorn", "oxc", "import", "promise", "typescript"];
+
+const wysePlugin: ExternalPluginEntry = {
+  name: "wyse",
+  specifier: fileURLToPath(new URL(`../index${extname(import.meta.url)}`, import.meta.url)),
+};
+
+const sourceFiles = ["**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"];
+
+const testFiles = [
+  "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+  "**/__tests__/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+];
+
+const fileScopes = {
+  source: sourceFiles,
+  typeScript: ["**/*.{ts,tsx,mts,cts}"],
+  javaScript: ["**/*.{js,jsx,mjs,cjs}"],
+  endToEnd: ["**/e2e/**", "**/*.e2e.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+  entrypoints: [
+    "**/*.{config,conf}.{js,mjs,cjs,ts,mts,cts}",
+    "**/{sanity.cli,codegen,graphql-codegen}.{js,mjs,cjs,ts,mts,cts}",
+    "**/scripts/**/*.{js,mjs,cjs,ts,mts,cts}",
+  ],
+  programs: [
+    "**/{bin,cli,deploy,tools,test,tests,e2e,fixtures}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+    "**/.storybook/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+    "**/{main,server,worker,instrumentation,instrumentation-client,healthcheck}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+  ],
+};
+
+export function errorRules(plugin: string, names: string[]): DummyRuleMap {
+  return Object.fromEntries(names.map((name) => [`${plugin}/${name}`, "error"]));
+}
+
+export function filesFor(option: FileScope, fallback: string[]): string[] {
+  return option === true ? fallback : option;
+}
+
+export function appPrefixes(roots: AppRoots): string[] {
+  return filesFor(roots, ["."]).map((root) => {
+    const normalized = root.replace(/^\.\//, "").replace(/\/+$/, "");
+
+    return normalized === "." || normalized === "" ? "" : `${normalized}/`;
+  });
+}
+
+export function appFiles(scope: LintScope, roots: AppRoots): string[] {
+  return appPrefixes(roots).flatMap((prefix) => scope.source.map((files) => `${prefix}${files}`));
+}
+
+export function extendProfile<Option>(
+  profile: Profile<Option>,
+  extension: (scope: LintScope, option: Option) => LintLayer[],
+): Profile<Option> {
+  const extended: Profile<Option> = (scope, option) => [
+    ...profile(scope, option),
+    ...extension(scope, option),
+  ];
+
+  if (profile.testFiles) {
+    extended.testFiles = profile.testFiles;
+  }
+
+  return extended;
+}
+
+interface SelectedProfile {
+  testFiles: string[];
+  layers: BaseProfile;
+}
+
+function selectProfile<Option>(
+  profile: Profile<Option>,
+  option: Option | false | undefined,
+): SelectedProfile[] {
+  if (option === undefined || option === false || (Array.isArray(option) && option.length === 0)) {
+    return [];
+  }
+
+  return [
+    {
+      testFiles: profile.testFiles?.(option) ?? [],
+      layers: (scope) => profile(scope, option),
+    },
+  ];
+}
+
+function severity(rule: DummyRule): AllowWarnDeny {
+  return Array.isArray(rule) ? rule[0] : rule;
+}
+
+function isEnabled(rule: DummyRule | undefined): rule is DummyRule {
+  return rule !== undefined && !["off", "allow", 0].includes(severity(rule));
+}
+
+function changedRule({ current, change }: { current: DummyRule; change: DummyRule }): DummyRule {
+  const keepsOptions = isEnabled(change) && (!Array.isArray(change) || change.length === 1);
+
+  return keepsOptions && Array.isArray(current) ? [severity(change), ...current.slice(1)] : change;
+}
+
+function combinedChanges({
+  preset,
+  project,
+}: {
+  preset: DummyRuleMap;
+  project: DummyRuleMap;
+}): DummyRuleMap {
+  const combined: DummyRuleMap = { ...preset };
+
+  for (const [name, change] of Object.entries(project)) {
+    const current = preset[name];
+
+    if (change !== undefined) {
+      combined[name] = current === undefined ? change : changedRule({ current, change });
+    }
+  }
+
+  return combined;
+}
+
+function pluginKey(plugin: ExternalPluginEntry): string {
+  return typeof plugin === "string" ? plugin : plugin.name;
+}
+
+function rulePlugin(name: string): string {
+  const separator = name.lastIndexOf("/");
+
+  return separator === -1 ? "eslint" : name.slice(0, separator);
+}
+
+function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
+  const settings = layers.flatMap((layer) => Object.entries(layer.rules));
+  const set = new Set(settings.map(([name]) => name));
+  const enabled = new Set(settings.flatMap(([name, rule]) => (isEnabled(rule) ? [name] : [])));
+
+  const loaded = new Set<string>([
+    pluginKey(wysePlugin),
+    ...basePlugins,
+    ...layers.flatMap((layer) => layer.plugins ?? []),
+    ...layers.flatMap((layer) => (layer.jsPlugins ?? []).map(pluginKey)),
+  ]);
+
+  const adjusted = layers.map((layer) => ({
+    ...layer,
+    rules: Object.fromEntries(
+      Object.entries(layer.rules).map(([name, current]) => {
+        const change = changes[name];
+
+        if (change === undefined || current === undefined) {
+          return [name, current];
+        }
+
+        const applies = isEnabled(current) || !enabled.has(name);
+
+        return [name, applies ? changedRule({ current, change }) : current];
+      }),
+    ),
+  }));
+
+  const added = Object.fromEntries(
+    Object.entries(changes).filter(
+      ([name, change]) => !set.has(name) && (isEnabled(change) || loaded.has(rulePlugin(name))),
+    ),
+  );
+
+  return Object.keys(added).length > 0 ? [...adjusted, { rules: added }] : adjusted;
+}
+
+function withBasePlugins(override: OxlintOverride): OxlintOverride {
+  return override.plugins
+    ? { ...override, plugins: [...new Set([...basePlugins, ...override.plugins])] }
+    : override;
+}
+
+function scopedOverride(layer: ScopedLayer): OxlintOverride {
+  const override: OxlintOverride = { files: layer.files, rules: layer.rules };
+
+  if (layer.excludeFiles) {
+    override.excludeFiles = layer.excludeFiles;
+  }
+
+  if (layer.plugins) {
+    override.plugins = [...basePlugins, ...layer.plugins];
+  }
+
+  if (layer.env) {
+    override.env = layer.env;
+  }
+
+  return override;
+}
+
+interface Composition {
+  layers: RuleLayer[];
+  typeAware: boolean;
+  ignorePatterns: string[];
+  overrides: OxlintOverride[];
+}
+
+function composeConfig({
+  layers,
+  typeAware,
+  ignorePatterns,
+  overrides,
+}: Composition): SharedLintConfig {
+  const plugins = new Set(basePlugins);
+  const env: OxlintEnv = { es2022: true };
+  const rules: DummyRuleMap = {};
+  const scoped: OxlintOverride[] = [];
+  const scopedRules = new Set<string>();
+
+  for (const layer of layers) {
+    if (layer.files) {
+      scoped.push(scopedOverride(layer));
+      Object.keys(layer.rules).forEach((name) => scopedRules.add(name));
+    } else {
+      const afterScoped = Object.fromEntries(
+        Object.entries(layer.rules).filter(([name]) => scopedRules.has(name)),
+      );
+
+      Object.assign(rules, layer.rules);
+      Object.assign(env, layer.env);
+      layer.plugins?.forEach((plugin) => plugins.add(plugin));
+
+      if (Object.keys(afterScoped).length > 0) {
+        scoped.push({ files: ["**/*"], rules: afterScoped });
+      }
+    }
+  }
+
+  const jsPlugins = [wysePlugin, ...layers.flatMap((layer) => layer.jsPlugins ?? [])];
+
+  return {
+    categories: { correctness: "error", suspicious: "error" },
+    options: { reportUnusedDisableDirectives: "error", typeAware },
+    plugins: [...plugins],
+    jsPlugins: [...new Map(jsPlugins.map((plugin) => [pluginKey(plugin), plugin])).values()],
+    env,
+    ignorePatterns,
+    rules,
+    overrides: [...scoped, ...overrides.map(withBasePlugins)],
+  };
+}
+
+function ruleLayers(layers: LintLayer[], scope: LintScope, root: string | undefined): RuleLayer[] {
+  const boundaries: ImportBoundary[] = [];
+  const result: RuleLayer[] = [];
+
+  for (const layer of layers) {
+    if (!("boundaries" in layer)) {
+      result.push(layer);
+    } else if (layer.boundaries.length > 0) {
+      if (root === undefined) {
+        throw new TypeError(
+          "Import boundaries resolve from the config file, so pass root: import.meta.dirname.",
+        );
+      }
+
+      boundaries.push(...layer.boundaries);
+      result.push({
+        files: scope.source,
+        rules: { "wyse/import-boundaries": ["error", { root, boundaries: [...boundaries] }] },
+      });
+    }
+  }
+
+  return result;
+}
+
+export function defineLintPreset<Options>(
+  definition: LintPresetDefinition<Options>,
+): (options?: LintOptions<Options>) => SharedLintConfig {
+  return (options = {}) => {
+    const profiles: Profiles<Options> = definition.profiles;
+    const profileOptions: ProfileOptions<Options> = options;
+    const selected: SelectedProfile[] = [];
+
+    for (const name in profiles) {
+      selected.push(...selectProfile(profiles[name], profileOptions[name]));
+    }
+
+    const scope: LintScope = {
+      ...fileScopes,
+      typeAware: options.typeAware ?? true,
+      tests: [
+        ...new Set([
+          ...testFiles,
+          ...(options.tests ?? []),
+          ...selected.flatMap((profile) => profile.testFiles),
+        ]),
+      ],
+    };
+
+    const layers = [
+      ...definition.base.flatMap((profile) => profile(scope)),
+      ...selected.flatMap((profile) => profile.layers(scope)),
+    ];
+
+    return composeConfig({
+      layers: adjustRules(
+        ruleLayers(layers, scope, options.root),
+        combinedChanges({ preset: definition.rules ?? {}, project: options.rules ?? {} }),
+      ),
+      typeAware: scope.typeAware,
+      ignorePatterns: [
+        ...defaultIgnores,
+        ...(definition.ignorePatterns ?? []),
+        ...(options.ignorePatterns ?? []),
+      ],
+      overrides: options.overrides ?? [],
+    });
+  };
+}
