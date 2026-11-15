@@ -56,6 +56,7 @@ export const noComments = defineRule({
   create(context) {
     const allowed = [
       ...directivePatterns,
+      // oxlint-disable-next-line wyse/no-dynamic-regex -- the allow option takes patterns from the project's lint config
       ...optionStrings(context.options, "allow").map((source) => new RegExp(source, "u")),
     ];
 

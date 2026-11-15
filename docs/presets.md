@@ -50,17 +50,17 @@ The definition also takes `ignorePatterns`, which are added to the default ignor
 
 [The rule reference](../REFERENCE.md) lists the rules in each profile.
 
-| Base profile | Rules                                                            |
-| ------------ | ---------------------------------------------------------------- |
-| `core`       | Legacy and error-prone built-ins, unused variables               |
-| `types`      | Type safety and external data, plus the type-aware `no-unsafe-*` |
-| `security`   | Hard-coded credentials, disabled TLS checks, secret fallbacks    |
-| `errors`     | Control flow, promises and error handling                        |
-| `modules`    | Imports, named exports, barrels, file and symbol names           |
-| `comments`   | Comments, suppression reasons and console logging                |
-| `mutation`   | Reassignment and copying                                         |
-| `tests`      | Custom test rules on the test files                              |
-| `spacing`    | `wyse/statement-spacing`                                         |
+| Base profile | Rules                                                                |
+| ------------ | -------------------------------------------------------------------- |
+| `core`       | Legacy and error-prone built-ins, unused variables                   |
+| `types`      | Type safety and external data, plus the type-aware `no-unsafe-*`     |
+| `security`   | Credentials, TLS checks, shell commands, regexes, secret comparisons |
+| `errors`     | Control flow, promises and error handling                            |
+| `modules`    | Imports, named exports, barrels, file and symbol names               |
+| `comments`   | Comments, suppression reasons and console logging                    |
+| `mutation`   | Reassignment and copying                                             |
+| `tests`      | Custom test rules on the test files                                  |
+| `spacing`    | `wyse/statement-spacing`                                             |
 
 | Optional profile          | Option                                    |
 | ------------------------- | ----------------------------------------- |

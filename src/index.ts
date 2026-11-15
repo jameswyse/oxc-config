@@ -10,12 +10,16 @@ import { explicitApiStates } from "./rules/explicit-api-states.ts";
 import { importBoundaries } from "./rules/import-boundaries.ts";
 import { noAmbientClock } from "./rules/no-ambient-clock.ts";
 import { noAmbientRandom } from "./rules/no-ambient-random.ts";
+import { noBidiControlCharacters } from "./rules/no-bidi-control-characters.ts";
 import { noComments } from "./rules/no-comments.ts";
 import { noDeepTernary } from "./rules/no-deep-ternary.ts";
 import { noDerivedTestExpectation } from "./rules/no-derived-test-expectation.ts";
 import { noDisabledTlsVerification } from "./rules/no-disabled-tls-verification.ts";
+import { noDynamicRegex } from "./rules/no-dynamic-regex.ts";
+import { noDynamicShellCommand } from "./rules/no-dynamic-shell-command.ts";
 import { noEditProofAssertions } from "./rules/no-edit-proof-assertions.ts";
 import { noEnvAccess } from "./rules/no-env-access.ts";
+import { noExponentialRegex } from "./rules/no-exponential-regex.ts";
 import { noFixedTestDelay } from "./rules/no-fixed-test-delay.ts";
 import { noForwardingModule } from "./rules/no-forwarding-module.ts";
 import { noGenericFileSuffix } from "./rules/no-generic-file-suffix.ts";
@@ -28,6 +32,7 @@ import { noPassThroughFunction } from "./rules/no-pass-through-function.ts";
 import { noSecretFallback } from "./rules/no-secret-fallback.ts";
 import { noSwallowedErrors } from "./rules/no-swallowed-errors.ts";
 import { noTestTimeoutOverrides } from "./rules/no-test-timeout-overrides.ts";
+import { noTimingUnsafeComparison } from "./rules/no-timing-unsafe-comparison.ts";
 import { noUncheckedFetchResponse } from "./rules/no-unchecked-fetch-response.ts";
 import { noUncheckedIndexSearch } from "./rules/no-unchecked-index-search.ts";
 import { noUncontrolledTestClock } from "./rules/no-uncontrolled-test-clock.ts";
@@ -86,14 +91,18 @@ const wyse = definePlugin({
     "no-ambient-clock": noAmbientClock,
     "no-ambient-random": noAmbientRandom,
     "no-array-filter-map": noArrayFilterMap,
+    "no-bidi-control-characters": noBidiControlCharacters,
     "no-chained-type-assertions": noChainedTypeAssertions,
     "no-comments": noComments,
     "no-conditional-empty-object-spread": noConditionalEmptyObjectSpread,
     "no-deep-ternary": noDeepTernary,
     "no-derived-test-expectation": noDerivedTestExpectation,
     "no-disabled-tls-verification": noDisabledTlsVerification,
+    "no-dynamic-regex": noDynamicRegex,
+    "no-dynamic-shell-command": noDynamicShellCommand,
     "no-edit-proof-assertions": noEditProofAssertions,
     "no-env-access": noEnvAccess,
+    "no-exponential-regex": noExponentialRegex,
     "no-fixed-test-delay": noFixedTestDelay,
     "no-forwarding-module": noForwardingModule,
     "no-generic-file-suffix": noGenericFileSuffix,
@@ -116,6 +125,7 @@ const wyse = definePlugin({
     "no-shape-in-symbol-names": noForbiddenTermInSymbolNames,
     "no-swallowed-errors": noSwallowedErrors,
     "no-test-timeout-overrides": noTestTimeoutOverrides,
+    "no-timing-unsafe-comparison": noTimingUnsafeComparison,
     "no-unchecked-fetch-response": noUncheckedFetchResponse,
     "no-unchecked-index-search": noUncheckedIndexSearch,
     "no-uncontrolled-test-clock": noUncontrolledTestClock,

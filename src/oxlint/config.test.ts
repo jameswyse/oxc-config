@@ -315,6 +315,40 @@ test("environment reads are limited to configured owners and entrypoints", (t) =
   assert.equal(lint(unconfigured, "src/server.ts").status, 0);
 });
 
+test("security rules apply to source files and keep shell and timing checks out of tests", (t) => {
+  const root = fixture(t);
+  const source = `import { exec } from "node:child_process";\n\n// ${String.fromCodePoint(0x202e)} reviewed\n\nexport function verify(token: string, expected: string, input: string): boolean {\n  exec(\`git log \${input}\`);\n  const plugin: unknown = require(input);\n\n  return token === expected && new RegExp(input).test(token) && /^(a+)+$/.test(token) && plugin !== null;\n}\n`;
+  write(root, "src/verify.ts", source);
+  write(root, "src/verify.test.ts", source);
+  write(root, "e2e/verify.e2e.ts", source);
+
+  const sharedRules = [
+    /no-bidi-control-characters/,
+    /no-dynamic-regex/,
+    /no-exponential-regex/,
+    /no-dynamic-require/,
+  ];
+
+  const production = lint(root, "src/verify.ts");
+  assert.equal(production.status, 1, production.output);
+
+  for (const rule of [...sharedRules, /no-dynamic-shell-command/, /no-timing-unsafe-comparison/]) {
+    assert.match(production.output, rule);
+  }
+
+  const unit = lint(root, "src/verify.test.ts");
+
+  for (const rule of sharedRules) {
+    assert.match(unit.output, rule);
+  }
+
+  assert.doesNotMatch(unit.output, /no-dynamic-shell-command|no-timing-unsafe-comparison/);
+
+  const endToEnd = lint(root, "e2e/verify.e2e.ts");
+  assert.match(endToEnd.output, /no-exponential-regex/);
+  assert.doesNotMatch(endToEnd.output, /no-dynamic-shell-command|no-timing-unsafe-comparison/);
+});
+
 test("import boundaries reject bare and resolved relative imports but allow type imports", (t) => {
   const root = fixture(t, {
     boundaries: [
