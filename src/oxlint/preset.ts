@@ -224,8 +224,8 @@ function rulePlugin(name: string): string {
   return separator === -1 ? "eslint" : name.slice(0, separator);
 }
 
-function scopedPluginNames(layer: RuleLayer): string[] {
-  return layer.files ? (layer.plugins ?? []) : [];
+function pluginNames(layer: RuleLayer): string[] {
+  return [...(layer.plugins ?? []), ...(layer.jsPlugins ?? []).map(pluginKey)];
 }
 
 function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
@@ -236,16 +236,15 @@ function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
   const rootPlugins = new Set<string>([
     pluginKey(wysePlugin),
     ...basePlugins,
-    ...layers.flatMap((layer) => (layer.files ? [] : (layer.plugins ?? []))),
-    ...layers.flatMap((layer) => (layer.jsPlugins ?? []).map(pluginKey)),
+    ...layers.flatMap((layer) => (layer.files ? [] : pluginNames(layer))),
   ]);
 
-  const scopedPlugins = new Set(layers.flatMap(scopedPluginNames));
+  const scopedPlugins = new Set(layers.flatMap((layer) => (layer.files ? pluginNames(layer) : [])));
   const unset = Object.entries(changes).filter(([name]) => !set.has(name));
   const scopedChanges = unset.filter(([name]) => !rootPlugins.has(rulePlugin(name)));
 
   const adjusted = layers.map((layer) => {
-    const layerPlugins = new Set(scopedPluginNames(layer));
+    const layerPlugins = new Set(layer.files ? pluginNames(layer) : []);
 
     return {
       ...layer,

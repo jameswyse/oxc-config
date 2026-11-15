@@ -606,6 +606,27 @@ test("a rule the preset does not set applies where a profile loads its plugin", 
   assert.doesNotMatch(email.output, /no-danger/);
 });
 
+test("a JavaScript plugin rule the preset does not set applies where a profile loads its plugin", (t) => {
+  const root = fixture(t, {
+    react: ["src/ui/**"],
+    rules: { "e18e/prefer-exponentiation-operator": "error" },
+  });
+
+  const source =
+    "export function squared(value: number): number {\n  return Math.pow(value, 2);\n}\n";
+
+  write(root, "src/ui/squared.ts", source);
+  write(root, "src/ui/squared.test.ts", source);
+  write(root, "src/math/squared.ts", source);
+
+  const ui = lint(root, "src/ui/squared.ts");
+  assert.equal(ui.status, 1, ui.output);
+  assert.match(ui.output, /e18e/);
+
+  const elsewhere = lint(root, "src/ui/squared.test.ts", "src/math/squared.ts");
+  assert.doesNotMatch(elsewhere.output, /e18e/);
+});
+
 test("a rule the preset turns off is changed where the preset sets it", (t) => {
   const root = fixture(t, {
     react: ["src/ui/**"],
