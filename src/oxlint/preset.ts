@@ -29,9 +29,11 @@ export interface ImportBoundary {
 
 export type LintPlugin = NonNullable<OxlintConfig["plugins"]>[number];
 
+export type JsPlugin = Exclude<ExternalPluginEntry, string>;
+
 interface LayerSettings {
   plugins?: LintPlugin[];
-  jsPlugins?: ExternalPluginEntry[];
+  jsPlugins?: JsPlugin[];
   env?: OxlintEnv;
   rules: DummyRuleMap;
   boundaries?: never;
@@ -94,7 +96,7 @@ export type SharedLintConfig = OxlintConfig & {
 
 const basePlugins: LintPlugin[] = ["eslint", "unicorn", "oxc", "import", "promise", "typescript"];
 
-const wysePlugin: ExternalPluginEntry = {
+const wysePlugin: JsPlugin = {
   name: "wyse",
   specifier: fileURLToPath(new URL(`../index${extname(import.meta.url)}`, import.meta.url)),
 };
@@ -214,10 +216,6 @@ function combinedChanges({
   return combined;
 }
 
-function pluginKey(plugin: ExternalPluginEntry): string {
-  return typeof plugin === "string" ? plugin : plugin.name;
-}
-
 function rulePlugin(name: string): string {
   const separator = name.lastIndexOf("/");
 
@@ -225,7 +223,7 @@ function rulePlugin(name: string): string {
 }
 
 function pluginNames(layer: RuleLayer): string[] {
-  return [...(layer.plugins ?? []), ...(layer.jsPlugins ?? []).map(pluginKey)];
+  return [...(layer.plugins ?? []), ...(layer.jsPlugins ?? []).map((plugin) => plugin.name)];
 }
 
 function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
@@ -234,7 +232,7 @@ function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
   const enabled = new Set(settings.flatMap(([name, rule]) => (isEnabled(rule) ? [name] : [])));
 
   const rootPlugins = new Set<string>([
-    pluginKey(wysePlugin),
+    wysePlugin.name,
     ...basePlugins,
     ...layers.flatMap((layer) => (layer.files ? [] : pluginNames(layer))),
   ]);
@@ -346,7 +344,7 @@ function composeConfig({
     categories: { correctness: "error", suspicious: "error" },
     options: { reportUnusedDisableDirectives: "error", typeAware },
     plugins: [...plugins],
-    jsPlugins: [...new Map(jsPlugins.map((plugin) => [pluginKey(plugin), plugin])).values()],
+    jsPlugins: [...new Map(jsPlugins.map((plugin) => [plugin.name, plugin])).values()],
     env,
     ignorePatterns,
     rules,

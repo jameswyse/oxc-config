@@ -104,14 +104,14 @@ export const reactNative: Profile<AppRoots> = (scope, roots) => [
 
 A layer of rules has these fields:
 
-| Field          | Meaning                                                                   |
-| -------------- | ------------------------------------------------------------------------- |
-| `rules`        | The rules to set. Required                                                |
-| `files`        | Globs the layer applies to. Without it, the layer applies to every file   |
-| `excludeFiles` | Globs to leave out                                                        |
-| `plugins`      | Native Oxlint plugins the rules need beyond the base set, such as `react` |
-| `jsPlugins`    | JavaScript plugins the rules need. Resolve each specifier to a path       |
-| `env`          | Environments to enable, such as `{ browser: true }`                       |
+| Field          | Meaning                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| `rules`        | The rules to set. Required                                                                             |
+| `files`        | Globs the layer applies to. Without it, the layer applies to every file                                |
+| `excludeFiles` | Globs to leave out                                                                                     |
+| `plugins`      | Native Oxlint plugins the rules need beyond the base set, such as `react`                              |
+| `jsPlugins`    | JavaScript plugins the rules need, each as `{ name, specifier }` with the specifier resolved to a path |
+| `env`          | Environments to enable, such as `{ browser: true }`                                                    |
 
 Oxlint ignores a rule whose plugin the layer doesn't list, even when another layer enabled that plugin for the same file. A layer that changes a rule from another profile's plugin must list the same plugins as that profile, such as `["react", "jsx-a11y"]` for a rule the `react` profile sets. A shorter list makes Oxlint re-enable rules from its categories that the profile turned off. A change in the preset's `rules` needs no plugin list.
 
