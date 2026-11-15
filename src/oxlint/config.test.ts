@@ -589,6 +589,23 @@ test("turning off a rule whose plugin is not loaded changes nothing", (t) => {
   assert.equal(result.status, 0, result.output);
 });
 
+test("a rule the preset does not set applies where a profile loads its plugin", (t) => {
+  const root = fixture(t, { react: ["src/ui/**"], rules: { "react/no-danger": "error" } });
+
+  const source =
+    "export function Markup({ html }: { html: string }) {\n  return <div dangerouslySetInnerHTML={{ __html: html }} />;\n}\n";
+
+  write(root, "src/ui/Markup.tsx", source);
+  write(root, "src/email/Markup.tsx", source);
+
+  const ui = lint(root, "src/ui/Markup.tsx");
+  assert.equal(ui.status, 1, ui.output);
+  assert.match(ui.output, /no-danger/);
+
+  const email = lint(root, "src/email/Markup.tsx");
+  assert.doesNotMatch(email.output, /no-danger/);
+});
+
 test("a rule the preset turns off is changed where the preset sets it", (t) => {
   const root = fixture(t, {
     react: ["src/ui/**"],
