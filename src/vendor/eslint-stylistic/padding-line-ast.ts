@@ -3,8 +3,6 @@ import type { Comment, ESTree, SourceCode, Span, Token } from "@oxlint/plugins";
 
 type TokenOrComment = Token | Comment;
 
-const LINEBREAKS = new Set(["\r\n", "\r", "\n", "\u2028", "\u2029"]);
-
 const isClosingBraceToken = (token: TokenOrComment): boolean =>
   token.type === "Punctuator" && token.value === "}";
 
@@ -41,7 +39,6 @@ function isParenthesized(node: ESTree.Node, sourceCode: SourceCode): boolean {
 export type { TokenOrComment };
 
 export {
-  LINEBREAKS,
   isClosingBraceToken,
   isFunction,
   isNotSemicolonToken,

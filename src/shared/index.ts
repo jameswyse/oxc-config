@@ -295,7 +295,7 @@ const loaderCache = new WeakMap<Variable, boolean | null>();
 
 type BindingResolver = (node: ESTree.Node) => ImportedBinding | null;
 
-function unchangedInit(variable: Variable): ESTree.Expression | null {
+export function unchangedInit(variable: Variable): ESTree.Expression | null {
   const [definition, ...otherDefinitions] = variable.defs;
   const declarator = definition?.node;
 
@@ -305,6 +305,77 @@ function unchangedInit(variable: Variable): ESTree.Expression | null {
     declarator.id === definition.name &&
     variable.references.every((reference) => reference.init || !reference.isWrite())
     ? declarator.init
+    : null;
+}
+
+type StringPiece =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "value"; readonly node: ESTree.Node };
+
+function isStringRaw(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const tag = unwrapExpression(node);
+
+  return (
+    tag.type === "MemberExpression" &&
+    staticPropertyName(tag) === "raw" &&
+    isGlobal(sourceCode, unwrapExpression(tag.object), "String")
+  );
+}
+
+function stringPieces(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+  resolved: ReadonlySet<Variable>,
+): StringPiece[] {
+  const value = unwrapExpression(node);
+
+  function template(literal: ESTree.TemplateLiteral, mode: "raw" | "cooked"): StringPiece[] {
+    return literal.quasis.flatMap((quasi, index) => {
+      const text = mode === "raw" ? quasi.value.raw : (quasi.value.cooked ?? quasi.value.raw);
+      const expression = literal.expressions[index];
+
+      return [
+        { kind: "text", text } as const,
+        ...(expression === undefined ? [] : stringPieces(sourceCode, expression, resolved)),
+      ];
+    });
+  }
+
+  if (value.type === "Literal") {
+    return [{ kind: "text", text: String(value.value) }];
+  }
+
+  if (value.type === "TemplateLiteral") {
+    return template(value, "cooked");
+  }
+
+  if (value.type === "TaggedTemplateExpression" && isStringRaw(sourceCode, value.tag)) {
+    return template(value.quasi, "raw");
+  }
+
+  if (value.type === "BinaryExpression" && value.operator === "+") {
+    return [value.left, value.right].flatMap((part) => stringPieces(sourceCode, part, resolved));
+  }
+
+  const variable = variableFor(sourceCode, value);
+  const init = variable === null || resolved.has(variable) ? null : unchangedInit(variable);
+
+  return variable !== null && init !== null
+    ? stringPieces(sourceCode, init, new Set([...resolved, variable]))
+    : [{ kind: "value", node: value }];
+}
+
+export function dynamicParts(sourceCode: SourceCode, node: ESTree.Node): ESTree.Node[] {
+  return stringPieces(sourceCode, node, new Set()).flatMap((piece) =>
+    piece.kind === "value" ? [piece.node] : [],
+  );
+}
+
+export function constantString(sourceCode: SourceCode, node: ESTree.Node): string | null {
+  const pieces = stringPieces(sourceCode, node, new Set());
+
+  return pieces.every((piece) => piece.kind === "text")
+    ? pieces.map((piece) => piece.text).join("")
     : null;
 }
 

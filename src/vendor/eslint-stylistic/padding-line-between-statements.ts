@@ -7,7 +7,6 @@ import {
   isSingleLine,
   isTokenOnSameLine,
   isTopLevelExpressionStatement,
-  LINEBREAKS,
   skipChainExpression,
 } from "./padding-line-ast.ts";
 
@@ -18,8 +17,7 @@ import type { TokenOrComment } from "./padding-line-ast.ts";
 
 const CJS_EXPORT = /^(?:module\s*\.\s*)?exports(?:\s*\.|\s*\[|$)/u;
 const CJS_IMPORT = /^require\(/u;
-const LT = `[${Array.from(LINEBREAKS).join("")}]`;
-const PADDING_LINE_SEQUENCE = new RegExp(String.raw`^(\s*?${LT})\s*${LT}(\s*;?)$`, "u");
+const PADDING_LINE_SEQUENCE = /^(\s*?[\n\r\u2028\u2029])\s*[\n\r\u2028\u2029](\s*;?)$/u;
 
 type NodeTestObject = {
   readonly test: (node: ESTree.Node, sourceCode: SourceCode) => boolean;

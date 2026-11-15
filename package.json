@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@e18e/eslint-plugin": "0.8.1",
+    "@eslint-community/regexpp": "4.12.2",
     "@oxlint/plugins": ">=1.86.0 <2",
     "eslint-plugin-react-you-might-not-need-an-effect": "1.1.0"
   },

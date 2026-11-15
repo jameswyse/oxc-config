@@ -169,6 +169,9 @@ importers:
       '@e18e/eslint-plugin':
         specifier: 0.8.1
         version: 0.8.1(oxlint@1.92.0(oxlint-tsgolint@7.0.2006))
+      '@eslint-community/regexpp':
+        specifier: 4.12.2
+        version: 4.12.2
       '@oxlint/plugins':
         specifier: '>=1.86.0 <2'
         version: 1.92.0
@@ -279,6 +282,10 @@ packages:
         optional: true
       oxlint:
         optional: true
+
+  '@eslint-community/regexpp@4.12.2':
+    resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==}
+    engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
 
   '@manypkg/find-root@3.1.0':
     resolution: {integrity: sha512-BcSqCyKhBVZ5YkSzOiheMCV41kqAFptW6xGqYSTjkVTl9XQpr+pqHhwgGCOHQtjDCv7Is6EFyA14Sm5GVbVABA==}
@@ -1089,6 +1096,8 @@ snapshots:
       verkit: 0.4.1
     optionalDependencies:
       oxlint: 1.92.0(oxlint-tsgolint@7.0.2006)
+
+  '@eslint-community/regexpp@4.12.2': {}
 
   '@manypkg/find-root@3.1.0':
     dependencies:
