@@ -78,7 +78,7 @@ Oxlint's correctness and suspicious categories, the base plugins, the `wyse` plu
 
 `rules` in the definition changes a rule wherever a profile enables it, the same way a project's `rules` option does. A rule that a profile enables only for test files stays scoped to test files, and a severity on its own keeps the rule's options. A project's change to the same rule replaces the preset's, in the same files.
 
-A change to a rule no enabled profile sets applies to every file. Turning off a rule whose plugin isn't loaded, such as a React rule in a project without `react`, does nothing.
+A change to a rule no enabled profile sets applies to every file. When only some profiles load the rule's plugin, such as `react`, it applies to the files those profiles cover. Turning off a rule whose plugin isn't loaded, such as a React rule in a project without `react`, does nothing.
 
 Leave a profile out of `base` to drop all of its rules. Use `rules` to change one.
 

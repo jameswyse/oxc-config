@@ -141,7 +141,7 @@ In an existing project, `noUncheckedIndexedAccess` and `exactOptionalPropertyTyp
 
 `createLintConfig` takes three Oxlint keys beside its own options and merges each into the shared config:
 
-- `rules` changes a rule wherever the shared config enables it. A rule the config enables only for test files stays scoped to test files, and files the config exempts stay exempt. A severity on its own, such as `"warn"`, keeps the rule's options. A rule the config only turns off, such as `jsx-a11y/prefer-tag-over-role`, changes in the files where the config sets it. A rule the config doesn't set applies to every file.
+- `rules` changes a rule wherever the shared config enables it. A rule the config enables only for test files stays scoped to test files, and files the config exempts stay exempt. A severity on its own, such as `"warn"`, keeps the rule's options. A rule the config only turns off, such as `jsx-a11y/prefer-tag-over-role`, changes in the files where the config sets it. A rule the config doesn't set applies to every file, or to the files of the options that load its plugin, such as `react`.
 - `overrides` are added after the shared overrides, so they win. Use one to change a rule for some files. Oxlint ignores a framework rule in an override that doesn't list the rule's plugin, so an override that changes one must list the profile's plugins: `react` and `jsx-a11y` for a React rule, those two and `nextjs` for a Next.js rule, or `node`, `vitest` or `jest` for theirs. The config adds its base plugins to the list.
 - `ignorePatterns` are added to the shared ignore patterns.
 

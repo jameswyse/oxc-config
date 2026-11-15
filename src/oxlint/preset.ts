@@ -224,39 +224,56 @@ function rulePlugin(name: string): string {
   return separator === -1 ? "eslint" : name.slice(0, separator);
 }
 
+function scopedPluginNames(layer: RuleLayer): string[] {
+  return layer.files ? (layer.plugins ?? []) : [];
+}
+
 function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
   const settings = layers.flatMap((layer) => Object.entries(layer.rules));
   const set = new Set(settings.map(([name]) => name));
   const enabled = new Set(settings.flatMap(([name, rule]) => (isEnabled(rule) ? [name] : [])));
 
-  const loaded = new Set<string>([
+  const rootPlugins = new Set<string>([
     pluginKey(wysePlugin),
     ...basePlugins,
-    ...layers.flatMap((layer) => layer.plugins ?? []),
+    ...layers.flatMap((layer) => (layer.files ? [] : (layer.plugins ?? []))),
     ...layers.flatMap((layer) => (layer.jsPlugins ?? []).map(pluginKey)),
   ]);
 
-  const adjusted = layers.map((layer) => ({
-    ...layer,
-    rules: Object.fromEntries(
-      Object.entries(layer.rules).map(([name, current]) => {
-        const change = changes[name];
+  const scopedPlugins = new Set(layers.flatMap(scopedPluginNames));
+  const unset = Object.entries(changes).filter(([name]) => !set.has(name));
+  const scopedChanges = unset.filter(([name]) => !rootPlugins.has(rulePlugin(name)));
 
-        if (change === undefined || current === undefined) {
-          return [name, current];
-        }
+  const adjusted = layers.map((layer) => {
+    const layerPlugins = new Set(scopedPluginNames(layer));
 
-        const applies = isEnabled(current) || !enabled.has(name);
+    return {
+      ...layer,
+      rules: {
+        ...Object.fromEntries(
+          Object.entries(layer.rules).map(([name, current]) => {
+            const change = changes[name];
 
-        return [name, applies ? changedRule({ current, change }) : current];
-      }),
-    ),
-  }));
+            if (change === undefined || current === undefined) {
+              return [name, current];
+            }
+
+            const applies = isEnabled(current) || !enabled.has(name);
+
+            return [name, applies ? changedRule({ current, change }) : current];
+          }),
+        ),
+        ...Object.fromEntries(scopedChanges.filter(([name]) => layerPlugins.has(rulePlugin(name)))),
+      },
+    };
+  });
 
   const added = Object.fromEntries(
-    Object.entries(changes).filter(
-      ([name, change]) => !set.has(name) && (isEnabled(change) || loaded.has(rulePlugin(name))),
-    ),
+    unset.filter(([name, change]) => {
+      const plugin = rulePlugin(name);
+
+      return rootPlugins.has(plugin) || (isEnabled(change) && !scopedPlugins.has(plugin));
+    }),
   );
 
   return Object.keys(added).length > 0 ? [...adjusted, { rules: added }] : adjusted;
