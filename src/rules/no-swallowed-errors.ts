@@ -2,7 +2,7 @@ import { defineRule } from "@oxlint/plugins";
 
 import {
   childNodes,
-  isEffectModule,
+  effectMember,
   isGlobal,
   propertyName,
   unwrapExpression,
@@ -261,13 +261,7 @@ function rejectionHandler(
   return handler === undefined ? null : { promise: node.callee.object, handler };
 }
 
-const effectRecoveries = new Set(["catchAll", "catchAllCause", "orElse"]);
-
-function effectMember(sourceCode: SourceCode, node: ESTree.Node): string | null {
-  return node.type === "MemberExpression" && isEffectModule(sourceCode, node.object, "Effect")
-    ? propertyName(node)
-    : null;
-}
+const effectRecoveries = new Set(["catch", "catchAll", "catchAllCause", "catchCause", "orElse"]);
 
 function isEffectFallback(sourceCode: SourceCode, node: ESTree.Expression | null): boolean {
   const value = unwrap(node);
@@ -276,13 +270,16 @@ function isEffectFallback(sourceCode: SourceCode, node: ESTree.Expression | null
     return false;
   }
 
-  const member = effectMember(sourceCode, value);
+  const member = effectMember(sourceCode, value, "Effect");
 
   if (member === "void" || member === "succeedNone") {
     return true;
   }
 
-  if (value.type !== "CallExpression" || effectMember(sourceCode, value.callee) !== "succeed") {
+  if (
+    value.type !== "CallExpression" ||
+    effectMember(sourceCode, value.callee, "Effect") !== "succeed"
+  ) {
     return false;
   }
 
@@ -319,7 +316,7 @@ function swallowingEffectRecovery(
   sourceCode: SourceCode,
   node: ESTree.CallExpression,
 ): ESTree.Argument | null {
-  const name = effectMember(sourceCode, node.callee);
+  const name = effectMember(sourceCode, node.callee, "Effect");
   const handler = node.arguments.at(-1);
 
   if (name === null || handler === undefined) {

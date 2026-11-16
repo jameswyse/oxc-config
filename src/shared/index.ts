@@ -17,7 +17,7 @@ export type TestContext = {
   readonly api: ApiReference;
 };
 
-type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
+export type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
 type VisitorKeys = SourceCode["visitorKeys"];
 
@@ -673,7 +673,7 @@ const nodeGlobalObjects = ["globalThis", "global"];
 
 const globalObjects = [...nodeGlobalObjects, "window", "self"];
 
-function isFunctionNode(node: ESTree.Node): node is FunctionNode {
+export function isFunctionNode(node: ESTree.Node): node is FunctionNode {
   return (
     node.type === "ArrowFunctionExpression" ||
     node.type === "FunctionExpression" ||
@@ -805,4 +805,72 @@ export function isEffectModule(sourceCode: SourceCode, node: ESTree.Node, module
     (binding?.source === "effect" && binding.name === module) ||
     (binding?.source === `effect/${module}` && binding.name === "*")
   );
+}
+
+export function effectMember(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+  module: string,
+): string | null {
+  const value = unwrapExpression(node);
+
+  return value.type === "MemberExpression" && isEffectModule(sourceCode, value.object, module)
+    ? staticPropertyName(value)
+    : null;
+}
+
+export function ownReturns(fn: FunctionNode, visitorKeys: VisitorKeys): ESTree.Node[] {
+  if (fn.body === null) {
+    return [];
+  }
+
+  if (fn.body.type !== "BlockStatement") {
+    return [fn.body];
+  }
+
+  const returned: ESTree.Node[] = [];
+
+  const visit = (node: ESTree.Node): void => {
+    if (node.type === "ReturnStatement") {
+      if (node.argument !== null) {
+        returned.push(node.argument);
+      }
+
+      return;
+    }
+
+    if (!isFunctionNode(node)) {
+      childNodes(node, visitorKeys).forEach(visit);
+    }
+  };
+
+  visit(fn.body);
+
+  return returned;
+}
+
+export type PipeSteps = {
+  readonly input: ESTree.Node | null;
+  readonly steps: ESTree.Node[];
+};
+
+export function pipeSteps(sourceCode: SourceCode, call: ESTree.CallExpression): PipeSteps | null {
+  const callee = unwrapExpression(call.callee);
+  const values = call.arguments.filter((argument) => argument.type !== "SpreadElement");
+
+  if (callee.type === "MemberExpression" && propertyName(callee) === "pipe") {
+    return { input: callee.object, steps: values };
+  }
+
+  const binding = importedBinding(sourceCode, callee);
+
+  if (binding === null || !["effect", "effect/Function"].includes(binding.source)) {
+    return null;
+  }
+
+  if (binding.name === "pipe") {
+    return { input: values[0] ?? null, steps: values.slice(1) };
+  }
+
+  return binding.name === "flow" ? { input: null, steps: values } : null;
 }

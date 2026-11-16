@@ -106,6 +106,14 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
       errors: [{ messageId: "swallowed" }],
     },
     {
+      code: 'import { Effect } from "effect"; export const run = load.pipe(Effect.catch(() => Effect.void));',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
+      code: 'import { Effect } from "effect"; export const run = load.pipe(Effect.catchCause(() => Effect.succeed([])));',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
       code: 'import { Effect } from "effect"; export const run = load.pipe(Effect.orElseSucceed(() => ({})));',
       errors: [{ messageId: "swallowed" }],
     },

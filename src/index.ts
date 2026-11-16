@@ -15,6 +15,7 @@ import { noComments } from "./rules/no-comments.ts";
 import { noDeepTernary } from "./rules/no-deep-ternary.ts";
 import { noDerivedTestExpectation } from "./rules/no-derived-test-expectation.ts";
 import { noDisabledTlsVerification } from "./rules/no-disabled-tls-verification.ts";
+import { noDroppedErrorCause } from "./rules/no-dropped-error-cause.ts";
 import { noDynamicRegex } from "./rules/no-dynamic-regex.ts";
 import { noDynamicShellCommand } from "./rules/no-dynamic-shell-command.ts";
 import { noEditProofAssertions } from "./rules/no-edit-proof-assertions.ts";
@@ -33,11 +34,13 @@ import { noSecretFallback } from "./rules/no-secret-fallback.ts";
 import { noSwallowedErrors } from "./rules/no-swallowed-errors.ts";
 import { noTestTimeoutOverrides } from "./rules/no-test-timeout-overrides.ts";
 import { noTimingUnsafeComparison } from "./rules/no-timing-unsafe-comparison.ts";
+import { noUnboundedRetry } from "./rules/no-unbounded-retry.ts";
 import { noUncheckedFetchResponse } from "./rules/no-unchecked-fetch-response.ts";
 import { noUncheckedIndexSearch } from "./rules/no-unchecked-index-search.ts";
 import { noUncontrolledTestClock } from "./rules/no-uncontrolled-test-clock.ts";
 import { noUnsettledPromise } from "./rules/no-unsettled-promise.ts";
 import { noVacuousTestAssertions } from "./rules/no-vacuous-test-assertions.ts";
+import { requireServiceOperationSpan } from "./rules/require-service-operation-span.ts";
 import { requireSuppressionReason } from "./rules/require-suppression-reason.ts";
 import { serverActionGuard } from "./rules/server-action-guard.ts";
 import { statementSpacing } from "./rules/statement-spacing.ts";
@@ -98,6 +101,7 @@ const wyse = definePlugin({
     "no-deep-ternary": noDeepTernary,
     "no-derived-test-expectation": noDerivedTestExpectation,
     "no-disabled-tls-verification": noDisabledTlsVerification,
+    "no-dropped-error-cause": noDroppedErrorCause,
     "no-dynamic-regex": noDynamicRegex,
     "no-dynamic-shell-command": noDynamicShellCommand,
     "no-edit-proof-assertions": noEditProofAssertions,
@@ -129,6 +133,7 @@ const wyse = definePlugin({
     "no-unchecked-fetch-response": noUncheckedFetchResponse,
     "no-unchecked-index-search": noUncheckedIndexSearch,
     "no-uncontrolled-test-clock": noUncontrolledTestClock,
+    "no-unbounded-retry": noUnboundedRetry,
     "no-unknown-returns": noUnknownReturns,
     "no-unknown-type-aliases": noUnknownTypeAliases,
     "no-unsafe-dictionary-type": noUnsafeDictionaryType,
@@ -136,6 +141,7 @@ const wyse = definePlugin({
     "no-vacuous-test-assertions": noVacuousTestAssertions,
     "no-widen-then-assert": noWidenThenAssert,
     "require-suppression-reason": requireSuppressionReason,
+    "require-service-operation-span": requireServiceOperationSpan,
     "server-action-guard": serverActionGuard,
     "statement-spacing": statementSpacing,
     "type-guard-name": typeGuardName,
