@@ -76,7 +76,7 @@ function childProcessCallee(sourceCode: SourceCode, node: ESTree.Node): string |
 
 type ReferenceUse = "input" | "read" | "write" | "alias" | "escape";
 
-const readingParents = new Set(["TSTypeQuery", "ExportSpecifier", "ExportDefaultDeclaration"]);
+const readingParents = new Set(["TSTypeQuery"]);
 
 const patternParents = new Set(["ArrayPattern", "ObjectPattern", "RestElement"]);
 
@@ -113,7 +113,8 @@ function memberUse(member: ESTree.Node): ReferenceUse {
     isAssignmentTarget(outer) ||
     user?.type === "UpdateExpression" ||
     (user?.type === "UnaryExpression" && user.operator === "delete") ||
-    (user?.type === "CallExpression" && user.callee === outer);
+    (user?.type === "CallExpression" && user.callee === outer) ||
+    (user?.type === "TaggedTemplateExpression" && user.tag === outer);
 
   return isWrite ? "write" : "read";
 }
@@ -148,8 +149,13 @@ function staticArray(sourceCode: SourceCode, node: ESTree.Node): ESTree.ArrayExp
   const init = variable === null ? null : unchangedInit(variable);
   const array = init === null ? null : unwrapExpression(init);
 
+  const isExported = variable?.defs.some(
+    (definition) => definition.parent?.parent?.type === "ExportNamedDeclaration",
+  );
+
   return variable !== null &&
     array?.type === "ArrayExpression" &&
+    isExported === false &&
     variable.references.every(
       ({ identifier, init: isInit }) =>
         isInit || ["input", "read"].includes(referenceUse(sourceCode, identifier)),

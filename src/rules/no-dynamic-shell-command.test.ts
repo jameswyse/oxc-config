@@ -121,6 +121,26 @@ ruleTester.run("no-dynamic-shell-command", noDynamicShellCommand, {
       errors: [shell],
     },
     {
+      code: 'import { spawn } from "node:child_process"; export const args = ["log"]; spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; export { args }; spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; export default args; spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; args.push`${input}`; spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; export const options = { shell: true }; spawn(command, [], options);',
+      errors: [shell],
+    },
+    {
       code: 'import { spawn } from "node:child_process"; const args = ["log"]; [args[0]] = [input]; spawn("git", args, { shell: true });',
       errors: [shell],
     },
