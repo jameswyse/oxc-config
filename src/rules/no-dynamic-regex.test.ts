@@ -1,6 +1,15 @@
 import { ruleTester } from "../shared/rule-tester.ts";
 import { noDynamicRegex } from "./no-dynamic-regex.ts";
 
+function doublingChain(seed: string): string {
+  const declarations = Array.from(
+    { length: 40 },
+    (_, index) => `const s${index + 1} = s${index} + s${index};`,
+  );
+
+  return `const s0 = ${JSON.stringify(seed)}; ${declarations.join(" ")} const term = new RegExp(s40);`;
+}
+
 const error = { messageId: "dynamic" };
 
 ruleTester.run("no-dynamic-regex", noDynamicRegex, {
@@ -21,6 +30,10 @@ ruleTester.run("no-dynamic-regex", noDynamicRegex, {
     'const term = new RegExp(words.map(escapeRegExp).join("|"));',
     'const term = new RegExp(`^(?:${words.map((word) => RegExp.escape(word)).join("|")})$`);',
     "const term = new RegExp(String.raw`^${escapeRegExp(prefix)}\\d+$`);",
+    doublingChain(""),
+    doublingChain("a"),
+    `const long = ${JSON.stringify("x".repeat(3000))}; const term = new RegExp(long + long);`,
+    `const term = new RegExp(\`^(?:${Array.from({ length: 40 }, (_, index) => `\${escapeRegExp(v${index})}`).join("|")})$\`);`,
     "class RegExp { constructor(pattern: string) {} } const term = new RegExp(input);",
     "const pattern = new Pattern(input);",
   ],

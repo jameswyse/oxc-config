@@ -165,15 +165,37 @@ function characterRanges(element: AST.Element, flags: Flags): Ranges | null {
   return element.type === "CharacterClass" ? classRanges(element, flags) : null;
 }
 
+function modifiedFlag(modifiers: AST.Modifiers, flag: "ignoreCase" | "dotAll"): boolean | null {
+  if (modifiers.add[flag]) {
+    return true;
+  }
+
+  return modifiers.remove?.[flag] === true ? false : null;
+}
+
+function flagsAt(node: AST.Node, flags: Flags): Flags {
+  let ignoreCase: boolean | null = null;
+  let dotAll: boolean | null = null;
+
+  for (let current = node.parent; current !== null; current = current.parent) {
+    if (current.type === "Group" && current.modifiers !== null) {
+      ignoreCase ??= modifiedFlag(current.modifiers, "ignoreCase");
+      dotAll ??= modifiedFlag(current.modifiers, "dotAll");
+    }
+  }
+
+  return { ignoreCase: ignoreCase ?? flags.ignoreCase, dotAll: dotAll ?? flags.dotAll };
+}
+
 function fixedWord(alternative: AST.Alternative, flags: Flags): Word | null {
   const word: Ranges[] = [];
 
   for (const element of alternative.elements) {
     const repeated = element.type === "Quantifier" && element.min === element.max;
     const count = repeated ? element.min : 1;
+    const matched = repeated ? element.element : element;
 
-    const ranges =
-      count > maxWordRepeat ? null : characterRanges(repeated ? element.element : element, flags);
+    const ranges = count > maxWordRepeat ? null : characterRanges(matched, flagsAt(matched, flags));
 
     if (ranges === null) {
       return null;
@@ -272,12 +294,28 @@ function isAmbiguous(words: readonly Word[]): boolean {
   return false;
 }
 
+function canConsume(element: AST.Element): boolean {
+  if (element.type === "Assertion") {
+    return false;
+  }
+
+  if (element.type === "Quantifier") {
+    return element.max > 0 && canConsume(element.element);
+  }
+
+  return element.type === "Group" || element.type === "CapturingGroup"
+    ? element.alternatives.some(({ elements }) => elements.some(canConsume))
+    : true;
+}
+
 function hasOverlappingAlternatives(element: AST.Element, flags: Flags): boolean {
   if (element.type !== "Group" && element.type !== "CapturingGroup") {
     return false;
   }
 
-  const raws = element.alternatives.map(({ raw }) => raw).filter((raw) => raw !== "");
+  const raws = element.alternatives.flatMap(({ raw, elements }) =>
+    elements.some(canConsume) ? [raw] : [],
+  );
 
   const words = element.alternatives.flatMap((alternative) => {
     const word = fixedWord(alternative, flags);
