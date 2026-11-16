@@ -39,6 +39,8 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
     "function Dialog({ token: requestToken = 0 }: { token: number }) { return requestToken === expected; }",
     "function matches(session: { token: number | null }) { return session?.token === expected; }",
     "let resetToken: number | null = null; if (expected === resetToken) {}",
+    "function matches(token: number, input: unknown) { let value; ({ [token]: value } = input as string[]); return token === expected; }",
+    "function matches(token: number, input: unknown) { let value; ({ value = token } = input as object); return token === expected; }",
     "function retry(state: { attempts: { token: number } }) { state.attempts.token = 1; return state.attempts.token === expected; }",
     "function matches(request: { attempts: { token: number } }) { return request.attempts.token === expected; }",
   ],
