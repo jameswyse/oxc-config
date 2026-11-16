@@ -135,6 +135,14 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
       errors: [error],
     },
     {
+      code: "function matches(session: { token: number }, input: unknown) { ({ token: session.token } = input as { token: number }); return session.token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(session: { token: number }, input: unknown) { [session.token] = input as number[]; return session.token === expected; }",
+      errors: [error],
+    },
+    {
       code: "function matches(input: string) { let token: number = 0; (token as unknown) = input; return token === expected; }",
       errors: [error],
     },
