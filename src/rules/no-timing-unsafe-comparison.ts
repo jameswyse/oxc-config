@@ -120,22 +120,32 @@ function containsCast(node: ESTree.Node, visitorKeys: SourceCode["visitorKeys"])
   );
 }
 
-const targetWrappers = new Set([
+const targetParts = new Set([
+  "ArrayPattern",
+  "AssignmentPattern",
+  "ObjectPattern",
   "ParenthesizedExpression",
+  "RestElement",
   "TSAsExpression",
   "TSNonNullExpression",
   "TSSatisfiesExpression",
   "TSTypeAssertion",
 ]);
 
-function assignmentTarget(identifier: ESTree.Node): ESTree.Node {
-  const parent = identifier.parent;
+function isTargetPart(node: ESTree.Node, parent: ESTree.Node): boolean {
+  if (parent.type === "MemberExpression") {
+    return parent.object === node;
+  }
 
-  return parent !== null &&
-    ((parent.type === "MemberExpression" && parent.object === identifier) ||
-      targetWrappers.has(parent.type))
-    ? assignmentTarget(parent)
-    : identifier;
+  return parent.type === "Property"
+    ? parent.parent.type === "ObjectPattern"
+    : targetParts.has(parent.type);
+}
+
+function assignmentTarget(node: ESTree.Node): ESTree.Node {
+  const parent = node.parent;
+
+  return parent !== null && isTargetPart(node, parent) ? assignmentTarget(parent) : node;
 }
 
 function writtenValue(reference: Reference, target: ESTree.Node): ESTree.Node | null {
