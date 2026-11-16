@@ -1,8 +1,12 @@
 // Adapted from dmmulroy/anti-slop
 import { defineRule } from "@oxlint/plugins";
 
-import { apiReference, outermostExpression, propertyName } from "../../../shared/index.ts";
-import { resolveVariable } from "../shared/scope.ts";
+import {
+  apiReference,
+  outermostExpression,
+  propertyName,
+  variableFor,
+} from "../../../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
@@ -28,7 +32,7 @@ function isTestFrameworkObject(sourceCode: SourceCode, expression: ESTree.Expres
     return true;
   }
 
-  const variable = resolveVariable(sourceCode, expression);
+  const variable = variableFor(sourceCode, expression);
 
   if (variable === null || variable.defs.length === 0) {
     return expression.name === "vi" || expression.name === "jest";
@@ -81,7 +85,7 @@ function callbackCalls(sourceCode: SourceCode, callback: ESTree.Node): ESTree.Ca
 }
 
 function isNodeTestContext(sourceCode: SourceCode, node: ESTree.IdentifierReference): boolean {
-  const definition = resolveVariable(sourceCode, node)?.defs[0];
+  const definition = variableFor(sourceCode, node)?.defs[0];
   const callback = definition?.type === "Parameter" ? definition.node : null;
 
   if (callback === null || !("params" in callback) || callback.params[0] !== definition?.name) {
@@ -114,7 +118,7 @@ function isNodeTestMock(sourceCode: SourceCode, expression: ESTree.Expression): 
   }
 
   return (
-    resolveVariable(sourceCode, expression)?.defs.some(
+    variableFor(sourceCode, expression)?.defs.some(
       (definition) =>
         definition.type === "ImportBinding" &&
         definition.parent?.type === "ImportDeclaration" &&

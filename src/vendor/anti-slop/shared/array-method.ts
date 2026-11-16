@@ -1,4 +1,4 @@
-import { resolveVariable } from "./scope.ts";
+import { variableFor } from "../../../shared/index.ts";
 
 // Adapted from dmmulroy/anti-slop
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
@@ -28,7 +28,7 @@ function unwrapArrayExpression(expression: ESTree.Node): ESTree.Node {
 function resolveArrayBinding(sourceCode: SourceCode, expression: ESTree.Node): Variable | null {
   const node = unwrapArrayExpression(expression);
 
-  return node.type === "Identifier" ? resolveVariable(sourceCode, node) : null;
+  return node.type === "Identifier" ? variableFor(sourceCode, node) : null;
 }
 
 function arrayMethodTarget(expression: ESTree.Node): ArrayMethodTarget | null {

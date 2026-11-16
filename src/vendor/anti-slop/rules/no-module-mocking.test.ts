@@ -19,6 +19,10 @@ ruleTester.run("no-module-mocking", noModuleMocking, {
   ],
   invalid: [
     {
+      code: 'import { vi } from "vitest"; function setup(mockDatabase = () => vi.mock("./database")) { const vi = { mock() {} }; return mockDatabase; }',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
       code: 'import { vi } from "@effect/vitest"; vi.mock("./database");',
       errors: [{ messageId: "moduleMock" }],
     },

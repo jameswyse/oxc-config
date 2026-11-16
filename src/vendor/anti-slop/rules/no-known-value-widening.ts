@@ -1,6 +1,7 @@
 // Adapted from dmmulroy/anti-slop
 import { defineRule } from "@oxlint/plugins";
 
+import { variableFor } from "../../../shared/index.ts";
 import {
   classifyUnsafeDictionaryValue,
   classifyWideningTarget,
@@ -12,7 +13,6 @@ import {
   functionParameterBindingName,
   functionParameterTypeAnnotation,
 } from "../shared/function-parameters.ts";
-import { resolveVariable } from "../shared/scope.ts";
 
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
 
@@ -71,7 +71,7 @@ function hasKnownEvidence(
     return false;
   }
 
-  const variable = resolveVariable(sourceCode, unwrapped);
+  const variable = variableFor(sourceCode, unwrapped);
 
   if (variable === null || visitedVariables.has(variable)) {
     return false;
@@ -116,7 +116,7 @@ function localFunctionForCall(
     return null;
   }
 
-  const variable = resolveVariable(sourceCode, unwrapped);
+  const variable = variableFor(sourceCode, unwrapped);
 
   if (variable === null || variable.defs.length !== 1) {
     return null;
@@ -223,7 +223,7 @@ function hasKnownCallArgumentEvidence(
     return isKnownEvidenceExpression(expression);
   }
 
-  const variable = resolveVariable(sourceCode, expression);
+  const variable = variableFor(sourceCode, expression);
 
   if (variable === null || visitedVariables.has(variable)) {
     return false;
@@ -430,7 +430,7 @@ export const noKnownValueWidening = defineRule({
           return;
         }
 
-        const variable = resolveVariable(context.sourceCode, node.left);
+        const variable = variableFor(context.sourceCode, node.left);
 
         if (variable === null) {
           return;

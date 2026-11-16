@@ -1,6 +1,6 @@
 import { matchesGlob, relative, sep } from "node:path";
 
-import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
+import type { ESTree, Reference, Scope, SourceCode, Variable } from "@oxlint/plugins";
 
 export type ApiReference = {
   readonly module: string;
@@ -84,6 +84,19 @@ export function childNodes(node: ESTree.Node, visitorKeys: VisitorKeys): ESTree.
   return children;
 }
 
+const referencesByScope = new WeakMap<Scope, Map<ESTree.Node, Reference>>();
+
+function scopeReference(scope: Scope, node: ESTree.Node): Reference | undefined {
+  let references = referencesByScope.get(scope);
+
+  if (references === undefined) {
+    references = new Map(scope.references.map((reference) => [reference.identifier, reference]));
+    referencesByScope.set(scope, references);
+  }
+
+  return references.get(node);
+}
+
 export function variableFor(sourceCode: SourceCode, node: ESTree.Node): Variable | null {
   if (
     node.type !== "Identifier" &&
@@ -93,32 +106,22 @@ export function variableFor(sourceCode: SourceCode, node: ESTree.Node): Variable
     return null;
   }
 
-  let scope: Scope | null = sourceCode.getScope(node);
+  const innermost = sourceCode.getScope(node);
 
-  while (scope !== null) {
+  for (let scope: Scope | null = innermost; scope !== null; scope = scope.upper) {
+    const reference = scopeReference(scope, node);
+
+    if (reference !== undefined) {
+      return reference.resolved;
+    }
+  }
+
+  for (let scope: Scope | null = innermost; scope !== null; scope = scope.upper) {
     const variable = scope.set.get(node.name);
 
     if (variable !== undefined) {
       return variable;
     }
-
-    scope = scope.upper;
-  }
-
-  return null;
-}
-
-export function referencedVariable(sourceCode: SourceCode, node: ESTree.Node): Variable | null {
-  let scope: Scope | null = sourceCode.getScope(node);
-
-  while (scope !== null) {
-    const reference = scope.references.find((candidate) => candidate.identifier === node);
-
-    if (reference !== undefined) {
-      return reference.resolved;
-    }
-
-    scope = scope.upper;
   }
 
   return null;
