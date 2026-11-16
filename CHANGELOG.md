@@ -1,5 +1,16 @@
 # @jameswyse/oxc-config
 
+## 1.2.0
+
+### Minor Changes
+
+- 8941301: Add three warnings to the `effect` profile, outside tests: `wyse/no-dropped-error-cause` reports error handlers that create a new error without reading the original, `wyse/no-unbounded-retry` reports retries that repeat every failure forever, and `wyse/require-service-operation-span` reports service operations that create no span, unless they opt out with `Effect.fnUntraced`. `wyse/no-swallowed-errors` now also reports Effect v4's `Effect.catch` and `Effect.catchCause` recoveries that return a fallback.
+
+### Patch Changes
+
+- 2389227: `wyse/no-timing-unsafe-comparison` no longer reports comparisons where either side is declared `number`, such as a counter named `suppressionToken`. Comparing numbers can't leak a secret through timing. The rule reads the type from the annotation on a variable or parameter, or on a property of an inline object type such as `{ count: number | undefined }` or `Readonly<{ count: number }>`, including a property destructured from a parameter. Named types, inferred types and casts such as `as number`, whether on the compared value or in a value written to its binding or one of its properties, still count as unknown, so those comparisons are still reported.
+- 5566513: Custom rules that look up where a variable is declared, such as `wyse/no-dynamic-shell-command` and `wyse/no-module-mocking`, now find the same declaration JavaScript uses. In a parameter default such as `(start = () => exec(status))`, `status` now resolves to the declaration outside the function, not a same-named declaration in the function body. A type-only declaration such as `type Date = string` no longer hides the global value of the same name, so `wyse/no-ambient-clock` now reports `Date.now()` beside it. Before, these rules could trust the wrong declaration and miss a report.
+
 ## 1.1.1
 
 ### Patch Changes
