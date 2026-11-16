@@ -35,11 +35,11 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
     "function Dialog({ suppressionToken }: Readonly<{ suppressionToken?: number | undefined }>) { return state.consumedSuppressionToken !== suppressionToken; }",
     "function matches(session: Readonly<{ token: number }>) { return session.token === expected; }",
     "function matches(resetToken: number | undefined) { return resetToken! === expected; }",
-    "function matches(input: unknown) { return (input as number) === secretToken; }",
     "let retryToken: number = 0; @track(retryToken === expected) class Request {}",
     "function Dialog({ token: requestToken = 0 }: { token: number }) { return requestToken === expected; }",
     "function matches(session: { token: number | null }) { return session?.token === expected; }",
     "let resetToken: number | null = null; if (expected === resetToken) {}",
+    "function retry(state: { attempts: { token: number } }) { state.attempts.token = 1; return state.attempts.token === expected; }",
     "function matches(request: { attempts: { token: number } }) { return request.attempts.token === expected; }",
   ],
   invalid: [
@@ -100,6 +100,46 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
     },
     {
       code: "import type { Readonly } from './types'; function matches(session: Readonly<{ token: number }>) { return session.token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(storedToken: unknown, providedToken: unknown) { return (storedToken as number) === (providedToken as number); }",
+      errors: [error],
+    },
+    {
+      code: "function matches(stored: unknown, provided: unknown) { const storedToken: number = stored as number; return storedToken === provided; }",
+      errors: [error],
+    },
+    {
+      code: "let resetToken: number = 0; function matches(input: unknown) { resetToken = (input as any); return resetToken === expected; }",
+      errors: [error],
+    },
+    {
+      code: "const matches = (token: number = input as any) => token === expected;",
+      errors: [error],
+    },
+    {
+      code: "function matches(body: unknown) { const { token }: { token: number } = body as Session; return token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(input: unknown) { const session: { token: number } = { token: input as number }; return session.token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(input: unknown) { const { token }: { token: number } = { token: input as number }; return token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(session: { token: number }, input: unknown) { session.token = input as number; return session.token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(input: string) { let token: number = 0; (token as unknown) = input; return token === expected; }",
+      errors: [error],
+    },
+    {
+      code: "function matches(storedToken: unknown) { return <number>storedToken === expected; }",
       errors: [error],
     },
     {
