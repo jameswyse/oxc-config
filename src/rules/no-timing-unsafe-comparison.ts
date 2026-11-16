@@ -1,8 +1,14 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { isGlobal, staticPropertyName, unwrapExpression, variableFor } from "../shared/index.ts";
+import {
+  childNodes,
+  isGlobal,
+  staticPropertyName,
+  unwrapExpression,
+  variableFor,
+} from "../shared/index.ts";
 
-import type { ESTree, SourceCode } from "@oxlint/plugins";
+import type { ESTree, Reference, SourceCode, Variable } from "@oxlint/plugins";
 
 const equalityOperators = new Set(["===", "!==", "==", "!="]);
 
@@ -106,6 +112,62 @@ function bindingType(sourceCode: SourceCode, binding: ESTree.Node): ESTree.TSTyp
     : null;
 }
 
+function containsCast(node: ESTree.Node, visitorKeys: SourceCode["visitorKeys"]): boolean {
+  return (
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    childNodes(node, visitorKeys).some((child) => containsCast(child, visitorKeys))
+  );
+}
+
+const targetWrappers = new Set([
+  "ParenthesizedExpression",
+  "TSAsExpression",
+  "TSNonNullExpression",
+  "TSSatisfiesExpression",
+  "TSTypeAssertion",
+]);
+
+function assignmentTarget(identifier: ESTree.Node): ESTree.Node {
+  const parent = identifier.parent;
+
+  return parent !== null &&
+    ((parent.type === "MemberExpression" && parent.object === identifier) ||
+      targetWrappers.has(parent.type))
+    ? assignmentTarget(parent)
+    : identifier;
+}
+
+function writtenValue(reference: Reference, target: ESTree.Node): ESTree.Node | null {
+  if (reference.isWrite()) {
+    return reference.writeExpr;
+  }
+
+  const parent = target.parent;
+
+  return parent?.type === "AssignmentExpression" && parent.left === target ? parent.right : null;
+}
+
+function writesCast(reference: Reference, visitorKeys: SourceCode["visitorKeys"]): boolean {
+  const target = assignmentTarget(reference.identifier);
+  const value = writtenValue(reference, target);
+
+  return value !== null && (containsCast(target, visitorKeys) || containsCast(value, visitorKeys));
+}
+
+const castWrites = new WeakMap<Variable, boolean>();
+
+function hasCastWrite(sourceCode: SourceCode, variable: Variable): boolean {
+  let result = castWrites.get(variable);
+
+  if (result === undefined) {
+    result = variable.references.some((reference) => writesCast(reference, sourceCode.visitorKeys));
+    castWrites.set(variable, result);
+  }
+
+  return result;
+}
+
 function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType | null {
   if (
     node.type === "ParenthesizedExpression" ||
@@ -116,10 +178,6 @@ function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType 
     return declaredType(sourceCode, node.expression);
   }
 
-  if (node.type === "TSAsExpression" || node.type === "TSTypeAssertion") {
-    return node.typeAnnotation;
-  }
-
   if (node.type === "MemberExpression") {
     return propertyType(
       sourceCode,
@@ -128,11 +186,16 @@ function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType 
     );
   }
 
-  const [definition, ...otherDefinitions] = variableFor(sourceCode, node)?.defs ?? [];
+  const variable = variableFor(sourceCode, node);
+  const [definition, ...otherDefinitions] = variable?.defs ?? [];
 
-  return definition !== undefined && otherDefinitions.length === 0
-    ? bindingType(sourceCode, definition.name)
-    : null;
+  if (variable === null || definition === undefined || otherDefinitions.length > 0) {
+    return null;
+  }
+
+  const type = bindingType(sourceCode, definition.name);
+
+  return type === null || hasCastWrite(sourceCode, variable) ? null : type;
 }
 
 const absentTypes = new Set(["TSUndefinedKeyword", "TSNullKeyword"]);
