@@ -108,6 +108,22 @@ export function variableFor(sourceCode: SourceCode, node: ESTree.Node): Variable
   return null;
 }
 
+export function referencedVariable(sourceCode: SourceCode, node: ESTree.Node): Variable | null {
+  let scope: Scope | null = sourceCode.getScope(node);
+
+  while (scope !== null) {
+    const reference = scope.references.find((candidate) => candidate.identifier === node);
+
+    if (reference !== undefined) {
+      return reference.resolved;
+    }
+
+    scope = scope.upper;
+  }
+
+  return null;
+}
+
 export function isGlobal(
   sourceCode: SourceCode,
   identifier: ESTree.Node | null | undefined,
