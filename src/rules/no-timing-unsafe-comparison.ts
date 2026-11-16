@@ -122,7 +122,6 @@ function containsCast(node: ESTree.Node, visitorKeys: SourceCode["visitorKeys"])
 
 const targetParts = new Set([
   "ArrayPattern",
-  "AssignmentPattern",
   "ObjectPattern",
   "ParenthesizedExpression",
   "RestElement",
@@ -137,8 +136,12 @@ function isTargetPart(node: ESTree.Node, parent: ESTree.Node): boolean {
     return parent.object === node;
   }
 
+  if (parent.type === "AssignmentPattern") {
+    return parent.left === node;
+  }
+
   return parent.type === "Property"
-    ? parent.parent.type === "ObjectPattern"
+    ? parent.value === node && parent.parent.type === "ObjectPattern"
     : targetParts.has(parent.type);
 }
 
