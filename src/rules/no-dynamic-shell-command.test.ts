@@ -17,6 +17,10 @@ ruleTester.run("no-dynamic-shell-command", noDynamicShellCommand, {
     'import { spawn } from "node:child_process"; spawn("pnpm", ["run", "build"], { shell: true });',
     'import { spawn } from "node:child_process"; spawn(binary, args, { shell: false });',
     'import { spawn } from "node:child_process"; spawn(binary, args, options);',
+    'import { spawn } from "node:child_process"; const options = { shell: true }; options.shell = false; spawn(command, [], options);',
+    'import { spawn } from "node:child_process"; const options = { shell: true }; const alias = options; alias.shell = false; spawn(command, [], options);',
+    'import { spawn } from "node:child_process"; const options = { shell: true }; ({ shell: options.shell } = { shell: false }); spawn(command, [], options);',
+    'import { spawn } from "node:child_process"; const args = ["log"]; if (args.length > 0) { spawn("git", args, { shell: true }); }',
     'import { spawn } from "node:child_process"; const options = { shell: true }; spawn("pnpm", ["build"], options);',
     'import { spawn } from "node:child_process"; const args = ["run", "build"]; spawn("pnpm", args, { shell: true });',
     'import { spawn } from "node:child_process"; spawn(command, args, { shell: "" });',
@@ -90,6 +94,42 @@ ruleTester.run("no-dynamic-shell-command", noDynamicShellCommand, {
     },
     {
       code: 'import { spawn } from "node:child_process"; const args = ["log"]; const alias = args; alias.push(input); spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; addRefs(args); spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const options = { shell: true }; let alias = options; alias = { shell: false }; alias.shell = false; spawn(command, [], options);',
+      errors: [shell],
+    },
+    {
+      code: `import { spawn } from "node:child_process"; const a0 = { shell: true }; ${Array.from({ length: 3000 }, (_, index) => `const a${index + 1} = a${index};`).join(" ")} spawn(command, [], a0);`,
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const options = { shell: true }; spawn(command, [], options as SpawnOptions);',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const options = { shell: true, cwd: "." }; log(options.cwd); spawn(command, [], options!);',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const base = { shell: true }; const options = base; log(options); spawn(command, [], options);',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; [args[0]] = [input]; spawn("git", args, { shell: true });',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; for (args[0] of inputs) { spawn("git", args, { shell: true }); }',
+      errors: [shell],
+    },
+    {
+      code: 'import { spawn } from "node:child_process"; const args = ["log"]; args[0] = input; spawn("git", args, { shell: true });',
       errors: [shell],
     },
     {

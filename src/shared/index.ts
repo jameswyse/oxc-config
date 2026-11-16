@@ -310,7 +310,8 @@ export function unchangedInit(variable: Variable): ESTree.Expression | null {
 
 type StringPiece =
   | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "value"; readonly node: ESTree.Node };
+  | { readonly kind: "value"; readonly node: ESTree.Node }
+  | { readonly kind: "unknown" };
 
 function isStringRaw(sourceCode: SourceCode, node: ESTree.Node): boolean {
   const tag = unwrapExpression(node);
@@ -322,11 +323,36 @@ function isStringRaw(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function stringPieces(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-  resolved: ReadonlySet<Variable>,
-): StringPiece[] {
+const maxStringPieces = 512;
+
+const maxStringLength = 65_536;
+
+const stringPieceCache = new WeakMap<Variable, StringPiece[] | null>();
+
+function joined(pieces: readonly StringPiece[]): StringPiece[] {
+  const result: StringPiece[] = [];
+
+  for (const piece of pieces) {
+    const last = result.at(-1);
+
+    if (piece.kind === "text" && last?.kind === "text") {
+      result[result.length - 1] = { kind: "text", text: last.text + piece.text };
+    } else {
+      result.push(piece);
+    }
+  }
+
+  const length = result.reduce(
+    (total, piece) => total + (piece.kind === "text" ? piece.text.length : 0),
+    0,
+  );
+
+  return result.length > maxStringPieces || length > maxStringLength
+    ? [{ kind: "unknown" }]
+    : result;
+}
+
+function stringPieces(sourceCode: SourceCode, node: ESTree.Node): StringPiece[] {
   const value = unwrapExpression(node);
 
   function template(literal: ESTree.TemplateLiteral, mode: "raw" | "cooked"): StringPiece[] {
@@ -336,7 +362,7 @@ function stringPieces(
 
       return [
         { kind: "text", text } as const,
-        ...(expression === undefined ? [] : stringPieces(sourceCode, expression, resolved)),
+        ...(expression === undefined ? [] : stringPieces(sourceCode, expression)),
       ];
     });
   }
@@ -346,33 +372,36 @@ function stringPieces(
   }
 
   if (value.type === "TemplateLiteral") {
-    return template(value, "cooked");
+    return joined(template(value, "cooked"));
   }
 
   if (value.type === "TaggedTemplateExpression" && isStringRaw(sourceCode, value.tag)) {
-    return template(value.quasi, "raw");
+    return joined(template(value.quasi, "raw"));
   }
 
   if (value.type === "BinaryExpression" && value.operator === "+") {
-    return [value.left, value.right].flatMap((part) => stringPieces(sourceCode, part, resolved));
+    return joined([value.left, value.right].flatMap((part) => stringPieces(sourceCode, part)));
   }
 
   const variable = variableFor(sourceCode, value);
-  const init = variable === null || resolved.has(variable) ? null : unchangedInit(variable);
+  const init = variable === null ? null : unchangedInit(variable);
 
-  return variable !== null && init !== null
-    ? stringPieces(sourceCode, init, new Set([...resolved, variable]))
-    : [{ kind: "value", node: value }];
+  const pieces =
+    variable === null || init === null
+      ? null
+      : cached(stringPieceCache, variable, () => stringPieces(sourceCode, init));
+
+  return pieces ?? [{ kind: "value", node: value }];
 }
 
 export function dynamicParts(sourceCode: SourceCode, node: ESTree.Node): ESTree.Node[] {
-  return stringPieces(sourceCode, node, new Set()).flatMap((piece) =>
+  return stringPieces(sourceCode, node).flatMap((piece) =>
     piece.kind === "value" ? [piece.node] : [],
   );
 }
 
 export function constantString(sourceCode: SourceCode, node: ESTree.Node): string | null {
-  const pieces = stringPieces(sourceCode, node, new Set());
+  const pieces = stringPieces(sourceCode, node);
 
   return pieces.every((piece) => piece.kind === "text")
     ? pieces.map((piece) => piece.text).join("")

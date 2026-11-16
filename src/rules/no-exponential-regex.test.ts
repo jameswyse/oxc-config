@@ -34,6 +34,11 @@ ruleTester.run("no-exponential-regex", noExponentialRegex, {
     String.raw`const pattern = /^([^a]|A)+!$/i;`,
     String.raw`const pattern = /([^a-z]|[a-z])+$/i;`,
     String.raw`const pattern = /^(ab|ba)+$/;`,
+    String.raw`const pattern = /^(?-i:a|A)+$/i;`,
+    String.raw`const pattern = /^(?-s:.|\n)+$/s;`,
+    String.raw`const pattern = /(?:^|^)*$/;`,
+    String.raw`const pattern = /(?:(?:^)|(?:^))*$/;`,
+    String.raw`const pattern = /(?:(?:)|(?:))*$/;`,
     String.raw`const pattern = /^(?:a{1000}|b)+$/;`,
   ],
   invalid: [
@@ -68,6 +73,8 @@ ruleTester.run("no-exponential-regex", noExponentialRegex, {
     },
     { code: String.raw`const pattern = new RegExp("^(a+)+$");`, errors: [error("(a+)+")] },
     { code: String.raw`const pattern = /^(a|aa)+$/;`, errors: [error("(a|aa)+")] },
+    { code: String.raw`const pattern = /^(?i:a|A)+$/;`, errors: [error("(?i:a|A)+")] },
+    { code: String.raw`const pattern = /^(?s:.|\n)+$/;`, errors: [error(String.raw`(?s:.|\n)+`)] },
     { code: String.raw`const pattern = /(?<=b(a+)+)c/;`, errors: [error("(a+)+")] },
     { code: String.raw`const pattern = /^(ab|a|ba)+$/;`, errors: [error("(ab|a|ba)+")] },
     {
