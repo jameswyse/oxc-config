@@ -1,11 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 
-import {
-  isGlobal,
-  referencedVariable,
-  staticPropertyName,
-  unwrapExpression,
-} from "../shared/index.ts";
+import { isGlobal, staticPropertyName, unwrapExpression, variableFor } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
@@ -133,7 +128,7 @@ function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType 
     );
   }
 
-  const [definition, ...otherDefinitions] = referencedVariable(sourceCode, node)?.defs ?? [];
+  const [definition, ...otherDefinitions] = variableFor(sourceCode, node)?.defs ?? [];
 
   return definition !== undefined && otherDefinitions.length === 0
     ? bindingType(sourceCode, definition.name)

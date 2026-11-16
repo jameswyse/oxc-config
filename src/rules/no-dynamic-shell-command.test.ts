@@ -34,6 +34,10 @@ ruleTester.run("no-dynamic-shell-command", noDynamicShellCommand, {
   ],
   invalid: [
     {
+      code: 'import { exec } from "node:child_process"; const status = input; function run(start = () => exec(status)) { const status = "git status"; return start(); }',
+      errors: [command],
+    },
+    {
       code: 'import { exec } from "node:child_process"; exec(`git checkout ${branch}`);',
       errors: [{ ...command, data: { name: "exec" } }],
     },

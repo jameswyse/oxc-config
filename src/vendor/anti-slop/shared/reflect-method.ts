@@ -1,4 +1,4 @@
-import { resolveVariable } from "./scope.ts";
+import { variableFor } from "../../../shared/index.ts";
 
 // Adapted from dmmulroy/anti-slop
 import type { ESTree, SourceCode } from "@oxlint/plugins";
@@ -12,7 +12,7 @@ function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Node): boole
     return true;
   }
 
-  const variable = resolveVariable(sourceCode, expression);
+  const variable = variableFor(sourceCode, expression);
 
   return variable === null || variable.defs.length === 0;
 }
