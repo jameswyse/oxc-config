@@ -1,3 +1,6 @@
+import { createRequire } from "node:module";
+import { dirname } from "node:path";
+
 import { defineRule } from "@oxlint/plugins";
 
 import {
@@ -9,6 +12,7 @@ import {
   variableFor,
 } from "../shared/index.ts";
 import { isNullishValue, resolveProperty, valueBranches } from "../shared/object-properties.ts";
+import { readPackageManifest } from "../shared/package-manifest.ts";
 
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
 
@@ -16,6 +20,24 @@ const setupFunctions = new Map([
   ["listen", "setupServer"],
   ["start", "setupWorker"],
 ]);
+
+function installedMswVersion(filename: string) {
+  try {
+    const manifest = createRequire(filename).resolve("msw/package.json");
+
+    return readPackageManifest(dirname(manifest))?.get("version");
+  } catch {
+    return undefined;
+  }
+}
+
+function unhandledOption(filename: string) {
+  const version = installedMswVersion(filename);
+
+  return typeof version === "string" && Number.parseInt(version, 10) < 3
+    ? "onUnhandledRequest"
+    : "onUnhandledFrame";
+}
 
 function isMswModule(source: string) {
   return source === "msw" || source.startsWith("msw/");
@@ -106,12 +128,12 @@ function settingStrictness(sourceCode: SourceCode, node: ESTree.Node) {
   return isFunctionValue(sourceCode, node) ? "strict" : "unknown";
 }
 
-function optionStrictness(sourceCode: SourceCode, node: ESTree.Node) {
+function optionStrictness(sourceCode: SourceCode, node: ESTree.Node, option: string) {
   if (isNullishValue(sourceCode, node)) {
     return "lenient";
   }
 
-  const setting = resolveProperty(sourceCode, node, "onUnhandledRequest");
+  const setting = resolveProperty(sourceCode, node, option);
 
   if (setting.kind === "known") {
     return combined(
@@ -124,31 +146,33 @@ function optionStrictness(sourceCode: SourceCode, node: ESTree.Node) {
   return setting.kind === "unknown" ? "unknown" : "lenient";
 }
 
-function optionsStrictness(sourceCode: SourceCode, node: ESTree.Node) {
+function optionsStrictness(sourceCode: SourceCode, node: ESTree.Node, option: string) {
   return combined(
-    valueBranches(sourceCode, node).map((options) => optionStrictness(sourceCode, options)),
+    valueBranches(sourceCode, node).map((options) => optionStrictness(sourceCode, options, option)),
   );
 }
 
-function isLenient(sourceCode: SourceCode, options: ESTree.Argument | undefined) {
+function isLenient(sourceCode: SourceCode, options: ESTree.Argument | undefined, option: string) {
   return (
     options === undefined ||
-    (options.type !== "SpreadElement" && optionsStrictness(sourceCode, options) === "lenient")
+    (options.type !== "SpreadElement" &&
+      optionsStrictness(sourceCode, options, option) === "lenient")
   );
 }
 
 export const requireMswUnhandledError = defineRule({
   meta: {
     type: "problem",
-    docs: { description: 'Require MSW to start with onUnhandledRequest: "error".' },
+    docs: { description: "Require MSW to fail on unhandled requests." },
     schema: [],
     messages: {
       lenient:
-        'Start MSW with `{ onUnhandledRequest: "error" }` and add a handler for each request the test makes.',
+        'Start MSW with `{ {{option}}: "error" }` and add a handler for each request the test makes.',
     },
   },
   create(context) {
     const sourceCode = context.sourceCode;
+    let option: string | undefined;
 
     return {
       CallExpression(node) {
@@ -164,8 +188,10 @@ export const requireMswUnhandledError = defineRule({
           return;
         }
 
-        if (isLenient(sourceCode, node.arguments[0])) {
-          context.report({ node, messageId: "lenient" });
+        option ??= unhandledOption(context.filename);
+
+        if (isLenient(sourceCode, node.arguments[0], option)) {
+          context.report({ node, messageId: "lenient", data: { option } });
         }
       },
     };
