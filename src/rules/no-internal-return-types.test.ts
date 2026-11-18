@@ -140,6 +140,8 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     "function count(raw: string): number { return JSON.parse(raw).count; }",
     "async function data(response: Response): Promise<Data> { return (await response.json()).data; }",
     "async function data(response: Response): Promise<Data> { const body = await response.json(); return body; }",
+    "async function read(response: Response): Promise<string> { const { name } = await response.json(); return name; }",
+    "function choose(flag: boolean): (string | number)[] { if (flag) { const result = [1]; return result; } const result = ['a']; return result; }",
   ],
   invalid: [
     reported(
@@ -202,6 +204,14 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     reported(
       'function sentences(parts: string[]): string { return parts.filter((part) => part !== "").join(". "); }',
       'function sentences(parts: string[]) { return parts.filter((part) => part !== "").join(". "); }',
+    ),
+    reported(
+      "async function load(response: TypedResponse): Promise<Data> { return response.json<Data>(); }",
+      "async function load(response: TypedResponse) { return response.json<Data>(); }",
+    ),
+    reported(
+      "async function read(response: Response): Promise<string> { const { name }: { name: string } = await response.json(); return name; }",
+      "async function read(response: Response) { const { name }: { name: string } = await response.json(); return name; }",
     ),
     reported(
       "function pick(value: Date, flag: boolean): Date { if (flag) { log(); return value; } return value; }",

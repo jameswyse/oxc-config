@@ -239,5 +239,43 @@ class Feed extends Context.Service<Feed, { readonly watch: () => Stream<number> 
 export const layer = Layer.succeed(Feed, { watch: () => store.watch() });`,
       errors: [untracedStream("watch", "Feed")],
     },
+    {
+      code:
+        effect +
+        `const Feed = Context.Service<{ watch: () => Stream.Stream<number> }>("Feed");
+export const layer = Layer.succeed(Feed, { watch: () => store.watch() });`,
+      errors: [untracedStream("watch", "Feed")],
+    },
+    {
+      code: `import { Layer } from "effect";
+import * as Stream from "effect/Stream";
+import { succeed as streamOf } from "effect/Stream";
+function watchSource(): Stream.Stream<number> {
+  return source.watch();
+}
+const events = false ? events : Stream.empty;
+export const layer = Layer.succeed(Feed, {
+  imported: () => streamOf(1),
+  dataLast: () => Stream.map(transform)(events),
+  forwarded: () => watchSource(),
+  cyclic: () => events,
+});`,
+      errors: [
+        untracedStream("imported", "Feed"),
+        untracedStream("dataLast", "Feed"),
+        untracedStream("forwarded", "Feed"),
+        untracedStream("cyclic", "Feed"),
+      ],
+    },
+    {
+      code:
+        effect +
+        `export class Feed extends Context.Service<Feed, { watch(): Stream.Stream<number> }>()("Feed") {
+  static live() {
+    return Layer.succeed(this, { watch: () => source.watch() });
+  }
+}`,
+      errors: [untracedStream("watch", "Feed")],
+    },
   ],
 });

@@ -23,8 +23,6 @@ const secretWords = new Set([
   "apikey",
 ]);
 
-const highEntropySecretWords = new Set(["session", "token", "key"]);
-
 const confirmationWords = new Set([
   "confirm",
   "confirmation",
@@ -43,23 +41,30 @@ function nameWords(name: string) {
   return (name.match(word) ?? []).map((part) => part.toLowerCase());
 }
 
+function endsSecret(words: readonly string[], end: number) {
+  const last = words[end];
+  const beforeLast = words[end - 1];
+
+  if (last === "hash") {
+    return beforeLast !== "session";
+  }
+
+  return (
+    (last !== undefined && secretWords.has(last)) ||
+    (last === "key" &&
+      beforeLast !== undefined &&
+      (beforeLast === "api" || secretWords.has(beforeLast)))
+  );
+}
+
 function isSecretName(name: string) {
   if (pascalCase.test(name)) {
     return false;
   }
 
   const words = nameWords(name);
-  const last = words.at(-1);
-  const beforeLast = words.at(-2);
 
-  return (
-    (last !== undefined &&
-      secretWords.has(last) &&
-      !(last === "hash" && beforeLast !== undefined && highEntropySecretWords.has(beforeLast))) ||
-    (last === "key" &&
-      beforeLast !== undefined &&
-      (beforeLast === "api" || secretWords.has(beforeLast)))
-  );
+  return endsSecret(words, words.length - 1);
 }
 
 function isConfirmationName(name: string) {
@@ -67,7 +72,7 @@ function isConfirmationName(name: string) {
 
   return (
     words.some((part) => confirmationWords.has(part)) &&
-    words.every((part) => part === "password" || !secretWords.has(part))
+    words.every((part, index) => part === "password" || !endsSecret(words, index))
   );
 }
 

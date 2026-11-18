@@ -51,10 +51,7 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
     'if (password !== form["password-confirm"]) {}',
     "close((connection) => connection.sessionHash === sessionHash);",
     "close((connection) => connection.sessionHash !== options?.except);",
-    "if (tokenHash === stored.tokenHash) {}",
     'if (newPassword !== values?.get("confirm")) {}',
-    "if (connection.refreshTokenHash !== refreshTokenHash) {}",
-    "if (apiKeyHash === stored.apiKeyHash) {}",
   ],
   invalid: [
     {
@@ -90,6 +87,10 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
     { code: "if (provided === SECRET_KEY) {}", errors: [error] },
     { code: "if (provided === confirmationToken) {}", errors: [error] },
     { code: "if (hash1 === hash2) {}", errors: [error] },
+    { code: "if (tokenHash === stored.tokenHash) {}", errors: [error] },
+    { code: "if (verificationTokenHash === stored.verificationTokenHash) {}", errors: [error] },
+    { code: "if (apiKeyHash === stored.apiKeyHash) {}", errors: [error] },
+    { code: "if (confirmApiKey === storedPassword) {}", errors: [error] },
     { code: "if (contentHash !== previousHash) {}", errors: [error] },
     { code: 'if (computedHash !== req.headers["x-webhook-hash"]) {}', errors: [error] },
     { code: "if (otpHash === stored.otpHash) {}", errors: [error] },

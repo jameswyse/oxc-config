@@ -6,8 +6,7 @@ import {
   outermostExpression,
   ownReturns,
   propertyName,
-  staticPropertyName,
-  unchangedInit,
+  isJsonParse,
   variableFor,
 } from "../shared/index.ts";
 import { isEmittedClassMember, locallyExportedNames } from "../shared/module-exports.ts";
@@ -376,6 +375,19 @@ function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
   );
 }
 
+function untypedInit(variable: Variable) {
+  const [definition, ...otherDefinitions] = variable.defs;
+  const declarator = definition?.node;
+
+  return otherDefinitions.length === 0 &&
+    definition?.type === "Variable" &&
+    declarator?.type === "VariableDeclarator" &&
+    !declarator.id.typeAnnotation &&
+    variable.references.every((reference) => reference.init || !reference.isWrite())
+    ? declarator.init
+    : null;
+}
+
 function returnsAny(
   sourceCode: SourceCode,
   node: ESTree.Node,
@@ -400,11 +412,9 @@ function returnsAny(
   const variable = node.type === "Identifier" ? variableFor(sourceCode, node) : null;
 
   if (variable !== null) {
-    const binding = variable.defs.at(0)?.name;
-    const init = unchangedInit(variable);
-    const typed = binding !== undefined && "typeAnnotation" in binding && binding.typeAnnotation;
+    const init = untypedInit(variable);
 
-    if (typed || init === null || visited.has(variable)) {
+    if (init === null || visited.has(variable)) {
       return false;
     }
 
@@ -413,18 +423,7 @@ function returnsAny(
     return returnsAny(sourceCode, init, visited);
   }
 
-  const callee = node.type === "CallExpression" ? node.callee : null;
-
-  if (callee?.type !== "MemberExpression") {
-    return false;
-  }
-
-  const name = staticPropertyName(callee);
-
-  return (
-    (name === "parse" && isGlobal(sourceCode, callee.object, "JSON")) ||
-    (name === "json" && node.type === "CallExpression" && node.arguments.length === 0)
-  );
+  return node.type === "CallExpression" && !node.typeArguments && isJsonParse(sourceCode, node);
 }
 
 function constructsFromContext(node: ESTree.Node) {
@@ -487,7 +486,7 @@ function annotationTypesReturns(
   const values = new Set(
     results
       .filter((result) => !isAbsent(sourceCode, result))
-      .map((result) => sourceCode.getText(result)),
+      .map((result) => variableFor(sourceCode, result) ?? sourceCode.getText(result)),
   );
 
   return values.size > 1 || results.some((result) => needsContext(result, sourceCode));
