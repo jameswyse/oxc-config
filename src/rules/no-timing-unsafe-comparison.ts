@@ -4,6 +4,7 @@ import {
   childNodes,
   isGlobal,
   staticPropertyName,
+  staticString,
   unwrapExpression,
   variableFor,
 } from "../shared/index.ts";
@@ -16,30 +17,54 @@ const secretWords = new Set([
   "password",
   "secret",
   "token",
-  "hash",
   "signature",
   "digest",
+  "hmac",
   "apikey",
+]);
+
+const confirmationWords = new Set([
+  "confirm",
+  "confirmation",
+  "confirmed",
+  "repeat",
+  "repeated",
+  "retype",
+  "retyped",
 ]);
 
 const word = /[A-Z]?[a-z]+|[A-Z]+(?![a-z])/gu;
 
 const pascalCase = /^[A-Z](?=[A-Za-z0-9]*[a-z])[A-Za-z0-9]*$/u;
 
+function nameWords(name: string) {
+  return (name.match(word) ?? []).map((part) => part.toLowerCase());
+}
+
 function isSecretName(name: string) {
   if (pascalCase.test(name)) {
     return false;
   }
 
-  const words = (name.match(word) ?? []).map((part) => part.toLowerCase());
+  const words = nameWords(name);
   const last = words.at(-1);
   const beforeLast = words.at(-2);
 
   return (
     (last !== undefined && secretWords.has(last)) ||
+    (last === "hash" && beforeLast === "password") ||
     (last === "key" &&
       beforeLast !== undefined &&
       (beforeLast === "api" || secretWords.has(beforeLast)))
+  );
+}
+
+function isConfirmationName(name: string) {
+  const words = nameWords(name);
+
+  return (
+    words.some((part) => confirmationWords.has(part)) &&
+    words.every((part) => part === "password" || !secretWords.has(part))
   );
 }
 
@@ -54,6 +79,20 @@ function comparedName(node: ESTree.Node) {
   }
 
   return value.type === "MemberExpression" ? staticPropertyName(value) : null;
+}
+
+function formFieldName(node: ESTree.Node) {
+  const value = unwrapExpression(node);
+
+  return value.type === "CallExpression" && value.arguments.length === 1
+    ? staticString(value.arguments[0])
+    : null;
+}
+
+function isConfirmationValue(node: ESTree.Node) {
+  const name = comparedName(node) ?? formFieldName(node);
+
+  return name !== null && isConfirmationName(name);
 }
 
 function readonlyTarget(sourceCode: SourceCode, type: ESTree.TSType | null) {
@@ -265,7 +304,9 @@ export const noTimingUnsafeComparison = defineRule({
         if (
           !equalityOperators.has(node.operator) ||
           isNonSecretValue(sourceCode, node.left) ||
-          isNonSecretValue(sourceCode, node.right)
+          isNonSecretValue(sourceCode, node.right) ||
+          isConfirmationValue(node.left) ||
+          isConfirmationValue(node.right)
         ) {
           return;
         }

@@ -107,6 +107,23 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     "export abstract class Shape { protected abstract area(): number; protected scaled(): number { return 1; } }",
     "class Tree { static depth(n: number): number { return n === 0 ? 0 : Tree.depth(n - 1) + 1; } }",
     "const Tree = class { static depth(n: number): number { return n === 0 ? 0 : Tree.depth(n - 1) + 1; } };",
+    'function plan(message: string): Plan { return { _tag: "Refused", message }; }',
+    "function stepFor(key: string): readonly [number, number] | null { if (key === '') { return null; } return [-1, 0]; }",
+    "function nothing(): Item[] { return []; }",
+    "function updater(): ((layout: ProjectLayout) => ProjectLayout) | null { return (current) => ({ ...current }); }",
+    "function find(machine: Machine | undefined): Effect.Effect<Machine, NotFound> { return machine === undefined ? Effect.fail(notFound) : Effect.succeed(machine); }",
+    "function find(machine: Machine | undefined): Effect.Effect<Machine, NotFound> { if (machine === undefined) { return Effect.fail(notFound); } return Effect.succeed(machine); }",
+    "function load(): Promise<Map<string, number>> { return new Promise((settle) => settle(sizes)); }",
+    "function empty(): Map<string, number> { return new Map(); }",
+    "const policy = Option.getOrElse(current, (): ReadPolicy => ({ policy: { allowedTiers: [] } }));",
+    "function failed(message: string): InspectionResult { return InspectionResult.cases.Failed.make({ message }); }",
+    'function mode(flag: boolean): Mode { return flag ? "light" : "dark"; }',
+    'function mode(value: Mode | undefined): Mode { return value ?? "light"; }',
+    'async function mode(): Promise<Mode> { return "light"; }',
+    'function label(): Effect.Effect<Mode> { return Effect.succeed("light"); }',
+    "function handler(): Handler { return function (event) { return event.id; }; }",
+    "function* ids(): Generator<number> { yield 1; }",
+    'const call = Effect.fn("call")(function* (id: string): Effect.fn.Return<CallEnd, CallError> { return yield* end(id); });',
   ],
   invalid: [
     reported(
@@ -158,7 +175,43 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
       "async function load(id: string): Promise<User> { return fetchUser(id); }",
       "async function load(id: string) { return fetchUser(id); }",
     ),
-    reported("function* ids(): Generator<number> { yield 1; }", "function* ids() { yield 1; }"),
+    reported(
+      'function plan(message: string): Plan { return { _tag: "Refused", message } satisfies Plan; }',
+      'function plan(message: string) { return { _tag: "Refused", message } satisfies Plan; }',
+    ),
+    reported('function mode(): string { return "light"; }', 'function mode() { return "light"; }'),
+    reported(
+      "function size(flag: boolean): number | null { return flag ? 1 : null; }",
+      "function size(flag: boolean) { return flag ? 1 : null; }",
+    ),
+    reported(
+      "function count(flag: boolean): number { return flag ? load() : save(); }",
+      "function count(flag: boolean) { return flag ? load() : save(); }",
+    ),
+    reported(
+      "function find(id: string): Effect.Effect<User, NotFound> { return users.get(id); }",
+      "function find(id: string) { return users.get(id); }",
+    ),
+    reported(
+      "async function load(id: string): Promise<User> { return cached ?? (await fetchUser(id)); }",
+      "async function load(id: string) { return cached ?? (await fetchUser(id)); }",
+    ),
+    reported(
+      "function ids(items: Item[]): string[] { return items.map((item: Item) => item.id); }",
+      "function ids(items: Item[]) { return items.map((item: Item) => item.id); }",
+    ),
+    reported(
+      "function load(): Effect.Effect<User> { return Effect.gen(function* () { return yield* find(); }); }",
+      "function load() { return Effect.gen(function* () { return yield* find(); }); }",
+    ),
+    reported(
+      "function users(): Map<string, User> { return new Map<string, User>(); }",
+      "function users() { return new Map<string, User>(); }",
+    ),
+    reported(
+      "function pick(): Pair { return [first, second] as const; }",
+      "function pick() { return [first, second] as const; }",
+    ),
     reported(
       "function total(items: number[]): number | undefined { return items[0]; }",
       "function total(items: number[]) { return items[0]; }",

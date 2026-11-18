@@ -1,6 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { outermostExpression, propertyName } from "../shared/index.ts";
+import { isFunctionNode, outermostExpression, ownReturns, propertyName } from "../shared/index.ts";
 import { isEmittedClassMember, locallyExportedNames } from "../shared/module-exports.ts";
 
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
@@ -272,6 +272,117 @@ function thisOwner(node: ESTree.Node) {
   return null;
 }
 
+const keywordTypes = new Set([
+  "TSBigIntKeyword",
+  "TSBooleanKeyword",
+  "TSNullKeyword",
+  "TSNumberKeyword",
+  "TSStringKeyword",
+  "TSSymbolKeyword",
+  "TSUndefinedKeyword",
+  "TSVoidKeyword",
+]);
+
+function isKeywordType(type: ESTree.TSType) {
+  const members = type.type === "TSUnionType" ? type.types : [type];
+
+  return members.every((member) => keywordTypes.has(member.type));
+}
+
+function resultExpressions(node: ESTree.Node): ESTree.Node[] {
+  if (node.type === "ParenthesizedExpression") {
+    return resultExpressions(node.expression);
+  }
+
+  if (node.type === "AwaitExpression") {
+    return resultExpressions(node.argument);
+  }
+
+  if (node.type === "ConditionalExpression") {
+    return [...resultExpressions(node.consequent), ...resultExpressions(node.alternate)];
+  }
+
+  if (node.type === "LogicalExpression") {
+    return [...resultExpressions(node.left), ...resultExpressions(node.right)];
+  }
+
+  const last = node.type === "SequenceExpression" ? node.expressions.at(-1) : undefined;
+
+  return last === undefined ? [node] : resultExpressions(last);
+}
+
+function hasTypeAnnotation(parameter: ESTree.Node): boolean {
+  if (parameter.type === "TSParameterProperty") {
+    return hasTypeAnnotation(parameter.parameter);
+  }
+
+  if (parameter.type === "AssignmentPattern") {
+    return hasTypeAnnotation(parameter.left);
+  }
+
+  return "typeAnnotation" in parameter && parameter.typeAnnotation !== null;
+}
+
+function fnResults(fn: FunctionNode, sourceCode: SourceCode) {
+  return ownReturns(fn, sourceCode.visitorKeys).flatMap(resultExpressions);
+}
+
+function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
+  if (isFunctionNode(node)) {
+    return (
+      !node.params.every(hasTypeAnnotation) ||
+      (!node.returnType &&
+        fnResults(node, sourceCode).some((result) => needsContext(result, sourceCode)))
+    );
+  }
+
+  if (node.type === "ObjectExpression" || node.type === "ArrayExpression") {
+    return true;
+  }
+
+  if (node.type === "Literal") {
+    return ["string", "number", "bigint", "boolean"].includes(typeof node.value);
+  }
+
+  if (node.type !== "CallExpression" && node.type !== "NewExpression") {
+    return false;
+  }
+
+  return (
+    !node.typeArguments &&
+    ((node.type === "NewExpression" && node.arguments.length === 0) ||
+      node.arguments.some(
+        (argument) =>
+          argument.type !== "SpreadElement" &&
+          resultExpressions(argument).some((result) => needsContext(result, sourceCode)),
+      ))
+  );
+}
+
+function isCall(node: ESTree.Node) {
+  return node.type === "CallExpression" || node.type === "NewExpression";
+}
+
+function annotationTypesReturns(
+  fn: FunctionNode,
+  annotation: ESTree.TSType,
+  sourceCode: SourceCode,
+) {
+  if (fn.generator) {
+    return true;
+  }
+
+  if (isKeywordType(annotation)) {
+    return false;
+  }
+
+  const results = fnResults(fn, sourceCode);
+
+  return (
+    results.filter(isCall).length > 1 || results.some((result) => needsContext(result, sourceCode))
+  );
+}
+
 export const noInternalReturnTypes = defineRule({
   meta: {
     type: "suggestion",
@@ -321,9 +432,11 @@ export const noInternalReturnTypes = defineRule({
 
       if (
         !returnType ||
+        !annotation ||
         !fn.body ||
-        annotation?.type === "TSTypePredicate" ||
-        annotation?.type === "TSNeverKeyword" ||
+        annotation.type === "TSTypePredicate" ||
+        annotation.type === "TSNeverKeyword" ||
+        annotationTypesReturns(fn, annotation, sourceCode) ||
         isExportedApi(fn) ||
         referencesOwnName(sourceCode, fn) ||
         callsItselfAsMember(fn)

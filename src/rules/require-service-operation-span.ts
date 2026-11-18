@@ -4,8 +4,11 @@ import {
   childNodes,
   effectMember,
   isFunctionNode,
+  isEffectModule,
   ownReturns,
+  pipeSteps,
   propertyName,
+  staticPropertyName,
   staticString,
   unchangedInit,
   unwrapExpression,
@@ -202,25 +205,183 @@ function layerImplementations(sourceCode: SourceCode, node: ESTree.CallExpressio
   });
 }
 
+function layerTag(node: ESTree.CallExpression) {
+  const callee = unwrapExpression(node.callee);
+  const curried = callee.type === "CallExpression" && callee.arguments.length === 1;
+  const [tag] = curried ? callee.arguments : node.arguments;
+
+  return tag?.type === "SpreadElement" ? undefined : tag;
+}
+
+function enclosingClass(node: ESTree.Node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (current.type === "ClassDeclaration" || current.type === "ClassExpression") {
+      return current;
+    }
+
+    if (current.type === "FunctionDeclaration" || current.type === "FunctionExpression") {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function serviceClass(sourceCode: SourceCode, tag: ESTree.Node) {
+  const value = unwrapExpression(tag);
+
+  if (value.type === "ThisExpression") {
+    return enclosingClass(value);
+  }
+
+  const definition = variableFor(sourceCode, value)?.defs.at(0)?.node;
+
+  const declared =
+    definition?.type === "ClassDeclaration" ? definition : declaredValue(sourceCode, value);
+
+  return declared.type === "ClassDeclaration" || declared.type === "ClassExpression"
+    ? declared
+    : null;
+}
+
+function serviceName(tag: ESTree.Node | undefined, service: ESTree.Class | null) {
+  const value = tag === undefined ? null : unwrapExpression(tag);
+
+  return service?.id?.name ?? (value?.type === "Identifier" ? value.name : "Service");
+}
+
+function serviceInterface(sourceCode: SourceCode, service: ESTree.Class | null) {
+  const superClass = service?.superClass ? unwrapExpression(service.superClass) : null;
+
+  const factory =
+    superClass?.type === "CallExpression" ? unwrapExpression(superClass.callee) : null;
+
+  if (
+    factory?.type !== "CallExpression" ||
+    effectMember(sourceCode, factory.callee, "Context") !== "Service"
+  ) {
+    return null;
+  }
+
+  const operations = factory.typeArguments?.params[1];
+
+  return operations?.type === "TSTypeLiteral" ? operations : null;
+}
+
+function declaredReturnType(member: ESTree.TSSignature) {
+  if (member.type === "TSMethodSignature") {
+    return member.returnType?.typeAnnotation ?? null;
+  }
+
+  const type = member.type === "TSPropertySignature" ? member.typeAnnotation?.typeAnnotation : null;
+
+  return type?.type === "TSFunctionType" ? type.returnType.typeAnnotation : null;
+}
+
+function isStreamType(sourceCode: SourceCode, type: ESTree.TSType | null) {
+  const name = type?.type === "TSTypeReference" ? type.typeName : null;
+
+  return (
+    name?.type === "TSQualifiedName" &&
+    name.right.name === "Stream" &&
+    isEffectModule(sourceCode, name.left, "Stream")
+  );
+}
+
+function declaresStream(sourceCode: SourceCode, service: ESTree.Class | null, name: string) {
+  const member = serviceInterface(sourceCode, service)?.members.find(
+    (signature) =>
+      (signature.type === "TSPropertySignature" || signature.type === "TSMethodSignature") &&
+      staticPropertyName(signature) === name,
+  );
+
+  return member !== undefined && isStreamType(sourceCode, declaredReturnType(member));
+}
+
+const streamExits = /^(?:run|to)(?:[A-Z]|$)/u;
+
+function streamMember(sourceCode: SourceCode, node: ESTree.Node) {
+  const value = unwrapExpression(node);
+
+  return (
+    effectMember(sourceCode, value, "Stream") ??
+    (value.type === "CallExpression" ? effectMember(sourceCode, value.callee, "Stream") : null)
+  );
+}
+
+function isStreamExpression(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+  visited: Set<ESTree.Node>,
+): boolean {
+  const value = unwrapExpression(node);
+
+  if (value.type === "ConditionalExpression") {
+    return (
+      isStreamExpression(sourceCode, value.consequent, visited) ||
+      isStreamExpression(sourceCode, value.alternate, visited)
+    );
+  }
+
+  const member = streamMember(sourceCode, value);
+
+  if (member !== null) {
+    return !streamExits.test(member);
+  }
+
+  if (value.type !== "CallExpression") {
+    return false;
+  }
+
+  const pipe = pipeSteps(sourceCode, value);
+
+  if (pipe !== null) {
+    const last = pipe.steps.at(-1);
+    const step = last === undefined ? null : streamMember(sourceCode, last);
+
+    return last === undefined
+      ? pipe.input !== null && isStreamExpression(sourceCode, pipe.input, visited)
+      : step !== null && !streamExits.test(step);
+  }
+
+  const callee = declaredValue(sourceCode, value.callee);
+
+  if (!isFunctionNode(callee) || visited.has(callee)) {
+    return false;
+  }
+
+  visited.add(callee);
+
+  return ownReturns(callee, sourceCode.visitorKeys).some((returned) =>
+    isStreamExpression(sourceCode, returned, visited),
+  );
+}
+
+function returnsStream(sourceCode: SourceCode, operation: FunctionNode) {
+  return ownReturns(operation, sourceCode.visitorKeys).some((returned) =>
+    isStreamExpression(sourceCode, returned, new Set([operation])),
+  );
+}
+
 function untracedOperation(sourceCode: SourceCode, property: ESTree.Node) {
   if (property.type !== "Property" || property.kind !== "init") {
-    return false;
+    return null;
   }
 
   const operation = declaredValue(sourceCode, property.value);
 
   if (!isFunctionNode(operation)) {
-    return isUnnamedEffectFn(sourceCode, operation);
+    return isUnnamedEffectFn(sourceCode, operation) ? operation : null;
   }
 
-  return (
-    !operation.async &&
-    !someOwnNode(
+  return operation.async ||
+    someOwnNode(
       sourceCode,
       operation,
       (node) => isSpan(sourceCode, node) || callsSpannedFunction(sourceCode, node),
     )
-  );
+    ? null
+    : operation;
 }
 
 export const requireServiceOperationSpan = defineRule({
@@ -232,21 +393,43 @@ export const requireServiceOperationSpan = defineRule({
     },
     messages: {
       untraced:
-        'Service operation `{{name}}` has no span, so traces don\'t show its calls, timing or failures. Define it with `Effect.fn("Service.{{name}}")`, or with `Effect.fnUntraced` when tracing it adds nothing.',
+        'Service operation `{{name}}` has no span, so traces don\'t show its calls, timing or failures. Define it with `Effect.fn("{{service}}.{{name}}")`, which takes the existing function or a generator, or with a generator in `Effect.fnUntraced` when tracing it adds nothing.',
+      untracedStream:
+        'Service operation `{{name}}` returns a Stream with no span, so traces don\'t show its runs, timing or failures. Pipe the Stream through `Stream.withSpan("{{service}}.{{name}}")`.',
     },
   },
   createOnce(context) {
     return {
       CallExpression(node) {
-        for (const implementation of layerImplementations(context.sourceCode, node)) {
+        const { sourceCode } = context;
+        const implementations = layerImplementations(sourceCode, node);
+
+        if (implementations.length === 0) {
+          return;
+        }
+
+        const tag = layerTag(node);
+        const service = tag === undefined ? null : serviceClass(sourceCode, tag);
+
+        for (const implementation of implementations) {
           for (const property of implementation.properties) {
-            if (untracedOperation(context.sourceCode, property)) {
-              context.report({
-                node: property,
-                messageId: "untraced",
-                data: { name: propertyName(property) ?? "operation" },
-              });
+            const operation = untracedOperation(sourceCode, property);
+
+            if (operation === null) {
+              continue;
             }
+
+            const name = propertyName(property) ?? "operation";
+
+            const streams =
+              declaresStream(sourceCode, service, name) ||
+              (isFunctionNode(operation) && returnsStream(sourceCode, operation));
+
+            context.report({
+              node: property,
+              messageId: streams ? "untracedStream" : "untraced",
+              data: { name, service: serviceName(tag, service) },
+            });
           }
         }
       },
