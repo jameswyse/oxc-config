@@ -38,7 +38,7 @@ export const noObjectParameters = defineRule({
   createOnce(context) {
     let environment: TypeAliasEnvironment | null = null;
 
-    const resolvesToObject = (type: ESTree.TSType): boolean =>
+    const resolvesToObject = (type: ESTree.TSType) =>
       environment !== null &&
       resolvedTypeMatches(type, environment, (resolved, matches) => {
         if (resolved.type === "TSObjectKeyword") {
@@ -52,7 +52,7 @@ export const noObjectParameters = defineRule({
         return resolved.type === "TSUnionType" && resolved.types.some(matches);
       });
 
-    const checkParameters = (node: ParameterOwner): void => {
+    const checkParameters = (node: ParameterOwner) => {
       for (const parameter of node.params) {
         const annotation = functionParameterTypeAnnotation(parameter);
 

@@ -6,12 +6,7 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 type FunctionNode = ESTree.Function | ESTree.ArrowFunctionExpression;
 
-type NamedFunction = {
-  readonly node: ESTree.Node;
-  readonly name: string;
-};
-
-function delegatedCall(fn: FunctionNode): ESTree.CallExpression | null {
+function delegatedCall(fn: FunctionNode) {
   let expression: ESTree.FunctionBody | ESTree.Expression | null = fn.body;
 
   if (expression?.type === "BlockStatement") {
@@ -37,7 +32,7 @@ function delegatedCall(fn: FunctionNode): ESTree.CallExpression | null {
   return expression?.type === "CallExpression" && !expression.optional ? expression : null;
 }
 
-function passesParameters(fn: FunctionNode, call: ESTree.CallExpression): boolean {
+function passesParameters(fn: FunctionNode, call: ESTree.CallExpression) {
   if (fn.params.length !== call.arguments.length) {
     return false;
   }
@@ -59,7 +54,7 @@ function passesParameters(fn: FunctionNode, call: ESTree.CallExpression): boolea
   });
 }
 
-function isEffectEvent(sourceCode: SourceCode, callee: ESTree.IdentifierReference): boolean {
+function isEffectEvent(sourceCode: SourceCode, callee: ESTree.IdentifierReference) {
   const definition = variableFor(sourceCode, callee)?.defs[0]?.node;
   const init = definition?.type === "VariableDeclarator" ? definition.init : null;
   const hook = init?.type === "CallExpression" ? init.callee : null;
@@ -71,7 +66,7 @@ function isEffectEvent(sourceCode: SourceCode, callee: ESTree.IdentifierReferenc
   return hook?.type === "Identifier" && hook.name === "useEffectEvent";
 }
 
-function namedFunction(fn: FunctionNode): NamedFunction | null {
+function namedFunction(fn: FunctionNode) {
   const parent = fn.parent;
 
   if (fn.type === "FunctionDeclaration") {
@@ -111,7 +106,7 @@ export const noPassThroughFunction = defineRule({
     },
   },
   create(context) {
-    function check(fn: FunctionNode): void {
+    function check(fn: FunctionNode) {
       if (
         fn.generator ||
         fn.params.length === 0 ||

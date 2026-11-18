@@ -10,13 +10,7 @@ import {
 
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
 
-type Reducer = {
-  readonly callback: ESTree.ArrowFunctionExpression | ESTree.Function;
-  readonly accumulator: ESTree.BindingIdentifier;
-  readonly initialValue: ESTree.Argument | undefined;
-};
-
-function enclosingReducer(node: ESTree.Node): Reducer | null {
+function enclosingReducer(node: ESTree.Node) {
   let parent = node.parent;
 
   while (parent !== null) {
@@ -72,7 +66,7 @@ function referencesAccumulator(
   node: ESTree.Node,
   accumulator: Variable,
   visited = new Set<Variable>(),
-): boolean {
+) {
   const variable = resolveArrayBinding(sourceCode, node);
 
   if (variable === null || visited.has(variable)) {
@@ -105,7 +99,7 @@ function referencesAccumulator(
   return false;
 }
 
-function isGlobalCopyOwner(sourceCode: SourceCode, expression: ESTree.Node, name: string): boolean {
+function isGlobalCopyOwner(sourceCode: SourceCode, expression: ESTree.Node, name: string) {
   const node = unwrapArrayExpression(expression);
 
   if (node.type !== "Identifier" || node.name !== name) {
@@ -156,7 +150,7 @@ export const noReduceAccumulatorCopy = defineRule({
           return;
         }
 
-        const isAccumulator = (expression: ESTree.Node): boolean =>
+        const isAccumulator = (expression: ESTree.Node) =>
           referencesAccumulator(context.sourceCode, expression, accumulator);
 
         let copiesAccumulator = false;

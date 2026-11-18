@@ -16,6 +16,12 @@ ruleTester.run("no-module-mocking", noModuleMocking, {
     "const vi = { mock() {} }; vi.mock();",
     "function test(jest: { mock(): void }) { jest.mock(); }",
     "import { vi as localVi } from './helpers'; localVi.mock('./module');",
+    'import { test } from "node:test"; function check(t) { if (t.name === "parent") t.test("child", check); t.mock.fn(save); } test("parent", check);',
+    "import { vi } from 'vitest'; vi.mock('./user-store', { spy: true });",
+    "import { vi } from 'vitest'; vi.doMock('./user-store', { spy: true });",
+    "import * as helpers from './helpers'; helpers.vi.mock('./user-store');",
+    "import { vi } from 'vitest'; vi.mock('./user-store', { ...{ spy: true } });",
+    "import { vi } from 'vitest'; const options = { spy: true }; vi.mock('./user-store', options);",
   ],
   invalid: [
     {
@@ -64,5 +70,22 @@ ruleTester.run("no-module-mocking", noModuleMocking, {
       errors: [error],
     },
     { code: "import { jest } from '@jest/globals'; jest.mock('./user-store');", errors: [error] },
+    {
+      code: 'import { test } from "node:test"; function check(t) { if (t.name === "parent") t.test("child", check); t.mock.module("./database"); } test("parent", check);',
+      errors: [error],
+    },
+    {
+      code: "import { vi } from 'vitest'; vi.mock('./user-store', { spy: false });",
+      errors: [error],
+    },
+    { code: "import * as vitest from 'vitest'; vitest.vi.mock('./user-store');", errors: [error] },
+    {
+      code: "import { vi } from 'vitest'; vi.mock('./user-store', { spy: true, ...{ spy: false } });",
+      errors: [error],
+    },
+    {
+      code: "import { vi } from 'vitest'; const { mock } = vi; mock('./user-store');",
+      errors: [error],
+    },
   ],
 });

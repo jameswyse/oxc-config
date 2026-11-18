@@ -12,8 +12,6 @@ type Expectation = {
   readonly expected: readonly ESTree.Argument[];
 };
 
-type ImportKind = "namespace" | "binding";
-
 const expectModules = new Set([
   "vitest",
   "@effect/vitest",
@@ -33,7 +31,7 @@ const presenceMatchers = new Map<string, boolean>([
 
 const equalityMatchers = new Set(["toBe", "toEqual", "toStrictEqual"]);
 
-function expectation(sourceCode: SourceCode, node: ESTree.CallExpression): Expectation | null {
+function expectation(sourceCode: SourceCode, node: ESTree.CallExpression) {
   if (node.callee.type !== "MemberExpression") {
     return null;
   }
@@ -71,11 +69,11 @@ function expectation(sourceCode: SourceCode, node: ESTree.CallExpression): Expec
   return { matcher, negated, actual, expected: node.arguments };
 }
 
-function dynamicImport(node: ESTree.Expression | null): boolean {
+function dynamicImport(node: ESTree.Expression | null) {
   return node?.type === "AwaitExpression" && node.argument.type === "ImportExpression";
 }
 
-function importKind(sourceCode: SourceCode, node: ESTree.Node): ImportKind | null {
+function importKind(sourceCode: SourceCode, node: ESTree.Node) {
   if (node.type !== "Identifier") {
     return null;
   }
@@ -104,7 +102,7 @@ function importKind(sourceCode: SourceCode, node: ESTree.Node): ImportKind | nul
   return null;
 }
 
-function importedValue(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function importedValue(sourceCode: SourceCode, node: ESTree.Node) {
   if (node.type === "Identifier") {
     return importKind(sourceCode, node) !== null;
   }
@@ -116,10 +114,7 @@ function importedValue(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function editProof(
-  sourceCode: SourceCode,
-  { matcher, negated, actual, expected }: Expectation,
-): boolean {
+function editProof(sourceCode: SourceCode, { matcher, negated, actual, expected }: Expectation) {
   if (presenceMatchers.has(matcher)) {
     return presenceMatchers.get(matcher) === negated && importedValue(sourceCode, actual);
   }

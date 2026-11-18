@@ -16,13 +16,13 @@ const fakeClockMethods = new Set(["install", "setFixedTime"]);
 
 const timerLists = new Set(["apis", "toFake", "doNotFake"]);
 
-function nameOf(node: ESTree.Node): string | null {
+function nameOf(node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   return value.type === "Identifier" ? value.name : staticPropertyName(value);
 }
 
-function fakesDate(options: ESTree.Node | undefined): boolean {
+function fakesDate(options: ESTree.Node | undefined) {
   const value = options === undefined ? undefined : unwrapExpression(options);
 
   if (value?.type !== "ObjectExpression") {
@@ -49,19 +49,19 @@ function fakesDate(options: ESTree.Node | undefined): boolean {
   });
 }
 
-function isNodeMock(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isNodeMock(sourceCode: SourceCode, node: ESTree.Node) {
   const binding = importedBinding(sourceCode, node);
 
   return nameOf(node) === "mock" || (binding?.source === "node:test" && binding.name === "mock");
 }
 
-function isLocalFunction(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isLocalFunction(sourceCode: SourceCode, node: ESTree.Node) {
   const definition = variableFor(sourceCode, node)?.defs[0];
 
   return definition !== undefined && definition.type !== "ImportBinding";
 }
 
-function controlsClock(sourceCode: SourceCode, call: ESTree.CallExpression): boolean {
+function controlsClock(sourceCode: SourceCode, call: ESTree.CallExpression) {
   const callee = unwrapExpression(call.callee);
   const name = isLocalFunction(sourceCode, callee) ? null : nameOf(callee);
 
@@ -114,7 +114,7 @@ export const noUncontrolledTestClock = defineRule({
     const controlledTests = new Set<ESTree.Node>();
     let controlledFile = false;
 
-    function enclosingTest(node: ESTree.Node): ESTree.Node | null {
+    function enclosingTest(node: ESTree.Node) {
       const test = testContext(sourceCode, node);
 
       return test?.api.name === "test" || test?.api.name === "it" ? test.callback : null;

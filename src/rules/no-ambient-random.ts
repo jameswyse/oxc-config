@@ -10,11 +10,11 @@ const webRandom = new Set(["randomUUID"]);
 
 const nodeRandom = new Set(["randomUUID", "randomInt"]);
 
-function importedName(specifier: ESTree.ImportSpecifier): string | null {
+function importedName(specifier: ESTree.ImportSpecifier) {
   return specifier.imported.type === "Identifier" ? specifier.imported.name : null;
 }
 
-function cryptoImport(sourceCode: SourceCode, node: ESTree.Node): ReadonlySet<string> | null {
+function cryptoImport(sourceCode: SourceCode, node: ESTree.Node) {
   if (node.type !== "Identifier") {
     return null;
   }
@@ -38,7 +38,7 @@ function cryptoImport(sourceCode: SourceCode, node: ESTree.Node): ReadonlySet<st
   return nodeRandom;
 }
 
-function randomMembers(sourceCode: SourceCode, node: ESTree.Node): ReadonlySet<string> | null {
+function randomMembers(sourceCode: SourceCode, node: ESTree.Node) {
   return isGlobalValue(sourceCode, node, "crypto") ? webRandom : cryptoImport(sourceCode, node);
 }
 

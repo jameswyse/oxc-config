@@ -4,28 +4,25 @@ import { isGlobal, moduleExportName, propertyName, variableFor } from "../shared
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
-function moduleName(node: ESTree.Node | null | undefined): string | null {
+function moduleName(node: ESTree.Node | null | undefined) {
   return node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
 }
 
-function isRemotePackage(name: string | null): boolean {
+function isRemotePackage(name: string | null) {
   return name === "@electron/remote" || (name?.startsWith("@electron/remote/") ?? false);
 }
 
-function isElectron(name: string | null): boolean {
+function isElectron(name: string | null) {
   return name === "electron" || (name?.startsWith("electron/") ?? false);
 }
 
-function requiredModule(
-  sourceCode: SourceCode,
-  node: ESTree.Node | null | undefined,
-): string | null {
+function requiredModule(sourceCode: SourceCode, node: ESTree.Node | null | undefined) {
   return node?.type === "CallExpression" && isGlobal(sourceCode, node.callee, "require")
     ? moduleName(node.arguments[0])
     : null;
 }
 
-function isElectronModule(sourceCode: SourceCode, node: ESTree.Node | null | undefined): boolean {
+function isElectronModule(sourceCode: SourceCode, node: ESTree.Node | null | undefined) {
   if (isElectron(requiredModule(sourceCode, node))) {
     return true;
   }
@@ -72,7 +69,7 @@ export const electronNoRemoteModule = defineRule({
   create(context) {
     const sourceCode = context.sourceCode;
 
-    function checkSource(node: ESTree.Node, source: ESTree.Node | null | undefined): boolean {
+    function checkSource(node: ESTree.Node, source: ESTree.Node | null | undefined) {
       if (isRemotePackage(moduleName(source))) {
         context.report({ node, messageId: "remote" });
 

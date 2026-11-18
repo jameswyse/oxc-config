@@ -21,7 +21,7 @@ function isRuntimeFunction(node: ESTree.Node): node is RuntimeFunction {
   );
 }
 
-function isInsideTypeGuard(node: ESTree.Node): boolean {
+function isInsideTypeGuard(node: ESTree.Node) {
   let current: ESTree.Node | null = node.parent;
 
   while (current !== null && current.type !== "Program") {
@@ -35,7 +35,7 @@ function isInsideTypeGuard(node: ESTree.Node): boolean {
   return false;
 }
 
-function isExistenceProbe(node: ESTree.UnaryExpression): boolean {
+function isExistenceProbe(node: ESTree.UnaryExpression) {
   const parent = node.parent;
 
   if (parent.type !== "BinaryExpression") {
@@ -51,13 +51,13 @@ function isExistenceProbe(node: ESTree.UnaryExpression): boolean {
   return other.type === "Literal" && other.value === "undefined";
 }
 
-function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType | null {
+function declaredType(sourceCode: SourceCode, node: ESTree.Node) {
   const name = variableFor(sourceCode, node)?.defs[0]?.name;
 
   return name?.type === "Identifier" ? (name.typeAnnotation?.typeAnnotation ?? null) : null;
 }
 
-function isUnion(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean {
+function isUnion(type: ESTree.TSType, environment: TypeAliasEnvironment) {
   return resolvedTypeMatches(type, environment, (resolved, matches) =>
     resolved.type === "TSParenthesizedType"
       ? matches(resolved.typeAnnotation)
@@ -65,7 +65,7 @@ function isUnion(type: ESTree.TSType, environment: TypeAliasEnvironment): boolea
   );
 }
 
-function isOpen(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean {
+function isOpen(type: ESTree.TSType, environment: TypeAliasEnvironment) {
   return resolvedTypeMatches(
     type,
     environment,
@@ -77,7 +77,7 @@ function isOpen(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean
   );
 }
 
-function isKnownUnion(type: ESTree.TSType, environment: TypeAliasEnvironment): boolean {
+function isKnownUnion(type: ESTree.TSType, environment: TypeAliasEnvironment) {
   return isUnion(type, environment) && !isOpen(type, environment);
 }
 
@@ -104,7 +104,7 @@ export const noRuntimeTypeof = defineRule({
   createOnce(context) {
     let environment: TypeAliasEnvironment | null = null;
 
-    function discriminatesKnownUnion(node: ESTree.UnaryExpression): boolean {
+    function discriminatesKnownUnion(node: ESTree.UnaryExpression) {
       const type = declaredType(context.sourceCode, node.argument);
 
       return type !== null && environment !== null && isKnownUnion(type, environment);

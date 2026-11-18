@@ -22,31 +22,39 @@ const runnerRules = [
 ];
 
 export const tests: BaseProfile = (scope) => [
-  { rules: { "wyse/no-module-mocking": "error" } },
+  {
+    rules: {
+      "wyse/no-module-mocking": "error",
+      "wyse/no-test-retries": "error",
+      "wyse/require-msw-unhandled-error": "error",
+    },
+  },
   {
     files: scope.tests,
     rules: {
       ...errorRules("wyse", [
-        "no-fixed-test-delay",
-        "no-vacuous-test-assertions",
+        "companion-has-owner",
         "no-edit-proof-assertions",
+        "no-fixed-test-delay",
         "no-optional-test-action",
+        "no-recorder-polling",
+        "no-stubbed-behavior",
+        "no-vacuous-test-assertions",
       ]),
       "wyse/no-derived-test-expectation": "warn",
-      "wyse/companion-has-owner": "warn",
     },
   },
   {
     files: scope.tests,
     excludeFiles: scope.endToEnd,
     rules: {
-      "wyse/no-test-timeout-overrides": "warn",
+      "wyse/no-test-timeout-overrides": "error",
       "wyse/no-uncontrolled-test-clock": "error",
     },
   },
 ];
 
-function testRunner(name: "vitest" | "jest", extraRules: string[]): Profile<FileScope> {
+function testRunner(name: "vitest" | "jest", extraRules: string[]) {
   const runner: Profile<FileScope> = (scope, files) => [
     {
       files: filesFor(files, scope.tests),

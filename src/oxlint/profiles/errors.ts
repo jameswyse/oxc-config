@@ -2,7 +2,7 @@ import { errorRules } from "../preset.ts";
 
 import type { BaseProfile, LintLayer, LintScope } from "../preset.ts";
 
-function typeAwareLayers(scope: LintScope): LintLayer[] {
+function typeAwareLayers(scope: LintScope) {
   return [
     {
       files: scope.typeScript,
@@ -25,7 +25,7 @@ function typeAwareLayers(scope: LintScope): LintLayer[] {
         ],
       },
     },
-  ];
+  ] satisfies LintLayer[];
 }
 
 export const errors: BaseProfile = (scope) => [

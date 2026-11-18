@@ -1,55 +1,22 @@
 import { defineRule } from "@oxlint/plugins";
 
 import {
-  isGlobal,
   propertyName,
-  apiReference,
   staticPropertyName,
-  testModules,
   unwrapExpression,
+  testRegistration,
+  isTestRunner,
+  isImportedTest,
+  isImportedTestDescribeConfigure,
 } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
-const optionKeys = new Set(["timeout", "retry", "retries"]);
+const optionKeys = new Set(["timeout"]);
 
-const configKeys = new Set(["testTimeout", "hookTimeout", "retry"]);
+const configKeys = new Set(["testTimeout", "hookTimeout"]);
 
-const hooks = new Set(["beforeEach", "afterEach", "beforeAll", "afterAll"]);
-
-const functionTypes = new Set(["ArrowFunctionExpression", "FunctionExpression"]);
-
-function testApi(sourceCode: SourceCode, callee: ESTree.Expression): string | null {
-  const api = apiReference(sourceCode, callee);
-
-  if (api && (testModules.has(api.module) || api.module === "global")) {
-    return api.name;
-  }
-
-  if (isGlobal(sourceCode, callee, "describe")) {
-    return "describe";
-  }
-
-  const base = callee.type === "MemberExpression" ? callee.object : null;
-
-  if (
-    base &&
-    propertyName(callee) === "describe" &&
-    apiReference(sourceCode, base)?.name === "test"
-  ) {
-    return "describe";
-  }
-
-  return null;
-}
-
-function isZero(node: ESTree.Node | undefined): boolean {
-  const value = node === undefined ? undefined : unwrapExpression(node);
-
-  return value?.type === "Literal" && value.value === 0;
-}
-
-function hasOverrideKey(node: ESTree.Argument | undefined, keys: ReadonlySet<string>): boolean {
+function hasOverrideKey(node: ESTree.Argument | undefined, keys: ReadonlySet<string>) {
   const options = node === undefined ? undefined : unwrapExpression(node);
 
   return (
@@ -57,70 +24,22 @@ function hasOverrideKey(node: ESTree.Argument | undefined, keys: ReadonlySet<str
     options.properties.some((property) => {
       const name = property.type === "Property" ? staticPropertyName(property) : null;
 
-      return (
-        property.type === "Property" &&
-        name !== null &&
-        keys.has(name) &&
-        !(name.startsWith("retr") && isZero(property.value))
-      );
+      return name !== null && keys.has(name);
     })
   );
 }
 
-function timeoutArgument(node: ESTree.Argument | undefined): boolean {
-  const value = node === undefined ? undefined : unwrapExpression(node);
+function registrationOverride(sourceCode: SourceCode, node: ESTree.CallExpression) {
+  const registration = testRegistration(sourceCode, node);
 
   return (
-    value !== undefined &&
-    value.type !== "ObjectExpression" &&
-    value.type !== "SpreadElement" &&
-    !functionTypes.has(value.type)
+    registration !== null &&
+    (registration.timeout !== undefined ||
+      registration.options.some((argument) => hasOverrideKey(argument, optionKeys)))
   );
 }
 
-function registrationOverride(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
-  const name = testApi(sourceCode, node.callee);
-
-  if (!name) {
-    return false;
-  }
-
-  if (hooks.has(name)) {
-    return timeoutArgument(node.arguments[1]) || hasOverrideKey(node.arguments[1], optionKeys);
-  }
-
-  if (!["test", "it", "describe"].includes(name)) {
-    return false;
-  }
-
-  return (
-    node.arguments.some((argument) => hasOverrideKey(argument, optionKeys)) ||
-    timeoutArgument(node.arguments[2])
-  );
-}
-
-function runnerObject(
-  sourceCode: SourceCode,
-  node: ESTree.Expression,
-  name: string,
-  modules: readonly string[],
-): boolean {
-  if (isGlobal(sourceCode, node, name)) {
-    return true;
-  }
-
-  const api = apiReference(sourceCode, node);
-
-  return api?.name === name && modules.includes(api.module);
-}
-
-function importedTest(sourceCode: SourceCode, node: ESTree.Expression): boolean {
-  const api = apiReference(sourceCode, node);
-
-  return api?.name === "test" && api.module !== "global";
-}
-
-function runnerOverride(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+function runnerOverride(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const callee = node.callee;
 
   if (callee.type !== "MemberExpression") {
@@ -131,34 +50,24 @@ function runnerOverride(sourceCode: SourceCode, node: ESTree.CallExpression): bo
 
   if (method === "setConfig") {
     return (
-      runnerObject(sourceCode, callee.object, "vi", ["vitest", "@effect/vitest"]) &&
+      isTestRunner(sourceCode, callee.object, "vi", ["vitest", "@effect/vitest"]) &&
       hasOverrideKey(node.arguments[0], configKeys)
     );
   }
 
   if (method === "setTimeout") {
     return (
-      runnerObject(sourceCode, callee.object, "jest", ["@jest/globals"]) ||
-      importedTest(sourceCode, callee.object)
-    );
-  }
-
-  if (method === "retryTimes") {
-    return (
-      runnerObject(sourceCode, callee.object, "jest", ["@jest/globals"]) &&
-      !isZero(node.arguments[0])
+      isTestRunner(sourceCode, callee.object, "jest", ["@jest/globals"]) ||
+      isImportedTest(sourceCode, callee.object)
     );
   }
 
   if (method === "slow") {
-    return importedTest(sourceCode, callee.object);
+    return isImportedTest(sourceCode, callee.object);
   }
 
   return (
-    method === "configure" &&
-    callee.object.type === "MemberExpression" &&
-    propertyName(callee.object) === "describe" &&
-    importedTest(sourceCode, callee.object.object) &&
+    isImportedTestDescribeConfigure(sourceCode, callee) &&
     hasOverrideKey(node.arguments[0], optionKeys)
   );
 }
@@ -167,13 +76,12 @@ export const noTestTimeoutOverrides = defineRule({
   meta: {
     type: "suggestion",
     docs: {
-      description:
-        "Make slow or flaky tests faster and deterministic instead of raising their timeout or retries.",
+      description: "Make slow tests faster instead of raising their timeout.",
     },
     schema: [],
     messages: {
       override:
-        "This test raises its timeout or retries to tolerate slow or flaky work. Make the test faster or deterministic instead.",
+        "This test raises its timeout to tolerate slow work. Make the test faster or wait for the specific event it needs instead.",
     },
   },
   create(context) {

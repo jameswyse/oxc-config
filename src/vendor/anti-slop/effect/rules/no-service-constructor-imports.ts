@@ -6,11 +6,11 @@ import type { ESTree, Reference } from "@oxlint/plugins";
 const SERVICE_CONSTRUCTOR_NAME = /^make[A-Z]/u;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
 
-function isProjectLocalImport(source: string): boolean {
+function isProjectLocalImport(source: string) {
   return source.startsWith("./") || source.startsWith("../");
 }
 
-function getImportedName(specifier: ESTree.ImportSpecifier): string {
+function getImportedName(specifier: ESTree.ImportSpecifier) {
   if (specifier.imported.type === "Identifier") {
     return specifier.imported.name;
   }
@@ -18,7 +18,7 @@ function getImportedName(specifier: ESTree.ImportSpecifier): string {
   return specifier.imported.value;
 }
 
-function isCallOrTypeQuery(reference: Reference): boolean {
+function isCallOrTypeQuery(reference: Reference) {
   const parent = reference.identifier.parent;
 
   return (

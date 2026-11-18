@@ -20,6 +20,8 @@ export const modules: BaseProfile = (scope) => [
       "oxc/no-barrel-file": "warn",
       "unicorn/require-module-specifiers": "error",
       "wyse/no-generic-file-suffix": "error",
+      "wyse/no-wildcard-source-exports": "error",
+      "wyse/test-file-suffixes": "error",
       "wyse/no-shape-in-symbol-names": "error",
       "wyse/no-forwarding-module": "warn",
       "wyse/no-pass-through-function": "warn",

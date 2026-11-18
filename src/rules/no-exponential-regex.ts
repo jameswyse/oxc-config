@@ -42,6 +42,8 @@ const spaceRanges: Ranges = [
   [0xfeff, 0xfeff],
 ];
 
+const everyCodePoint: Ranges = [[0, maxCodePoint]];
+
 const lineTerminatorRanges: Ranges = [
   [0x0a, 0x0a],
   [0x0d, 0x0d],
@@ -50,7 +52,7 @@ const lineTerminatorRanges: Ranges = [
 
 const parser = new RegExpParser();
 
-function merged(ranges: Ranges): Range[] {
+function merged(ranges: Ranges) {
   const sorted = ranges.toSorted(([left], [right]) => left - right);
   const result: Range[] = [];
 
@@ -67,7 +69,7 @@ function merged(ranges: Ranges): Range[] {
   return result;
 }
 
-function complement(ranges: Ranges): Range[] {
+function complement(ranges: Ranges) {
   const result: Range[] = [];
   let next = 0;
 
@@ -79,10 +81,10 @@ function complement(ranges: Ranges): Range[] {
     next = end + 1;
   }
 
-  return next > maxCodePoint ? result : [...result, [next, maxCodePoint]];
+  return next > maxCodePoint ? result : [...result, [next, maxCodePoint] as const];
 }
 
-function shifted(ranges: Ranges, [start, end]: Range, offset: number): Range[] {
+function shifted(ranges: Ranges, [start, end]: Range, offset: number) {
   return ranges.flatMap(([low, high]) => {
     const from = Math.max(low, start);
     const to = Math.min(high, end);
@@ -91,7 +93,7 @@ function shifted(ranges: Ranges, [start, end]: Range, offset: number): Range[] {
   });
 }
 
-function caseFolded(ranges: Ranges): Range[] {
+function caseFolded(ranges: Ranges) {
   return merged([
     ...ranges,
     ...shifted(ranges, [0x41, 0x5a], 0x20),
@@ -99,43 +101,43 @@ function caseFolded(ranges: Ranges): Range[] {
   ]);
 }
 
-function intersects(left: Ranges, right: Ranges): boolean {
+function intersects(left: Ranges, right: Ranges) {
   return left.some(([leftStart, leftEnd]) =>
     right.some(([rightStart, rightEnd]) => leftStart <= rightEnd && rightStart <= leftEnd),
   );
 }
 
-function escapeRanges(set: AST.EscapeCharacterSet): Ranges {
+function escapeRanges(set: AST.EscapeCharacterSet) {
   const ranges = { digit: digitRanges, space: spaceRanges, word: wordRanges }[set.kind];
 
   return set.negate ? complement(ranges) : ranges;
 }
 
-function setRanges(set: AST.CharacterSet, flags: Flags): Ranges | null {
+function setRanges(set: AST.CharacterSet, flags: Flags) {
   if (set.kind === "any") {
-    return flags.dotAll ? [[0, maxCodePoint]] : complement(lineTerminatorRanges);
+    return flags.dotAll ? everyCodePoint : complement(lineTerminatorRanges);
   }
 
   return set.kind === "property" ? null : escapeRanges(set);
 }
 
-function folded(ranges: Ranges, flags: Flags): Ranges {
+function folded(ranges: Ranges, flags: Flags) {
   return flags.ignoreCase ? caseFolded(ranges) : merged(ranges);
 }
 
-function classElementRanges(element: AST.CharacterClassElement, flags: Flags): Ranges | null {
+function classElementRanges(element: AST.CharacterClassElement, flags: Flags) {
   if (element.type === "Character") {
-    return [[element.value, element.value]];
+    return [[element.value, element.value]] as const;
   }
 
   if (element.type === "CharacterClassRange") {
-    return [[element.min.value, element.max.value]];
+    return [[element.min.value, element.max.value]] as const;
   }
 
   return element.type === "CharacterSet" ? setRanges(element, flags) : null;
 }
 
-function classRanges(characterClass: AST.CharacterClass, flags: Flags): Ranges | null {
+function classRanges(characterClass: AST.CharacterClass, flags: Flags) {
   const ranges: Range[] = [];
 
   for (const element of characterClass.elements) {
@@ -153,7 +155,7 @@ function classRanges(characterClass: AST.CharacterClass, flags: Flags): Ranges |
   return characterClass.negate ? complement(matched) : matched;
 }
 
-function characterRanges(element: AST.Element, flags: Flags): Ranges | null {
+function characterRanges(element: AST.Element, flags: Flags) {
   if (element.type === "Character") {
     return folded([[element.value, element.value]], flags);
   }
@@ -165,7 +167,7 @@ function characterRanges(element: AST.Element, flags: Flags): Ranges | null {
   return element.type === "CharacterClass" ? classRanges(element, flags) : null;
 }
 
-function modifiedFlag(modifiers: AST.Modifiers, flag: "ignoreCase" | "dotAll"): boolean | null {
+function modifiedFlag(modifiers: AST.Modifiers, flag: "ignoreCase" | "dotAll") {
   if (modifiers.add[flag]) {
     return true;
   }
@@ -173,7 +175,7 @@ function modifiedFlag(modifiers: AST.Modifiers, flag: "ignoreCase" | "dotAll"): 
   return modifiers.remove?.[flag] === true ? false : null;
 }
 
-function flagsAt(node: AST.Node, flags: Flags): Flags {
+function flagsAt(node: AST.Node, flags: Flags) {
   let ignoreCase: boolean | null = null;
   let dotAll: boolean | null = null;
 
@@ -187,7 +189,7 @@ function flagsAt(node: AST.Node, flags: Flags): Flags {
   return { ignoreCase: ignoreCase ?? flags.ignoreCase, dotAll: dotAll ?? flags.dotAll };
 }
 
-function fixedWord(alternative: AST.Alternative, flags: Flags): Word | null {
+function fixedWord(alternative: AST.Alternative, flags: Flags) {
   const word: Ranges[] = [];
 
   for (const element of alternative.elements) {
@@ -238,7 +240,7 @@ function splitsRepetition(element: AST.Element): boolean {
   );
 }
 
-function startsWith(word: Word, prefix: Word): boolean {
+function startsWith(word: Word, prefix: Word) {
   return prefix.every((ranges, index) => {
     const other = word[index];
 
@@ -246,7 +248,7 @@ function startsWith(word: Word, prefix: Word): boolean {
   });
 }
 
-function danglingSuffixes(left: Word, right: Word): Word[] {
+function danglingSuffixes(left: Word, right: Word) {
   if (left.length < right.length && startsWith(right, left)) {
     return [right.slice(left.length)];
   }
@@ -254,11 +256,11 @@ function danglingSuffixes(left: Word, right: Word): Word[] {
   return right.length < left.length && startsWith(left, right) ? [left.slice(right.length)] : [];
 }
 
-function isSameLengthMatch(left: Word, right: Word): boolean {
+function isSameLengthMatch(left: Word, right: Word) {
   return left.length === right.length && startsWith(left, right);
 }
 
-function isAmbiguous(words: readonly Word[]): boolean {
+function isAmbiguous(words: readonly Word[]) {
   if (
     words.some((word, index) =>
       words.slice(index + 1).some((other) => isSameLengthMatch(word, other)),
@@ -308,7 +310,7 @@ function canConsume(element: AST.Element): boolean {
     : true;
 }
 
-function hasOverlappingAlternatives(element: AST.Element, flags: Flags): boolean {
+function hasOverlappingAlternatives(element: AST.Element, flags: Flags) {
   if (element.type !== "Group" && element.type !== "CapturingGroup") {
     return false;
   }
@@ -326,7 +328,7 @@ function hasOverlappingAlternatives(element: AST.Element, flags: Flags): boolean
   return new Set(raws).size < raws.length || isAmbiguous(words);
 }
 
-function matchDirection(node: AST.Node): MatchDirection {
+function matchDirection(node: AST.Node) {
   for (let current = node.parent; current !== null; current = current.parent) {
     if (current.type === "Assertion") {
       return current.kind === "lookbehind" ? "backward" : "forward";
@@ -363,7 +365,7 @@ function canFailAfter(element: AST.Element, direction: MatchDirection): boolean 
     : false;
 }
 
-function parsedPattern(pattern: string, flags: string): AST.Pattern | null {
+function parsedPattern(pattern: string, flags: string) {
   try {
     return parser.parsePattern(pattern, 0, pattern.length, {
       unicode: flags.includes("u"),
@@ -378,10 +380,10 @@ function parsedPattern(pattern: string, flags: string): AST.Pattern | null {
   }
 }
 
-function exponentialQuantifier(pattern: string, flags: string): string | null {
+function exponentialQuantifier(pattern: string, flags: string) {
   const ast = parsedPattern(pattern, flags);
   const modes: Flags = { ignoreCase: flags.includes("i"), dotAll: flags.includes("s") };
-  let found: string | null = null;
+  const quantifiers: AST.Quantifier[] = [];
 
   if (ast === null) {
     return null;
@@ -389,19 +391,19 @@ function exponentialQuantifier(pattern: string, flags: string): string | null {
 
   visitRegExpAST(ast, {
     onQuantifierEnter(quantifier) {
-      if (
-        found === null &&
-        quantifier.max === Number.POSITIVE_INFINITY &&
-        (splitsRepetition(quantifier.element) ||
-          hasOverlappingAlternatives(quantifier.element, modes)) &&
-        canFailAfter(quantifier, matchDirection(quantifier))
-      ) {
-        found = quantifier.raw;
-      }
+      quantifiers.push(quantifier);
     },
   });
 
-  return found;
+  const exponential = quantifiers.find(
+    (quantifier) =>
+      quantifier.max === Number.POSITIVE_INFINITY &&
+      (splitsRepetition(quantifier.element) ||
+        hasOverlappingAlternatives(quantifier.element, modes)) &&
+      canFailAfter(quantifier, matchDirection(quantifier)),
+  );
+
+  return exponential?.raw ?? null;
 }
 
 export const noExponentialRegex = defineRule({
@@ -419,7 +421,7 @@ export const noExponentialRegex = defineRule({
   create(context) {
     const sourceCode = context.sourceCode;
 
-    function check(node: ESTree.Node, pattern: string, flags: string): void {
+    function check(node: ESTree.Node, pattern: string, flags: string) {
       const quantifier = exponentialQuantifier(pattern, flags);
 
       if (quantifier !== null) {
@@ -427,7 +429,7 @@ export const noExponentialRegex = defineRule({
       }
     }
 
-    function checkConstructor(node: ESTree.CallExpression | ESTree.NewExpression): void {
+    function checkConstructor(node: ESTree.CallExpression | ESTree.NewExpression) {
       const [patternArgument, flagsArgument] = node.arguments;
 
       if (

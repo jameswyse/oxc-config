@@ -1,7 +1,7 @@
 import { ruleTester } from "../shared/rule-tester.ts";
 import { noBidiControlCharacters } from "./no-bidi-control-characters.ts";
 
-function control(codePoint: number): string {
+function control(codePoint: number) {
   return String.fromCodePoint(codePoint);
 }
 

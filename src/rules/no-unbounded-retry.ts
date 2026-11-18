@@ -59,7 +59,7 @@ function resolved(sourceCode: SourceCode, node: ESTree.Node, depth: number): EST
   return initializer === null ? value : resolved(sourceCode, initializer, depth + 1);
 }
 
-function isDelayAdjustment(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isDelayAdjustment(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
   const operator = value.type === "CallExpression" ? value.callee : value;
   const name = effectMember(sourceCode, operator, "Schedule");
@@ -79,7 +79,7 @@ function isEndless(sourceCode: SourceCode, node: ESTree.Node): boolean {
 
   endlessness.set(value, false);
 
-  const endless = ((): boolean => {
+  const endless = (() => {
     if (effectMember(sourceCode, value, "Schedule") === "forever") {
       return true;
     }
@@ -121,7 +121,7 @@ function isEndless(sourceCode: SourceCode, node: ESTree.Node): boolean {
   return endless;
 }
 
-function optionValues(options: ESTree.ObjectExpression): Map<string, ESTree.Node> | null {
+function optionValues(options: ESTree.ObjectExpression) {
   const values = new Map<string, ESTree.Node>();
 
   for (const property of options.properties) {
@@ -137,7 +137,7 @@ function optionValues(options: ESTree.ObjectExpression): Map<string, ESTree.Node
   return values;
 }
 
-function isEndlessPolicy(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEndlessPolicy(sourceCode: SourceCode, node: ESTree.Node) {
   const policy = resolved(sourceCode, node, 0);
 
   if (policy.type !== "ObjectExpression") {
@@ -154,7 +154,7 @@ function isEndlessPolicy(sourceCode: SourceCode, node: ESTree.Node): boolean {
   return schedule === undefined || isEndless(sourceCode, schedule);
 }
 
-function isTimeout(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isTimeout(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
   const operator = value.type === "CallExpression" ? value.callee : value;
 
@@ -197,7 +197,7 @@ function isTimedOut(sourceCode: SourceCode, child: ESTree.Node): boolean {
   return later.some((step) => isTimeout(sourceCode, step)) || isTimedOut(sourceCode, parent);
 }
 
-function retryPolicy(sourceCode: SourceCode, node: ESTree.CallExpression): ESTree.Node | null {
+function retryPolicy(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const name = effectMember(sourceCode, node.callee, "Effect");
 
   if (name === null || !retries.has(name)) {

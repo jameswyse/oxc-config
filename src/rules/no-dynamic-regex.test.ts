@@ -1,7 +1,7 @@
 import { ruleTester } from "../shared/rule-tester.ts";
 import { noDynamicRegex } from "./no-dynamic-regex.ts";
 
-function doublingChain(seed: string): string {
+function doublingChain(seed: string) {
   const declarations = Array.from(
     { length: 40 },
     (_, index) => `const s${index + 1} = s${index} + s${index};`,

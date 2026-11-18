@@ -8,19 +8,11 @@ import type { ESTree, Options } from "@oxlint/plugins";
 
 type OptionValue = Options[number];
 
-type Boundary = {
-  readonly files: readonly string[];
-  readonly ignore: readonly string[];
-  readonly deny: readonly string[];
-  readonly message: string;
-  readonly types: boolean;
-};
-
 function isStringList(value: OptionValue | undefined): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function parseBoundary(value: OptionValue): Boundary {
+function parseBoundary(value: OptionValue) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError("Each import boundary must be an object.");
   }
@@ -40,12 +32,7 @@ function parseBoundary(value: OptionValue): Boundary {
   return { files, ignore, deny, message, types };
 }
 
-type BoundarySettings = {
-  readonly root: string;
-  readonly boundaries: readonly Boundary[];
-};
-
-function parseSettings(options: Readonly<Options>): BoundarySettings {
+function parseSettings(options: Readonly<Options>) {
   const [option] = options;
 
   if (
@@ -104,7 +91,7 @@ export const importBoundaries = defineRule({
       return {};
     }
 
-    function check(source: ESTree.Node | null | undefined, typeOnly: boolean): void {
+    function check(source: ESTree.Node | null | undefined, typeOnly: boolean) {
       if (source?.type !== "Literal" || typeof source.value !== "string") {
         return;
       }

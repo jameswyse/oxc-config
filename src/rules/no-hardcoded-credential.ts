@@ -17,7 +17,7 @@ const credentials: readonly (readonly [string, RegExp])[] = [
 
 const placeholder = /example|fake|dummy|placeholder|redacted|x{6,}|abcdefgh|12345678/iu;
 
-function credentialIn(text: string): string | null {
+function credentialIn(text: string) {
   return (
     credentials.find(([, pattern]) =>
       [...text.matchAll(pattern)].some((match) => !placeholder.test(match[0])),
@@ -36,7 +36,7 @@ export const noHardcodedCredential = defineRule({
     },
   },
   create(context) {
-    function check(node: ESTree.Node, text: string): void {
+    function check(node: ESTree.Node, text: string) {
       const kind = credentialIn(text);
 
       if (kind !== null) {

@@ -36,6 +36,15 @@ ruleTester.run("no-derived-test-expectation", noDerivedTestExpectation, {
     test(
       'import { expect, it } from "vitest"; import { createSnapshot } from "./snapshot.ts"; it("restores", () => { const persisted = createSnapshot(form); entry.write(persisted); expect(entry.read()).toEqual(persisted); });',
     ),
+    test(
+      'import { expect, test } from "vitest"; import { buildLabel } from "./user.test-utils.ts"; import { label } from "./user.ts"; test("labels", () => { expect(label(1)).toBe(buildLabel(1)); });',
+    ),
+    test(
+      'import { expect, test } from "vitest"; import { buildLabel } from "./user.fixture.ts"; import { label } from "./user.ts"; test("labels", () => { expect(label(1)).toBe(buildLabel(1)); });',
+    ),
+    test(
+      'import { expect, test } from "vitest"; import { buildLabel } from "../test-utils.ts"; import { label } from "./user.ts"; test("labels", () => { expect(label(1)).toBe(buildLabel(1)); });',
+    ),
   ],
   invalid: [
     {

@@ -22,7 +22,7 @@ const valueLayers = new Set(["succeed", "sync"]);
 
 const spanOperators = new Set(["withSpan", "fnUntraced"]);
 
-function declaredValue(sourceCode: SourceCode, node: ESTree.Node): ESTree.Node {
+function declaredValue(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (value.type !== "Identifier") {
@@ -41,7 +41,7 @@ function declaredValue(sourceCode: SourceCode, node: ESTree.Node): ESTree.Node {
   return initializer === null ? value : unwrapExpression(initializer);
 }
 
-function isNamedEffectFn(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isNamedEffectFn(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (value.type !== "CallExpression") {
@@ -57,13 +57,13 @@ function isNamedEffectFn(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function isSpanOperator(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isSpanOperator(sourceCode: SourceCode, node: ESTree.Node) {
   const name = effectMember(sourceCode, node, "Effect") ?? effectMember(sourceCode, node, "Stream");
 
   return name !== null && spanOperators.has(name);
 }
 
-function isGeneratorBody(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isGeneratorBody(sourceCode: SourceCode, node: ESTree.Node) {
   const parent = node.parent;
 
   return (
@@ -88,11 +88,11 @@ function someOwnNode(
   );
 }
 
-function isSpan(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isSpan(sourceCode: SourceCode, node: ESTree.Node) {
   return isNamedEffectFn(sourceCode, node) || isSpanOperator(sourceCode, node);
 }
 
-function callsSpannedFunction(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function callsSpannedFunction(sourceCode: SourceCode, node: ESTree.Node) {
   if (node.type !== "CallExpression") {
     return false;
   }
@@ -108,7 +108,7 @@ function callsSpannedFunction(sourceCode: SourceCode, node: ESTree.Node): boolea
     : isSpan(sourceCode, callee);
 }
 
-function isUnnamedEffectFn(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isUnnamedEffectFn(sourceCode: SourceCode, node: ESTree.Node) {
   return (
     node.type === "CallExpression" &&
     effectMember(sourceCode, node.callee, "Effect") === "fn" &&
@@ -141,10 +141,7 @@ function implementationObject(
     : null;
 }
 
-function generatorImplementations(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-): ESTree.ObjectExpression[] {
+function generatorImplementations(sourceCode: SourceCode, node: ESTree.Node) {
   const value = declaredValue(sourceCode, node);
 
   if (value.type !== "CallExpression") {
@@ -175,10 +172,7 @@ function generatorImplementations(
       });
 }
 
-function layerImplementations(
-  sourceCode: SourceCode,
-  node: ESTree.CallExpression,
-): ESTree.ObjectExpression[] {
+function layerImplementations(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const callee = unwrapExpression(node.callee);
   const curried = callee.type === "CallExpression" && callee.arguments.length === 1;
   const layer = effectMember(sourceCode, curried ? callee.callee : callee, "Layer");
@@ -208,7 +202,7 @@ function layerImplementations(
   });
 }
 
-function untracedOperation(sourceCode: SourceCode, property: ESTree.Node): boolean {
+function untracedOperation(sourceCode: SourceCode, property: ESTree.Node) {
   if (property.type !== "Property" || property.kind !== "init") {
     return false;
   }

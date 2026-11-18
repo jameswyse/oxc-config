@@ -10,7 +10,7 @@ function isSingleArgumentList(values: readonly ESTree.Argument[]): values is [ES
   return values.length === 1;
 }
 
-function primitiveLiteral(node: ESTree.Argument): boolean {
+function primitiveLiteral(node: ESTree.Argument) {
   if (node.type === "Literal") {
     return (
       !("regex" in node) &&

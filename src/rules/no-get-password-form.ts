@@ -4,7 +4,7 @@ import type { ESTree } from "@oxlint/plugins";
 
 const secretAutocomplete = new Set(["current-password", "new-password", "one-time-code"]);
 
-function isOmitted(item: ESTree.JSXAttribute): boolean {
+function isOmitted(item: ESTree.JSXAttribute) {
   const value = item.value?.type === "JSXExpressionContainer" ? item.value.expression : null;
 
   return (
@@ -13,10 +13,7 @@ function isOmitted(item: ESTree.JSXAttribute): boolean {
   );
 }
 
-function attribute(
-  element: ESTree.JSXOpeningElement,
-  name: string,
-): ESTree.JSXAttribute | undefined {
+function attribute(element: ESTree.JSXOpeningElement, name: string) {
   return element.attributes.find(
     (item): item is ESTree.JSXAttribute =>
       item.type === "JSXAttribute" &&
@@ -26,7 +23,7 @@ function attribute(
   );
 }
 
-function stringValue(item: ESTree.JSXAttribute | undefined): string | null {
+function stringValue(item: ESTree.JSXAttribute | undefined) {
   const value =
     item?.value?.type === "JSXExpressionContainer" ? item.value.expression : item?.value;
 
@@ -37,15 +34,15 @@ function stringValue(item: ESTree.JSXAttribute | undefined): string | null {
   return value?.type === "Literal" && typeof value.value === "string" ? value.value : null;
 }
 
-function literalValue(item: ESTree.JSXAttribute | undefined): string | null {
+function literalValue(item: ESTree.JSXAttribute | undefined) {
   return stringValue(item)?.toLowerCase() ?? null;
 }
 
-function isElement(element: ESTree.JSXOpeningElement, name: string): boolean {
+function isElement(element: ESTree.JSXOpeningElement, name: string) {
   return element.name.type === "JSXIdentifier" && element.name.name === name;
 }
 
-function isSecretInput(element: ESTree.JSXOpeningElement): boolean {
+function isSecretInput(element: ESTree.JSXOpeningElement) {
   return (
     isElement(element, "input") &&
     (literalValue(attribute(element, "type")) === "password" ||
@@ -55,13 +52,13 @@ function isSecretInput(element: ESTree.JSXOpeningElement): boolean {
   );
 }
 
-function isGetMethod(item: ESTree.JSXAttribute): boolean {
+function isGetMethod(item: ESTree.JSXAttribute) {
   const method = literalValue(item);
 
   return method !== null && method !== "post" && method !== "dialog";
 }
 
-function submitsByGet(element: ESTree.JSXOpeningElement): boolean {
+function submitsByGet(element: ESTree.JSXOpeningElement) {
   const action = attribute(element, "action");
   const method = attribute(element, "method");
 
@@ -72,7 +69,7 @@ function submitsByGet(element: ESTree.JSXOpeningElement): boolean {
   );
 }
 
-function submitsByGetOverride(element: ESTree.JSXOpeningElement): boolean {
+function submitsByGetOverride(element: ESTree.JSXOpeningElement) {
   const type = literalValue(attribute(element, "type"));
   const method = attribute(element, "formMethod");
 
@@ -83,10 +80,7 @@ function submitsByGetOverride(element: ESTree.JSXOpeningElement): boolean {
   return submits && method !== undefined && isGetMethod(method);
 }
 
-function owningForms(
-  control: ESTree.JSXOpeningElement,
-  forms: readonly ESTree.JSXElement[],
-): readonly ESTree.JSXElement[] {
+function owningForms(control: ESTree.JSXOpeningElement, forms: readonly ESTree.JSXElement[]) {
   const target = attribute(control, "form");
 
   if (target !== undefined) {

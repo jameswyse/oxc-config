@@ -40,6 +40,27 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     'test("ready", async () => { await new Promise(resolve => setTimeout(() => { work(); resolve(); }, 100)); });',
     'test("ready", async () => { await new Promise(resolve => setTimeout(function* () { resolve(); }, 100)); });',
     'test("ready", async () => { await new Promise(function* (resolve) { setTimeout(resolve, 100); }); });',
+    'import { scheduler } from "node:timers/promises"; await scheduler.wait(100);',
+    'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { await scheduler.wait(configuredDelay); });',
+    'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { await scheduler.yield(); });',
+    'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { scheduler.wait(100); });',
+    'import { test } from "vitest"; import { scheduler } from "./scheduler"; test("ready", async () => { await scheduler.wait(100); });',
+    'import { test } from "vitest"; import timers from "./timers"; test("ready", async () => { await timers.scheduler.wait(100); });',
+    'import { test } from "vitest"; test("ready", async () => { const scheduler = createScheduler(); await scheduler.wait(100); });',
+    'import { test } from "vitest"; let delay = 100; test("ready", async () => { await scheduler.wait(delay); });',
+    'import { test } from "vitest"; test("ready", async () => { await Bun.sleep(new Date(Date.now() + 100)); });',
+    'import { test } from "vitest"; test("ready", async () => { await Bun.sleep(delay); });',
+    'import { test } from "vitest"; import { Bun } from "./runtime"; test("ready", async () => { await Bun.sleep(100); });',
+    'import { test } from "vitest"; test("ready", async (Bun) => { await Bun.sleep(100); });',
+    'import { test } from "vitest"; test("ready", async () => { await Bun.sleepSync(100); });',
+    "await Bun.sleep(100);",
+    'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { await scheduler[method](300); });',
+    'import { test } from "vitest"; test("ready", async () => { await Bun.sleep(delay as number); });',
+    'import { test } from "vitest"; import { sleep } from "./bun"; test("ready", async () => { await sleep(100); });',
+    'import { test } from "vitest"; import { sleep } from "bun"; test("ready", async (sleep) => { await sleep(100); });',
+    'import { test } from "vitest"; import { sleep } from "bun"; test("ready", async () => { await sleep(delay); });',
+    'import { test } from "vitest"; import { sleepSync } from "bun"; test("ready", async () => { await sleepSync(100); });',
+    'import { sleep } from "bun"; await sleep(100);',
   ],
   invalid: [
     {
@@ -160,6 +181,114 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     },
     {
       code: 'import test from "node:test"; import { setTimeout } from "node:timers/promises"; const focused = test.only; focused("ready", async () => { await setTimeout(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { await scheduler.wait(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { scheduler as tasks } from "timers/promises"; const settle = 50; test("ready", async () => { await tasks.wait(settle); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import * as timers from "node:timers/promises"; test("ready", async () => { await timers.scheduler.wait(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import test from "node:test"; import timers from "node:timers/promises"; test("ready", async () => { await timers.scheduler.wait(100, { signal }); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const { test } = require("vitest"); const { scheduler } = require("node:timers/promises"); test("ready", async () => { await scheduler.wait(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await page.evaluate(async () => {}); await scheduler.wait(250); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: "beforeEach(async () => { await scheduler.wait(0); });",
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await Bun.sleep(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; const settle = 25; test("ready", async () => { await Bun.sleep(settle); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { await scheduler["wait"](300); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { scheduler } from "node:timers/promises"; test("ready", async () => { await scheduler[`wait`](300); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await Bun["sleep"](100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await page["waitForTimeout"](100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await new Promise(resolve => globalThis["setTimeout"](resolve, 100)); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { it } from "@effect/vitest"; import { Effect } from "effect"; it.effect("settles", () => Effect.gen(function* () { yield* Effect["sleep"]("50 millis"); }));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await Bun.sleep(300 as const); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await Bun.sleep(300 satisfies number); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await Bun.sleep((-300) as const); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const settle = 25; test("ready", async () => { await Bun.sleep(settle!); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const settle = 25 as const; test("ready", async () => { await Bun.sleep(settle); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { setTimeout as delay } from "node:timers/promises"; test("ready", async () => { await delay(100 as const); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("ready", async () => { await new Promise(resolve => setTimeout(resolve, 100 as const)); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await page.waitForTimeout(500 satisfies number); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { sleep } from "bun"; test("ready", async () => { await sleep(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import { sleep as pause } from "bun"; test("ready", async () => { await pause(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import * as bun from "bun"; test("ready", async () => { await bun.sleep(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; import Bun from "bun"; test("ready", async () => { await Bun.sleep(100); });',
       errors: [{ messageId: "delay" }],
     },
   ],

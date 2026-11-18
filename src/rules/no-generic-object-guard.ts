@@ -20,7 +20,7 @@ function unwrap(node: ESTree.Node): ESTree.Node {
   return value.type === "ChainExpression" ? unwrap(value.expression) : value;
 }
 
-function combined(checks: readonly (Check | null)[]): Check | null {
+function combined(checks: readonly (Check | null)[]) {
   if (checks.includes(null)) {
     return null;
   }
@@ -32,36 +32,32 @@ function combined(checks: readonly (Check | null)[]): Check | null {
   return checks.includes("function") ? "function" : "supporting";
 }
 
-function isSubject(node: ESTree.Node, subject: string): boolean {
+function isSubject(node: ESTree.Node, subject: string) {
   const value = unwrap(node);
 
   return value.type === "Identifier" && value.name === subject;
 }
 
-function isLiteral(node: ESTree.Node, value: boolean | string | null): boolean {
+function isLiteral(node: ESTree.Node, value: boolean | string | null) {
   const literal = unwrap(node);
 
   return literal.type === "Literal" && literal.value === value;
 }
 
-function isUndefined(node: ESTree.Node): boolean {
+function isUndefined(node: ESTree.Node) {
   const value = unwrap(node);
 
   return value.type === "Identifier" && value.name === "undefined";
 }
 
-function comparedPair(
-  node: Comparison,
-  subject: string,
-  matches: (other: ESTree.Node) => boolean,
-): boolean {
+function comparedPair(node: Comparison, subject: string, matches: (other: ESTree.Node) => boolean) {
   return (
     (isSubject(node.left, subject) && matches(node.right)) ||
     (isSubject(node.right, subject) && matches(node.left))
   );
 }
 
-function isTypeofSubject(node: ESTree.Node, subject: string): boolean {
+function isTypeofSubject(node: ESTree.Node, subject: string) {
   const value = unwrap(node);
 
   return value.type === "UnaryExpression" && value.operator === "typeof"
@@ -69,7 +65,7 @@ function isTypeofSubject(node: ESTree.Node, subject: string): boolean {
     : false;
 }
 
-function typeofCheck(node: Comparison, subject: string): Check | null {
+function typeofCheck(node: Comparison, subject: string) {
   const [typeofSide, literal] = isTypeofSubject(node.left, subject)
     ? [node.left, node.right]
     : [node.right, node.left];
@@ -85,7 +81,7 @@ function typeofCheck(node: Comparison, subject: string): Check | null {
   return isLiteral(literal, "function") ? "function" : null;
 }
 
-function isArrayCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string): boolean {
+function isArrayCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string) {
   const call = unwrap(node);
 
   return (
@@ -99,7 +95,7 @@ function isArrayCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string
   );
 }
 
-function isPrototypeRead(sourceCode: SourceCode, node: ESTree.Node, subject: string): boolean {
+function isPrototypeRead(sourceCode: SourceCode, node: ESTree.Node, subject: string) {
   const call = unwrap(node);
 
   return (
@@ -112,7 +108,7 @@ function isPrototypeRead(sourceCode: SourceCode, node: ESTree.Node, subject: str
   );
 }
 
-function isObjectPrototype(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isObjectPrototype(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrap(node);
 
   return (
@@ -122,7 +118,7 @@ function isObjectPrototype(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function isObjectTag(sourceCode: SourceCode, node: ESTree.Node, subject: string): boolean {
+function isObjectTag(sourceCode: SourceCode, node: ESTree.Node, subject: string) {
   const call = unwrap(node);
 
   const tag =
@@ -147,7 +143,7 @@ function provesObject(
   value: ESTree.Node,
   expected: ESTree.Node,
   subject: string,
-): boolean {
+) {
   return (
     (isPrototypeRead(sourceCode, value, subject) &&
       (isLiteral(expected, null) || isObjectPrototype(sourceCode, expected))) ||
@@ -155,11 +151,7 @@ function provesObject(
   );
 }
 
-function equalityCheck(
-  sourceCode: SourceCode,
-  comparison: Comparison,
-  subject: string,
-): Check | null {
+function equalityCheck(sourceCode: SourceCode, comparison: Comparison, subject: string) {
   const typeofResult = typeofCheck(comparison, subject);
 
   if (typeofResult !== null) {
@@ -260,7 +252,7 @@ function rejection(sourceCode: SourceCode, node: ESTree.Node, subject: string): 
     : null;
 }
 
-function isNamedHelper(fn: FunctionNode): boolean {
+function isNamedHelper(fn: FunctionNode) {
   const holder = fn.parent;
 
   return (
@@ -299,7 +291,7 @@ function unprovenClaim(
   sourceCode: SourceCode,
   fn: FunctionNode,
   parameter: ESTree.BindingIdentifier,
-): string | null {
+) {
   const predicate = fn.returnType?.typeAnnotation;
   const parameterType = parameter.typeAnnotation?.typeAnnotation;
 
@@ -319,15 +311,11 @@ function unprovenClaim(
   return isWeakClaim(claim) ? null : sourceCode.getText(claim);
 }
 
-function returnedCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string): Check | null {
+function returnedCheck(sourceCode: SourceCode, node: ESTree.Node, subject: string) {
   return isLiteral(node, true) ? "supporting" : objectCheck(sourceCode, node, subject);
 }
 
-function rejectedCheck(
-  sourceCode: SourceCode,
-  statement: ESTree.Statement,
-  subject: string,
-): Check | null {
+function rejectedCheck(sourceCode: SourceCode, statement: ESTree.Statement, subject: string) {
   if (statement.type !== "IfStatement" || statement.alternate !== null) {
     return null;
   }
@@ -346,7 +334,7 @@ function rejectedCheck(
     : null;
 }
 
-function guardProof(sourceCode: SourceCode, fn: FunctionNode, subject: string): Check | null {
+function guardProof(sourceCode: SourceCode, fn: FunctionNode, subject: string) {
   if (fn.body === null) {
     return null;
   }
@@ -386,7 +374,7 @@ export const noGenericObjectGuard = defineRule({
   create(context) {
     const sourceCode = context.sourceCode;
 
-    function check(fn: FunctionNode): void {
+    function check(fn: FunctionNode) {
       const [parameter, ...rest] = fn.params;
 
       if (parameter?.type !== "Identifier" || rest.length > 0) {

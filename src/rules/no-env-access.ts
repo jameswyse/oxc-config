@@ -16,7 +16,7 @@ const processModules = new Set(["node:process", "process"]);
 
 const environmentExports = new Set(["env", "default"]);
 
-function isImportMeta(node: ESTree.Node): boolean {
+function isImportMeta(node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   return (
@@ -24,7 +24,7 @@ function isImportMeta(node: ESTree.Node): boolean {
   );
 }
 
-function isProcessModule(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isProcessModule(sourceCode: SourceCode, node: ESTree.Node) {
   const binding = importedBinding(sourceCode, node);
 
   return (
@@ -34,10 +34,7 @@ function isProcessModule(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function isEnvironmentSource(
-  sourceCode: SourceCode,
-  node: ESTree.Node | null | undefined,
-): boolean {
+function isEnvironmentSource(sourceCode: SourceCode, node: ESTree.Node | null | undefined) {
   if (!node) {
     return false;
   }
@@ -53,7 +50,7 @@ function destructuresEnvironment(
   sourceCode: SourceCode,
   pattern: ESTree.Node,
   value: ESTree.Node | null | undefined,
-): boolean {
+) {
   return (
     pattern.type === "ObjectPattern" &&
     isEnvironmentSource(sourceCode, value) &&
@@ -63,7 +60,7 @@ function destructuresEnvironment(
   );
 }
 
-function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+function isReflectGet(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const callee = unwrapExpression(node.callee);
   const [target, key] = node.arguments;
 

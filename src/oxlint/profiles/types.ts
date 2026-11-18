@@ -2,7 +2,7 @@ import { errorRules } from "../preset.ts";
 
 import type { BaseProfile, LintLayer, LintScope } from "../preset.ts";
 
-function typeAwareLayers(scope: LintScope): LintLayer[] {
+function typeAwareLayers(scope: LintScope) {
   return [
     {
       files: scope.typeScript,
@@ -36,7 +36,7 @@ function typeAwareLayers(scope: LintScope): LintLayer[] {
       excludeFiles: scope.tests,
       rules: { "typescript/no-deprecated": "warn" },
     },
-  ];
+  ] satisfies LintLayer[];
 }
 
 export const types: BaseProfile = (scope) => [
@@ -85,5 +85,6 @@ export const types: BaseProfile = (scope) => [
       "wyse/no-runtime-typeof": ["warn", { allowInTypeGuards: true }],
     },
   },
+  { files: scope.typeScript, rules: { "wyse/no-internal-return-types": "error" } },
   ...(scope.typeAware ? typeAwareLayers(scope) : []),
 ];

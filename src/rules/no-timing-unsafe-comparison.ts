@@ -26,7 +26,7 @@ const word = /[A-Z]?[a-z]+|[A-Z]+(?![a-z])/gu;
 
 const pascalCase = /^[A-Z](?=[A-Za-z0-9]*[a-z])[A-Za-z0-9]*$/u;
 
-function isSecretName(name: string): boolean {
+function isSecretName(name: string) {
   if (pascalCase.test(name)) {
     return false;
   }
@@ -43,7 +43,7 @@ function isSecretName(name: string): boolean {
   );
 }
 
-function comparedName(node: ESTree.Node): string | null {
+function comparedName(node: ESTree.Node) {
   const unwrapped = unwrapExpression(node);
 
   const value =
@@ -56,7 +56,7 @@ function comparedName(node: ESTree.Node): string | null {
   return value.type === "MemberExpression" ? staticPropertyName(value) : null;
 }
 
-function readonlyTarget(sourceCode: SourceCode, type: ESTree.TSType | null): ESTree.TSType | null {
+function readonlyTarget(sourceCode: SourceCode, type: ESTree.TSType | null) {
   if (type?.type !== "TSTypeReference" || !isGlobal(sourceCode, type.typeName, "Readonly")) {
     return type;
   }
@@ -66,11 +66,7 @@ function readonlyTarget(sourceCode: SourceCode, type: ESTree.TSType | null): EST
   return otherArguments.length === 0 ? (target ?? null) : null;
 }
 
-function propertyType(
-  sourceCode: SourceCode,
-  type: ESTree.TSType | null,
-  name: string | null,
-): ESTree.TSType | null {
+function propertyType(sourceCode: SourceCode, type: ESTree.TSType | null, name: string | null) {
   const objectType = readonlyTarget(sourceCode, type);
 
   if (objectType?.type !== "TSTypeLiteral" || name === null) {
@@ -86,7 +82,7 @@ function propertyType(
     : null;
 }
 
-function bindingType(sourceCode: SourceCode, binding: ESTree.Node): ESTree.TSType | null {
+function bindingType(sourceCode: SourceCode, binding: ESTree.Node) {
   if (binding.type === "Identifier" && binding.typeAnnotation) {
     return binding.typeAnnotation.typeAnnotation;
   }
@@ -131,7 +127,7 @@ const targetParts = new Set([
   "TSTypeAssertion",
 ]);
 
-function isTargetPart(node: ESTree.Node, parent: ESTree.Node): boolean {
+function isTargetPart(node: ESTree.Node, parent: ESTree.Node) {
   if (parent.type === "MemberExpression") {
     return parent.object === node;
   }
@@ -151,7 +147,7 @@ function assignmentTarget(node: ESTree.Node): ESTree.Node {
   return parent !== null && isTargetPart(node, parent) ? assignmentTarget(parent) : node;
 }
 
-function writtenValue(reference: Reference, target: ESTree.Node): ESTree.Node | null {
+function writtenValue(reference: Reference, target: ESTree.Node) {
   if (reference.isWrite()) {
     return reference.writeExpr;
   }
@@ -161,7 +157,7 @@ function writtenValue(reference: Reference, target: ESTree.Node): ESTree.Node | 
   return parent?.type === "AssignmentExpression" && parent.left === target ? parent.right : null;
 }
 
-function writesCast(reference: Reference, visitorKeys: SourceCode["visitorKeys"]): boolean {
+function writesCast(reference: Reference, visitorKeys: SourceCode["visitorKeys"]) {
   const target = assignmentTarget(reference.identifier);
   const value = writtenValue(reference, target);
 
@@ -170,7 +166,7 @@ function writesCast(reference: Reference, visitorKeys: SourceCode["visitorKeys"]
 
 const castWrites = new WeakMap<Variable, boolean>();
 
-function hasCastWrite(sourceCode: SourceCode, variable: Variable): boolean {
+function hasCastWrite(sourceCode: SourceCode, variable: Variable) {
   let result = castWrites.get(variable);
 
   if (result === undefined) {
@@ -213,7 +209,7 @@ function declaredType(sourceCode: SourceCode, node: ESTree.Node): ESTree.TSType 
 
 const absentTypes = new Set(["TSUndefinedKeyword", "TSNullKeyword"]);
 
-function isNumberType(type: ESTree.TSType | null): boolean {
+function isNumberType(type: ESTree.TSType | null) {
   if (type === null) {
     return false;
   }
@@ -226,11 +222,11 @@ function isNumberType(type: ESTree.TSType | null): boolean {
   );
 }
 
-function isNumber(node: ESTree.Node): boolean {
+function isNumber(node: ESTree.Node) {
   return node.type === "Literal" && typeof node.value === "number";
 }
 
-function isNonSecretValue(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isNonSecretValue(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (value.type === "Literal") {

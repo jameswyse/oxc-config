@@ -16,14 +16,14 @@ const openedResources = ["BroadcastChannel", "WebSocket", "EventSource", "Worker
 
 const registrations = new Set(["addEventListener", "listen"]);
 
-function isDeferred(node: ESTree.Node): boolean {
+function isDeferred(node: ESTree.Node) {
   return (
     functionTypes.has(node.type) ||
     ((node.type === "PropertyDefinition" || node.type === "AccessorProperty") && !node.static)
   );
 }
 
-function isInsideFunction(node: ESTree.Node): boolean {
+function isInsideFunction(node: ESTree.Node) {
   for (let ancestor = node.parent; ancestor !== null; ancestor = ancestor.parent) {
     if (functionTypes.has(ancestor.type)) {
       return true;
@@ -33,7 +33,7 @@ function isInsideFunction(node: ESTree.Node): boolean {
   return false;
 }
 
-function immediateBody(node: ESTree.Node): ESTree.Node | null {
+function immediateBody(node: ESTree.Node) {
   const callee = node.type === "CallExpression" ? unwrapExpression(node.callee) : null;
 
   return callee?.type === "ArrowFunctionExpression" ||
@@ -42,7 +42,7 @@ function immediateBody(node: ESTree.Node): ESTree.Node | null {
     : null;
 }
 
-function effect(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function effect(sourceCode: SourceCode, node: ESTree.Node) {
   if (node.type === "AwaitExpression") {
     return isInsideFunction(node) ? null : "await";
   }

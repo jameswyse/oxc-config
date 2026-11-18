@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { defaultIgnores } from "../ignores.ts";
 
 import type {
-  AllowWarnDeny,
   DummyRule,
   DummyRuleMap,
   ExternalPluginEntry,
@@ -112,7 +111,11 @@ const fileScopes = {
   source: sourceFiles,
   typeScript: ["**/*.{ts,tsx,mts,cts}"],
   javaScript: ["**/*.{js,jsx,mjs,cjs}"],
-  endToEnd: ["**/e2e/**", "**/*.e2e.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+  endToEnd: [
+    "**/e2e/**",
+    "**/*.e2e.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+    "**/*.e2e.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+  ],
   entrypoints: [
     "**/*.{config,conf}.{js,mjs,cjs,ts,mts,cts}",
     "**/{sanity.cli,codegen,graphql-codegen}.{js,mjs,cjs,ts,mts,cts}",
@@ -166,10 +169,7 @@ interface SelectedProfile {
   layers: BaseProfile;
 }
 
-function selectProfile<Option>(
-  profile: Profile<Option>,
-  option: Option | false | undefined,
-): SelectedProfile[] {
+function selectProfile<Option>(profile: Profile<Option>, option: Option | false | undefined) {
   if (option === undefined || option === false || (Array.isArray(option) && option.length === 0)) {
     return [];
   }
@@ -179,10 +179,10 @@ function selectProfile<Option>(
       testFiles: profile.testFiles?.(option) ?? [],
       layers: (scope) => profile(scope, option),
     },
-  ];
+  ] satisfies SelectedProfile[];
 }
 
-function severity(rule: DummyRule): AllowWarnDeny {
+function severity(rule: DummyRule) {
   return Array.isArray(rule) ? rule[0] : rule;
 }
 
@@ -190,19 +190,15 @@ function isEnabled(rule: DummyRule | undefined): rule is DummyRule {
   return rule !== undefined && !["off", "allow", 0].includes(severity(rule));
 }
 
-function changedRule({ current, change }: { current: DummyRule; change: DummyRule }): DummyRule {
+function changedRule({ current, change }: { current: DummyRule; change: DummyRule }) {
   const keepsOptions = isEnabled(change) && (!Array.isArray(change) || change.length === 1);
 
-  return keepsOptions && Array.isArray(current) ? [severity(change), ...current.slice(1)] : change;
+  return keepsOptions && Array.isArray(current)
+    ? ([severity(change), ...current.slice(1)] satisfies DummyRule)
+    : change;
 }
 
-function combinedChanges({
-  preset,
-  project,
-}: {
-  preset: DummyRuleMap;
-  project: DummyRuleMap;
-}): DummyRuleMap {
+function combinedChanges({ preset, project }: { preset: DummyRuleMap; project: DummyRuleMap }) {
   const combined: DummyRuleMap = { ...preset };
 
   for (const [name, change] of Object.entries(project)) {
@@ -216,17 +212,17 @@ function combinedChanges({
   return combined;
 }
 
-function rulePlugin(name: string): string {
+function rulePlugin(name: string) {
   const separator = name.lastIndexOf("/");
 
   return separator === -1 ? "eslint" : name.slice(0, separator);
 }
 
-function pluginNames(layer: RuleLayer): string[] {
+function pluginNames(layer: RuleLayer) {
   return [...(layer.plugins ?? []), ...(layer.jsPlugins ?? []).map((plugin) => plugin.name)];
 }
 
-function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
+function adjustRules(layers: RuleLayer[], changes: DummyRuleMap) {
   const settings = layers.flatMap((layer) => Object.entries(layer.rules));
   const set = new Set(settings.map(([name]) => name));
   const enabled = new Set(settings.flatMap(([name, rule]) => (isEnabled(rule) ? [name] : [])));
@@ -276,13 +272,13 @@ function adjustRules(layers: RuleLayer[], changes: DummyRuleMap): RuleLayer[] {
   return Object.keys(added).length > 0 ? [...adjusted, { rules: added }] : adjusted;
 }
 
-function withBasePlugins(override: OxlintOverride): OxlintOverride {
+function withBasePlugins(override: OxlintOverride) {
   return override.plugins
     ? { ...override, plugins: [...new Set([...basePlugins, ...override.plugins])] }
     : override;
 }
 
-function scopedOverride(layer: ScopedLayer): OxlintOverride {
+function scopedOverride(layer: ScopedLayer) {
   const override: OxlintOverride = { files: layer.files, rules: layer.rules };
 
   if (layer.excludeFiles) {
@@ -307,12 +303,7 @@ interface Composition {
   overrides: OxlintOverride[];
 }
 
-function composeConfig({
-  layers,
-  typeAware,
-  ignorePatterns,
-  overrides,
-}: Composition): SharedLintConfig {
+function composeConfig({ layers, typeAware, ignorePatterns, overrides }: Composition) {
   const plugins = new Set(basePlugins);
   const env: OxlintEnv = { es2022: true };
   const rules: DummyRuleMap = {};
@@ -349,10 +340,10 @@ function composeConfig({
     ignorePatterns,
     rules,
     overrides: [...scoped, ...overrides.map(withBasePlugins)],
-  };
+  } satisfies SharedLintConfig;
 }
 
-function ruleLayers(layers: LintLayer[], scope: LintScope, root: string | undefined): RuleLayer[] {
+function ruleLayers(layers: LintLayer[], scope: LintScope, root: string | undefined) {
   const boundaries: ImportBoundary[] = [];
   const result: RuleLayer[] = [];
 
