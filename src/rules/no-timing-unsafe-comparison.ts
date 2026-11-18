@@ -18,10 +18,12 @@ const secretWords = new Set([
   "secret",
   "token",
   "signature",
+  "hash",
   "digest",
-  "hmac",
   "apikey",
 ]);
+
+const highEntropySecretWords = new Set(["session", "token", "key"]);
 
 const confirmationWords = new Set([
   "confirm",
@@ -51,8 +53,9 @@ function isSecretName(name: string) {
   const beforeLast = words.at(-2);
 
   return (
-    (last !== undefined && secretWords.has(last)) ||
-    (last === "hash" && beforeLast === "password") ||
+    (last !== undefined &&
+      secretWords.has(last) &&
+      !(last === "hash" && beforeLast !== undefined && highEntropySecretWords.has(beforeLast))) ||
     (last === "key" &&
       beforeLast !== undefined &&
       (beforeLast === "api" || secretWords.has(beforeLast)))
@@ -68,11 +71,14 @@ function isConfirmationName(name: string) {
   );
 }
 
-function comparedName(node: ESTree.Node) {
+function comparedValue(node: ESTree.Node) {
   const unwrapped = unwrapExpression(node);
 
-  const value =
-    unwrapped.type === "ChainExpression" ? unwrapExpression(unwrapped.expression) : unwrapped;
+  return unwrapped.type === "ChainExpression" ? unwrapExpression(unwrapped.expression) : unwrapped;
+}
+
+function comparedName(node: ESTree.Node) {
+  const value = comparedValue(node);
 
   if (value.type === "Identifier") {
     return value.name;
@@ -81,8 +87,8 @@ function comparedName(node: ESTree.Node) {
   return value.type === "MemberExpression" ? staticPropertyName(value) : null;
 }
 
-function formFieldName(node: ESTree.Node) {
-  const value = unwrapExpression(node);
+function singleStringArgument(node: ESTree.Node) {
+  const value = comparedValue(node);
 
   return value.type === "CallExpression" && value.arguments.length === 1
     ? staticString(value.arguments[0])
@@ -90,9 +96,22 @@ function formFieldName(node: ESTree.Node) {
 }
 
 function isConfirmationValue(node: ESTree.Node) {
-  const name = comparedName(node) ?? formFieldName(node);
+  const name = comparedName(node) ?? singleStringArgument(node);
 
   return name !== null && isConfirmationName(name);
+}
+
+function isPasswordValue(node: ESTree.Node) {
+  const name = comparedName(node);
+
+  return name !== null && nameWords(name).at(-1) === "password";
+}
+
+function isPasswordConfirmation(left: ESTree.Node, right: ESTree.Node) {
+  return (
+    (isConfirmationValue(left) && isPasswordValue(right)) ||
+    (isConfirmationValue(right) && isPasswordValue(left))
+  );
 }
 
 function readonlyTarget(sourceCode: SourceCode, type: ESTree.TSType | null) {
@@ -305,8 +324,7 @@ export const noTimingUnsafeComparison = defineRule({
           !equalityOperators.has(node.operator) ||
           isNonSecretValue(sourceCode, node.left) ||
           isNonSecretValue(sourceCode, node.right) ||
-          isConfirmationValue(node.left) ||
-          isConfirmationValue(node.right)
+          isPasswordConfirmation(node.left, node.right)
         ) {
           return;
         }

@@ -4,6 +4,7 @@ import {
   childNodes,
   effectMember,
   isFunctionNode,
+  importedBinding,
   isEffectModule,
   ownReturns,
   pipeSteps,
@@ -175,12 +176,22 @@ function generatorImplementations(sourceCode: SourceCode, node: ESTree.Node) {
       });
 }
 
-function layerImplementations(sourceCode: SourceCode, node: ESTree.CallExpression) {
+function layerCall(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const callee = unwrapExpression(node.callee);
   const curried = callee.type === "CallExpression" && callee.arguments.length === 1;
-  const layer = effectMember(sourceCode, curried ? callee.callee : callee, "Layer");
-  const implementation = curried ? node.arguments[0] : node.arguments[1];
+  const [tag] = curried ? callee.arguments : node.arguments;
 
+  return {
+    layer: effectMember(sourceCode, curried ? callee.callee : callee, "Layer"),
+    tag: tag?.type === "SpreadElement" ? undefined : tag,
+    implementation: curried ? node.arguments[0] : node.arguments[1],
+  };
+}
+
+function layerImplementations(
+  sourceCode: SourceCode,
+  { layer, implementation }: ReturnType<typeof layerCall>,
+) {
   if (layer === null || implementation === undefined || implementation.type === "SpreadElement") {
     return [];
   }
@@ -203,14 +214,6 @@ function layerImplementations(sourceCode: SourceCode, node: ESTree.CallExpressio
 
     return object === null ? [] : [object];
   });
-}
-
-function layerTag(node: ESTree.CallExpression) {
-  const callee = unwrapExpression(node.callee);
-  const curried = callee.type === "CallExpression" && callee.arguments.length === 1;
-  const [tag] = curried ? callee.arguments : node.arguments;
-
-  return tag?.type === "SpreadElement" ? undefined : tag;
 }
 
 function enclosingClass(node: ESTree.Node) {
@@ -250,22 +253,37 @@ function serviceName(tag: ESTree.Node | undefined, service: ESTree.Class | null)
   return service?.id?.name ?? (value?.type === "Identifier" ? value.name : "Service");
 }
 
-function serviceInterface(sourceCode: SourceCode, service: ESTree.Class | null) {
+function typeMembers(sourceCode: SourceCode, type: ESTree.TSType | undefined) {
+  if (type?.type === "TSTypeLiteral") {
+    return type.members;
+  }
+
+  if (type?.type !== "TSTypeReference" || type.typeName.type !== "Identifier") {
+    return [];
+  }
+
+  const declaration = variableFor(sourceCode, type.typeName)?.defs.at(0)?.node;
+
+  if (declaration?.type === "TSInterfaceDeclaration") {
+    return declaration.body.body;
+  }
+
+  return declaration?.type === "TSTypeAliasDeclaration" &&
+    declaration.typeAnnotation.type === "TSTypeLiteral"
+    ? declaration.typeAnnotation.members
+    : [];
+}
+
+function serviceOperations(sourceCode: SourceCode, service: ESTree.Class | null) {
   const superClass = service?.superClass ? unwrapExpression(service.superClass) : null;
 
   const factory =
     superClass?.type === "CallExpression" ? unwrapExpression(superClass.callee) : null;
 
-  if (
-    factory?.type !== "CallExpression" ||
-    effectMember(sourceCode, factory.callee, "Context") !== "Service"
-  ) {
-    return null;
-  }
-
-  const operations = factory.typeArguments?.params[1];
-
-  return operations?.type === "TSTypeLiteral" ? operations : null;
+  return factory?.type === "CallExpression" &&
+    effectMember(sourceCode, factory.callee, "Context") === "Service"
+    ? typeMembers(sourceCode, factory.typeArguments?.params[1])
+    : [];
 }
 
 function declaredReturnType(member: ESTree.TSSignature) {
@@ -278,8 +296,14 @@ function declaredReturnType(member: ESTree.TSSignature) {
   return type?.type === "TSFunctionType" ? type.returnType.typeAnnotation : null;
 }
 
-function isStreamType(sourceCode: SourceCode, type: ESTree.TSType | null) {
+function isStreamType(sourceCode: SourceCode, type: ESTree.TSType | null | undefined) {
   const name = type?.type === "TSTypeReference" ? type.typeName : null;
+
+  if (name?.type === "Identifier") {
+    const binding = importedBinding(sourceCode, name);
+
+    return binding?.source === "effect/Stream" && binding.name === "Stream";
+  }
 
   return (
     name?.type === "TSQualifiedName" &&
@@ -289,7 +313,7 @@ function isStreamType(sourceCode: SourceCode, type: ESTree.TSType | null) {
 }
 
 function declaresStream(sourceCode: SourceCode, service: ESTree.Class | null, name: string) {
-  const member = serviceInterface(sourceCode, service)?.members.find(
+  const member = serviceOperations(sourceCode, service).find(
     (signature) =>
       (signature.type === "TSPropertySignature" || signature.type === "TSMethodSignature") &&
       staticPropertyName(signature) === name,
@@ -298,7 +322,22 @@ function declaresStream(sourceCode: SourceCode, service: ESTree.Class | null, na
   return member !== undefined && isStreamType(sourceCode, declaredReturnType(member));
 }
 
-const streamExits = /^(?:run|to)(?:[A-Z]|$)/u;
+const streamExitFamilies = /^(?:run|mk|to)(?:[A-Z]|$)/u;
+
+const streamExits = new Set([
+  "isStream",
+  "partition",
+  "partitionEffect",
+  "partitionQueue",
+  "peel",
+  "broadcast",
+  "broadcastN",
+  "share",
+]);
+
+function isStreamExit(name: string) {
+  return streamExits.has(name) || streamExitFamilies.test(name);
+}
 
 function streamMember(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
@@ -326,7 +365,13 @@ function isStreamExpression(
   const member = streamMember(sourceCode, value);
 
   if (member !== null) {
-    return !streamExits.test(member);
+    return !isStreamExit(member);
+  }
+
+  if (value.type === "Identifier") {
+    const bound = declaredValue(sourceCode, value);
+
+    return bound !== value && isStreamExpression(sourceCode, bound, visited);
   }
 
   if (value.type !== "CallExpression") {
@@ -341,7 +386,7 @@ function isStreamExpression(
 
     return last === undefined
       ? pipe.input !== null && isStreamExpression(sourceCode, pipe.input, visited)
-      : step !== null && !streamExits.test(step);
+      : step !== null && !isStreamExit(step);
   }
 
   const callee = declaredValue(sourceCode, value.callee);
@@ -358,8 +403,11 @@ function isStreamExpression(
 }
 
 function returnsStream(sourceCode: SourceCode, operation: FunctionNode) {
-  return ownReturns(operation, sourceCode.visitorKeys).some((returned) =>
-    isStreamExpression(sourceCode, returned, new Set([operation])),
+  return (
+    isStreamType(sourceCode, operation.returnType?.typeAnnotation) ||
+    ownReturns(operation, sourceCode.visitorKeys).some((returned) =>
+      isStreamExpression(sourceCode, returned, new Set([operation])),
+    )
   );
 }
 
@@ -402,13 +450,14 @@ export const requireServiceOperationSpan = defineRule({
     return {
       CallExpression(node) {
         const { sourceCode } = context;
-        const implementations = layerImplementations(sourceCode, node);
+        const call = layerCall(sourceCode, node);
+        const implementations = layerImplementations(sourceCode, call);
 
         if (implementations.length === 0) {
           return;
         }
 
-        const tag = layerTag(node);
+        const { tag } = call;
         const service = tag === undefined ? null : serviceClass(sourceCode, tag);
 
         for (const implementation of implementations) {
@@ -419,7 +468,7 @@ export const requireServiceOperationSpan = defineRule({
               continue;
             }
 
-            const name = propertyName(property) ?? "operation";
+            const name = staticPropertyName(property) ?? "operation";
 
             const streams =
               declaresStream(sourceCode, service, name) ||

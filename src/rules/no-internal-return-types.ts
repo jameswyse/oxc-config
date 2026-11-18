@@ -6,6 +6,9 @@ import {
   outermostExpression,
   ownReturns,
   propertyName,
+  staticPropertyName,
+  unchangedInit,
+  variableFor,
 } from "../shared/index.ts";
 import { isEmittedClassMember, locallyExportedNames } from "../shared/module-exports.ts";
 
@@ -322,10 +325,6 @@ function resultExpressions(node: ESTree.Node): ESTree.Node[] {
 }
 
 function hasTypeAnnotation(parameter: ESTree.Node): boolean {
-  if (parameter.type === "TSParameterProperty") {
-    return hasTypeAnnotation(parameter.parameter);
-  }
-
   if (parameter.type === "AssignmentPattern") {
     return hasTypeAnnotation(parameter.left);
   }
@@ -358,6 +357,10 @@ function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
     return ["string", "number", "bigint", "boolean"].includes(typeof node.value);
   }
 
+  if (node.type === "UnaryExpression") {
+    return ["-", "+"].includes(node.operator) && needsContext(node.argument, sourceCode);
+  }
+
   if (node.type !== "CallExpression" && node.type !== "NewExpression") {
     return false;
   }
@@ -373,18 +376,64 @@ function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
   );
 }
 
-function returnsAny(sourceCode: SourceCode, node: ESTree.Node) {
+function returnsAny(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+  visited = new Set<Variable>(),
+): boolean {
+  if (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSNonNullExpression"
+  ) {
+    return returnsAny(sourceCode, node.expression, visited);
+  }
+
+  if (node.type === "AwaitExpression") {
+    return returnsAny(sourceCode, node.argument, visited);
+  }
+
+  if (node.type === "MemberExpression") {
+    return returnsAny(sourceCode, node.object, visited);
+  }
+
+  const variable = node.type === "Identifier" ? variableFor(sourceCode, node) : null;
+
+  if (variable !== null) {
+    const binding = variable.defs.at(0)?.name;
+    const init = unchangedInit(variable);
+    const typed = binding !== undefined && "typeAnnotation" in binding && binding.typeAnnotation;
+
+    if (typed || init === null || visited.has(variable)) {
+      return false;
+    }
+
+    visited.add(variable);
+
+    return returnsAny(sourceCode, init, visited);
+  }
+
   const callee = node.type === "CallExpression" ? node.callee : null;
 
   if (callee?.type !== "MemberExpression") {
     return false;
   }
 
-  const name = propertyName(callee);
+  const name = staticPropertyName(callee);
 
   return (
     (name === "parse" && isGlobal(sourceCode, callee.object, "JSON")) ||
     (name === "json" && node.type === "CallExpression" && node.arguments.length === 0)
+  );
+}
+
+function constructsFromContext(node: ESTree.Node) {
+  return (
+    node.type === "NewExpression" &&
+    !node.typeArguments &&
+    node.arguments.some(
+      (argument) => isFunctionNode(argument) && !argument.params.every(hasTypeAnnotation),
+    )
   );
 }
 
@@ -432,13 +481,16 @@ function annotationTypesReturns(
   }
 
   if (resolved !== undefined && isKeywordType(resolved)) {
-    return false;
+    return results.some(constructsFromContext);
   }
 
-  return (
-    results.filter((result) => !isAbsent(sourceCode, result)).length > 1 ||
-    results.some((result) => needsContext(result, sourceCode))
+  const values = new Set(
+    results
+      .filter((result) => !isAbsent(sourceCode, result))
+      .map((result) => sourceCode.getText(result)),
   );
+
+  return values.size > 1 || results.some((result) => needsContext(result, sourceCode));
 }
 
 export const noInternalReturnTypes = defineRule({

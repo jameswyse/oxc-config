@@ -195,5 +195,49 @@ export const layer = Layer.effect(Users, Effect.gen(function* () {
         "export const layer = Layer.succeed(Users, { watch: (id) => (live ? Stream.never : changes(id)) });",
       errors: [untracedStream("watch", "Users")],
     },
+    {
+      code:
+        effect +
+        `const updates = Stream.fromEffect(load());
+export const layer = Layer.succeed(Users, {
+  watch: () => updates,
+  tail: () => {
+    const latest = Stream.empty;
+    return latest;
+  },
+  typed: (): Stream.Stream<number> => source(),
+  share: () => Stream.share(events, { capacity: 16 }),
+  text: () => Stream.mkString(source),
+  iterate: () => Stream.toQueue(source),
+});`,
+      errors: [
+        untracedStream("watch", "Users"),
+        untracedStream("tail", "Users"),
+        untracedStream("typed", "Users"),
+        untraced("share", "Users"),
+        untraced("text", "Users"),
+        untraced("iterate", "Users"),
+      ],
+    },
+    {
+      code:
+        effect +
+        `interface FeedOperations {
+  readonly watch: (id: string) => Stream.Stream<number>;
+}
+type PollOperations = { poll(): Stream.Stream<number> };
+class Feed extends Context.Service<Feed, FeedOperations>()("Feed") {}
+class Poll extends Context.Service<Poll, PollOperations>()("Poll") {}
+export const feed = Layer.succeed(Feed, { ["watch"]: (id) => store.watch(id) });
+export const poll = Layer.succeed(Poll, { poll: () => store.poll() });`,
+      errors: [untracedStream("watch", "Feed"), untracedStream("poll", "Poll")],
+    },
+    {
+      code: `import { Context, Layer } from "effect";
+import type { Stream } from "effect/Stream";
+class Feed extends Context.Service<Feed, { readonly watch: () => Stream<number> }>()("Feed") {}
+export const layer = Layer.succeed(Feed, { watch: () => store.watch() });`,
+      errors: [untracedStream("watch", "Feed")],
+    },
   ],
 });

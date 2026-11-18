@@ -134,6 +134,12 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     "function name(raw: string): string { return JSON.parse(raw); }",
     "async function user(response: Response): Promise<User> { return response.json(); }",
     "function load(id: string): Effect.Effect<Plan> { return client?.load({ id }); }",
+    "function failed(): -1 | 1 { return -1; }",
+    'async function read(): Promise<string> { return new Promise((resolve) => resolve("ready")); }',
+    'function read(raw: string): string { return JSON["parse"](raw); }',
+    "function count(raw: string): number { return JSON.parse(raw).count; }",
+    "async function data(response: Response): Promise<Data> { return (await response.json()).data; }",
+    "async function data(response: Response): Promise<Data> { const body = await response.json(); return body; }",
   ],
   invalid: [
     reported(
@@ -184,6 +190,22 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     reported(
       "async function load(id: string): Promise<User> { return fetchUser(id); }",
       "async function load(id: string) { return fetchUser(id); }",
+    ),
+    reported(
+      "async function data(response: Response): Promise<Data> { const body: Data = await response.json(); return body; }",
+      "async function data(response: Response) { const body: Data = await response.json(); return body; }",
+    ),
+    reported(
+      "function config(raw: string): Config { return JSON.parse(raw) as Config; }",
+      "function config(raw: string) { return JSON.parse(raw) as Config; }",
+    ),
+    reported(
+      'function sentences(parts: string[]): string { return parts.filter((part) => part !== "").join(". "); }',
+      'function sentences(parts: string[]) { return parts.filter((part) => part !== "").join(". "); }',
+    ),
+    reported(
+      "function pick(value: Date, flag: boolean): Date { if (flag) { log(); return value; } return value; }",
+      "function pick(value: Date, flag: boolean) { if (flag) { log(); return value; } return value; }",
     ),
     reported(
       "function log(message: string): void { console.log(message); }",
