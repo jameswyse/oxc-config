@@ -33,7 +33,7 @@ export const noUnknownReturns = defineRule({
   createOnce(context) {
     let environment: TypeAliasEnvironment | null = null;
 
-    const resolvesToUnknown = (type: ESTree.TSType): boolean =>
+    const resolvesToUnknown = (type: ESTree.TSType) =>
       environment !== null &&
       resolvedTypeMatches(type, environment, (resolved, matches) => {
         if (resolved.type === "TSUnknownKeyword") {
@@ -61,7 +61,7 @@ export const noUnknownReturns = defineRule({
         return value !== void 0 && matches(value);
       });
 
-    const checkReturnType = (node: FunctionWithReturnType): void => {
+    const checkReturnType = (node: FunctionWithReturnType) => {
       const annotation = node.returnType;
 
       if (annotation === null || annotation === void 0) {

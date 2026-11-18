@@ -46,7 +46,7 @@ const BUILT_INS = new Set([
 
 const TRANSPARENT_WRAPPERS = new Set(["Readonly", "Partial", "Required", "NonNullable"]);
 
-function declaredStatement(statement: ESTree.Directive | ESTree.Statement): ESTree.Node | null {
+function declaredStatement(statement: ESTree.Directive | ESTree.Statement) {
   return statement.type === "ExportNamedDeclaration" ||
     statement.type === "ExportDefaultDeclaration"
     ? (statement.declaration ?? null)
@@ -74,19 +74,19 @@ function createTypeEnvironment(
   return { interfaces, typeAliases: createTypeAliasEnvironment(program, visitorKeys) };
 }
 
-function typeReferenceName(type: ESTree.TSTypeReference): string | null {
+function typeReferenceName(type: ESTree.TSTypeReference) {
   return type.typeName.type === "Identifier" ? type.typeName.name : null;
 }
 
-function isBuiltIn(name: string, use: ESTree.Node, environment: TypeEnvironment): boolean {
+function isBuiltIn(name: string, use: ESTree.Node, environment: TypeEnvironment) {
   return BUILT_INS.has(name) && !hasVisibleTypeBinding(name, use, environment.typeAliases);
 }
 
-function mappedKey(type: ESTree.TSMappedType): ESTree.TSType {
+function mappedKey(type: ESTree.TSMappedType) {
   return type.nameType ?? type.constraint;
 }
 
-function unwrapTransparentType(type: ESTree.TSType): ESTree.TSType {
+function unwrapTransparentType(type: ESTree.TSType) {
   let current = type;
 
   while (
@@ -99,11 +99,11 @@ function unwrapTransparentType(type: ESTree.TSType): ESTree.TSType {
   return current;
 }
 
-function isNeverType(type: ESTree.TSType): boolean {
+function isNeverType(type: ESTree.TSType) {
   return unwrapTransparentType(type).type === "TSNeverKeyword";
 }
 
-function isEffectivelyEmptyMember(member: ESTree.TSSignature): boolean {
+function isEffectivelyEmptyMember(member: ESTree.TSSignature) {
   return (
     member.type === "TSPropertySignature" &&
     member.optional &&
@@ -112,13 +112,11 @@ function isEffectivelyEmptyMember(member: ESTree.TSSignature): boolean {
   );
 }
 
-function isEffectivelyEmptyTypeLiteral(type: ESTree.TSTypeLiteral): boolean {
+function isEffectivelyEmptyTypeLiteral(type: ESTree.TSTypeLiteral) {
   return type.members.length === 0 || type.members.every(isEffectivelyEmptyMember);
 }
 
-function isEffectivelyEmptyInterface(
-  declarations: readonly ESTree.TSInterfaceDeclaration[],
-): boolean {
+function isEffectivelyEmptyInterface(declarations: readonly ESTree.TSInterfaceDeclaration[]) {
   if (declarations.length !== 1) {
     return false;
   }
@@ -300,7 +298,7 @@ function keptDictionarySource(
   type: ESTree.TSTypeReference,
   environment: TypeEnvironment,
   substitutions: Substitutions,
-): ESTree.TSType | null {
+) {
   const [source, keys] = type.typeArguments?.params ?? [];
 
   if (source === void 0) {
@@ -439,7 +437,7 @@ function hasBroadRecordKey(
   type: ESTree.TSTypeReference,
   environment: TypeEnvironment,
   substitutions: Substitutions,
-): boolean {
+) {
   const key = type.typeArguments?.params[0];
 
   return key === void 0 || isBroadMappedKey(key, environment, substitutions);

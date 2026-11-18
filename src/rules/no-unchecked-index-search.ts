@@ -14,7 +14,7 @@ const indexedArguments = new Map([
   ["slice", 2],
 ]);
 
-function searchCall(node: ESTree.Node): string | null {
+function searchCall(node: ESTree.Node) {
   const call = unwrapExpression(node);
 
   const name =

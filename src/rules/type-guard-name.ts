@@ -4,12 +4,7 @@ import { propertyName } from "../shared/index.ts";
 
 import type { ESTree } from "@oxlint/plugins";
 
-type PredicateName = {
-  node: ESTree.Node;
-  name: string | null;
-};
-
-function predicateName(node: ESTree.TSTypePredicate): PredicateName | null {
+function predicateName(node: ESTree.TSTypePredicate) {
   const owner = node.parent.parent;
 
   if (!owner) {

@@ -30,7 +30,7 @@ function isHandler(node: ESTree.Node): node is ESTree.ArrowFunctionExpression | 
   return node.type === "ArrowFunctionExpression" || node.type === "FunctionExpression";
 }
 
-function ignoresError(sourceCode: SourceCode, handler: FunctionNode): boolean {
+function ignoresError(sourceCode: SourceCode, handler: FunctionNode) {
   const [parameter] = handler.params;
 
   if (parameter === undefined) {
@@ -46,7 +46,7 @@ function ignoresError(sourceCode: SourceCode, handler: FunctionNode): boolean {
 
 const errorTaps = new Set(["tapCause", "tapError", "tapErrorCause"]);
 
-function isErrorTap(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isErrorTap(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (value.type !== "CallExpression") {
@@ -65,7 +65,7 @@ function isErrorTap(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function followsErrorTap(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+function followsErrorTap(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const pipe = node.parent.type === "CallExpression" ? pipeSteps(sourceCode, node.parent) : null;
   const position = pipe?.steps.indexOf(node) ?? -1;
   const previous = position > 0 ? pipe?.steps[position - 1] : undefined;
@@ -73,7 +73,7 @@ function followsErrorTap(sourceCode: SourceCode, node: ESTree.CallExpression): b
   return previous !== undefined && isErrorTap(sourceCode, previous);
 }
 
-function isNewError(node: ESTree.Node): boolean {
+function isNewError(node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (value.type === "NewExpression") {
@@ -94,7 +94,7 @@ function isNewError(node: ESTree.Node): boolean {
   );
 }
 
-function isFailWithNewError(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isFailWithNewError(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (

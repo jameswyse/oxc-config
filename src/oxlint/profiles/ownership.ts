@@ -7,11 +7,11 @@ interface OwnedRule {
   excludeFiles: string[];
 }
 
-function ownedRule({ rule, scope, owners, excludeFiles }: OwnedRule): LintLayer[] {
+function ownedRule({ rule, scope, owners, excludeFiles }: OwnedRule) {
   return [
     { files: scope.source, excludeFiles, rules: { [rule]: "error" } },
     { files: [...scope.entrypoints, ...owners], rules: { [rule]: "off" } },
-  ];
+  ] satisfies LintLayer[];
 }
 
 export const env: Profile<OneOrMore<string>> = (scope, owners) =>

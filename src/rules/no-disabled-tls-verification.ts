@@ -4,13 +4,13 @@ import { isGlobal, staticPropertyName, unwrapExpression } from "../shared/index.
 
 import type { ESTree } from "@oxlint/plugins";
 
-function isFalse(node: ESTree.Node): boolean {
+function isFalse(node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   return value.type === "Literal" && value.value === false;
 }
 
-function isDisabledFlag(node: ESTree.Node): boolean {
+function isDisabledFlag(node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   return (value.type === "Literal" && (value.value === "0" || value.value === 0)) || isFalse(value);

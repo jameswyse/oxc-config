@@ -11,7 +11,7 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 const escapeHelper = /^escape(?:String)?Reg(?:ex|Exp?)$/iu;
 
-function isEscapeFunction(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEscapeFunction(sourceCode: SourceCode, node: ESTree.Node) {
   const callee = unwrapExpression(node);
 
   if (callee.type === "Identifier") {
@@ -30,13 +30,13 @@ function isEscapeFunction(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function isEscapeCall(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEscapeCall(sourceCode: SourceCode, node: ESTree.Node) {
   const call = unwrapExpression(node);
 
   return call.type === "CallExpression" && isEscapeFunction(sourceCode, call.callee);
 }
 
-function isEscapeMapper(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEscapeMapper(sourceCode: SourceCode, node: ESTree.Node) {
   const mapper = unwrapExpression(node);
 
   if (mapper.type !== "ArrowFunctionExpression") {
@@ -48,7 +48,7 @@ function isEscapeMapper(sourceCode: SourceCode, node: ESTree.Node): boolean {
   return body !== null && isEscapeCall(sourceCode, body);
 }
 
-function isEscapedJoin(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEscapedJoin(sourceCode: SourceCode, node: ESTree.Node) {
   const [separator] = node.type === "CallExpression" ? node.arguments : [];
   const join = node.type === "CallExpression" ? unwrapExpression(node.callee) : null;
   const map = join?.type === "MemberExpression" ? unwrapExpression(join.object) : null;
@@ -67,7 +67,7 @@ function isEscapedJoin(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function isEscapedValue(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEscapedValue(sourceCode: SourceCode, node: ESTree.Node) {
   return isEscapeCall(sourceCode, node) || isEscapedJoin(sourceCode, node);
 }
 
@@ -84,7 +84,7 @@ export const noDynamicRegex = defineRule({
   create(context) {
     const sourceCode = context.sourceCode;
 
-    function check(node: ESTree.CallExpression | ESTree.NewExpression): void {
+    function check(node: ESTree.CallExpression | ESTree.NewExpression) {
       const [pattern] = node.arguments;
 
       if (

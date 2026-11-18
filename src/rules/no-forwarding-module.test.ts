@@ -12,7 +12,7 @@ const lintBin = join(dirname(require.resolve("oxlint/package.json")), "bin/oxlin
 
 const ruleUrl = new URL("./no-forwarding-module.ts", import.meta.url).href;
 
-function write(root: string, path: string, contents: string): void {
+function write(root: string, path: string, contents: string) {
   const target = join(root, path);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, contents);
@@ -38,7 +38,7 @@ function isLintReport(value: unknown): value is LintReport {
   );
 }
 
-function findings(t: TestContext, files: Record<string, string>): string[] {
+function findings(t: TestContext, files: Record<string, string>) {
   const root = mkdtempSync(join(tmpdir(), "no-forwarding-module-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write(

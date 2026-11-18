@@ -24,7 +24,7 @@ const parserConstructors = ["URL", "RegExp"];
 
 const fileSystemModules = new Set(["node:fs", "fs", "node:fs/promises", "fs/promises"]);
 
-function unwrap(node: ESTree.Expression | null): ESTree.Expression | null {
+function unwrap(node: ESTree.Expression | null) {
   if (
     node?.type === "TSAsExpression" ||
     node?.type === "TSSatisfiesExpression" ||
@@ -36,7 +36,7 @@ function unwrap(node: ESTree.Expression | null): ESTree.Expression | null {
   return node;
 }
 
-function isFallback(sourceCode: SourceCode, node: ESTree.Expression | null): boolean {
+function isFallback(sourceCode: SourceCode, node: ESTree.Expression | null) {
   const value = unwrap(node);
 
   if (value === null) {
@@ -75,7 +75,7 @@ function isFallback(sourceCode: SourceCode, node: ESTree.Expression | null): boo
 function returnsFallback(
   sourceCode: SourceCode,
   statements: readonly (ESTree.Directive | ESTree.Statement)[],
-): boolean {
+) {
   const [statement] = statements;
 
   return (
@@ -85,7 +85,7 @@ function returnsFallback(
   );
 }
 
-function descendants(sourceCode: SourceCode, root: ESTree.Node): ESTree.Node[] {
+function descendants(sourceCode: SourceCode, root: ESTree.Node) {
   const found: ESTree.Node[] = [];
   const pending = [root];
 
@@ -100,7 +100,7 @@ function descendants(sourceCode: SourceCode, root: ESTree.Node): ESTree.Node[] {
   return found;
 }
 
-function isFileSystemModule(sourceCode: SourceCode, identifier: ESTree.Expression): boolean {
+function isFileSystemModule(sourceCode: SourceCode, identifier: ESTree.Expression) {
   if (identifier.type !== "Identifier") {
     return false;
   }
@@ -114,7 +114,7 @@ function isFileSystemModule(sourceCode: SourceCode, identifier: ESTree.Expressio
   );
 }
 
-function isFileSystemCall(sourceCode: SourceCode, callee: ESTree.Expression): boolean {
+function isFileSystemCall(sourceCode: SourceCode, callee: ESTree.Expression) {
   if (callee.type === "Identifier") {
     return isFileSystemModule(sourceCode, callee);
   }
@@ -133,10 +133,7 @@ function isFileSystemCall(sourceCode: SourceCode, callee: ESTree.Expression): bo
   );
 }
 
-function isParser(
-  sourceCode: SourceCode,
-  node: ESTree.CallExpression | ESTree.NewExpression,
-): boolean {
+function isParser(sourceCode: SourceCode, node: ESTree.CallExpression | ESTree.NewExpression) {
   const callee = node.callee;
 
   if (node.type === "NewExpression") {
@@ -162,18 +159,18 @@ function isParser(
   );
 }
 
-function isProbe(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isProbe(sourceCode: SourceCode, node: ESTree.Node) {
   return (
     (node.type === "CallExpression" || node.type === "NewExpression") &&
     (isParser(sourceCode, node) || isFileSystemCall(sourceCode, node.callee))
   );
 }
 
-function containsProbe(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function containsProbe(sourceCode: SourceCode, node: ESTree.Node) {
   return descendants(sourceCode, node).some((descendant) => isProbe(sourceCode, descendant));
 }
 
-function onlyProbes(sourceCode: SourceCode, block: ESTree.BlockStatement): boolean {
+function onlyProbes(sourceCode: SourceCode, block: ESTree.BlockStatement) {
   const nodes = descendants(sourceCode, block);
 
   return (
@@ -186,7 +183,7 @@ function onlyProbes(sourceCode: SourceCode, block: ESTree.BlockStatement): boole
   );
 }
 
-function isSharedBinding(sourceCode: SourceCode, node: ESTree.IdentifierReference): boolean {
+function isSharedBinding(sourceCode: SourceCode, node: ESTree.IdentifierReference) {
   const variable = variableFor(sourceCode, node);
 
   return (
@@ -196,7 +193,7 @@ function isSharedBinding(sourceCode: SourceCode, node: ESTree.IdentifierReferenc
   );
 }
 
-function storedValue(sourceCode: SourceCode, node: ESTree.Expression): ESTree.Node {
+function storedValue(sourceCode: SourceCode, node: ESTree.Expression) {
   const value = unwrapExpression(node);
 
   const declarator =
@@ -210,7 +207,7 @@ function storedValue(sourceCode: SourceCode, node: ESTree.Expression): ESTree.No
     : value;
 }
 
-function isExistingPromise(sourceCode: SourceCode, node: ESTree.Expression): boolean {
+function isExistingPromise(sourceCode: SourceCode, node: ESTree.Expression) {
   const value = node.type === "ChainExpression" ? node.expression : node;
 
   if (
@@ -227,7 +224,7 @@ function isExistingPromise(sourceCode: SourceCode, node: ESTree.Expression): boo
   );
 }
 
-function swallowingCallback(sourceCode: SourceCode, callback: ESTree.Argument): boolean {
+function swallowingCallback(sourceCode: SourceCode, callback: ESTree.Argument) {
   if (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression") {
     return false;
   }
@@ -241,9 +238,7 @@ function swallowingCallback(sourceCode: SourceCode, callback: ESTree.Argument): 
   return body.body.length === 0 || returnsFallback(sourceCode, body.body);
 }
 
-function rejectionHandler(
-  node: ESTree.CallExpression,
-): { promise: ESTree.Expression; handler: ESTree.Argument } | null {
+function rejectionHandler(node: ESTree.CallExpression) {
   if (node.callee.type !== "MemberExpression") {
     return null;
   }
@@ -263,7 +258,7 @@ function rejectionHandler(
 
 const effectRecoveries = new Set(["catch", "catchAll", "catchAllCause", "catchCause", "orElse"]);
 
-function isEffectFallback(sourceCode: SourceCode, node: ESTree.Expression | null): boolean {
+function isEffectFallback(sourceCode: SourceCode, node: ESTree.Expression | null) {
   const value = unwrap(node);
 
   if (value === null) {
@@ -290,7 +285,7 @@ function isEffectFallback(sourceCode: SourceCode, node: ESTree.Expression | null
   );
 }
 
-function returnedValue(callback: ESTree.Argument): ESTree.Expression | null | undefined {
+function returnedValue(callback: ESTree.Argument) {
   if (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression") {
     return undefined;
   }
@@ -312,10 +307,7 @@ function returnedValue(callback: ESTree.Argument): ESTree.Expression | null | un
     : undefined;
 }
 
-function swallowingEffectRecovery(
-  sourceCode: SourceCode,
-  node: ESTree.CallExpression,
-): ESTree.Argument | null {
+function swallowingEffectRecovery(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const name = effectMember(sourceCode, node.callee, "Effect");
   const handler = node.arguments.at(-1);
 
@@ -336,10 +328,7 @@ function swallowingEffectRecovery(
   return effectRecoveries.has(name) && isEffectFallback(sourceCode, value) ? handler : null;
 }
 
-function settlement(
-  sourceCode: SourceCode,
-  expression: ESTree.Expression,
-): ESTree.CallExpression | null {
+function settlement(sourceCode: SourceCode, expression: ESTree.Expression) {
   let value = expression;
 
   while (

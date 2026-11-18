@@ -1,6 +1,7 @@
 import { defineRule } from "@oxlint/plugins";
 
 import { propertyName } from "../shared/index.ts";
+import { isPublicClassMember, locallyExportedValueNames } from "../shared/module-exports.ts";
 
 import type { ESTree } from "@oxlint/plugins";
 
@@ -27,7 +28,7 @@ function isBooleanType(type: ESTree.TSType | undefined): boolean {
   return present.length === 1 && isBooleanType(present[0]);
 }
 
-function booleanParameter(parameter: ESTree.ParamPattern): ESTree.BindingIdentifier | null {
+function booleanParameter(parameter: ESTree.ParamPattern) {
   const target = parameter.type === "TSParameterProperty" ? parameter.parameter : parameter;
 
   if (target.type === "Identifier") {
@@ -47,14 +48,14 @@ function booleanParameter(parameter: ESTree.ParamPattern): ESTree.BindingIdentif
   return isBoolean ? target.left : null;
 }
 
-function isSetter(name: string, fn: FunctionNode, parameter: ESTree.ParamPattern): boolean {
+function isSetter(name: string, fn: FunctionNode, parameter: ESTree.ParamPattern) {
   return (
     /^(?:set|update)\p{Lu}/u.test(name.slice(name.lastIndexOf(".") + 1)) &&
     fn.params.at(-1) === parameter
   );
 }
 
-function isPredicateSubject(fn: FunctionNode, identifier: ESTree.BindingIdentifier): boolean {
+function isPredicateSubject(fn: FunctionNode, identifier: ESTree.BindingIdentifier) {
   const predicate = fn.returnType?.typeAnnotation;
 
   return (
@@ -64,28 +65,20 @@ function isPredicateSubject(fn: FunctionNode, identifier: ESTree.BindingIdentifi
   );
 }
 
-function functionValue(node: ESTree.Expression | null): FunctionNode | null {
+function functionValue(node: ESTree.Expression | null) {
   return node?.type === "ArrowFunctionExpression" || node?.type === "FunctionExpression"
     ? node
     : null;
 }
 
-function isPublicMember(member: ESTree.MethodDefinition | ESTree.PropertyDefinition): boolean {
-  return (
-    !member.computed &&
-    member.key.type !== "PrivateIdentifier" &&
-    member.accessibility !== "private" &&
-    member.accessibility !== "protected"
-  );
-}
-
-function classMembers(declaration: ESTree.Class): ExportedFunction[] {
+function classMembers(declaration: ESTree.Class) {
   const name = declaration.id?.name ?? "default";
 
-  return declaration.body.body.flatMap((member): ExportedFunction[] => {
+  return declaration.body.body.flatMap((member) => {
     if (
       (member.type !== "MethodDefinition" && member.type !== "PropertyDefinition") ||
-      !isPublicMember(member)
+      member.computed ||
+      !isPublicClassMember(member)
     ) {
       return [];
     }
@@ -100,7 +93,7 @@ function classMembers(declaration: ESTree.Class): ExportedFunction[] {
   });
 }
 
-function exportedFunctions(declaration: ESTree.Node | null): ExportedFunction[] {
+function exportedFunctions(declaration: ESTree.Node | null) {
   if (!declaration) {
     return [];
   }
@@ -118,7 +111,7 @@ function exportedFunctions(declaration: ESTree.Node | null): ExportedFunction[] 
   }
 
   if (declaration.type === "VariableDeclaration") {
-    return declaration.declarations.flatMap((declarator): ExportedFunction[] => {
+    return declaration.declarations.flatMap((declarator) => {
       const fn = functionValue(declarator.init);
 
       return fn && declarator.id.type === "Identifier" ? [{ name: declarator.id.name, fn }] : [];
@@ -141,7 +134,7 @@ export const explicitApiStates = defineRule({
     },
   },
   create(context) {
-    function check({ name, fn }: ExportedFunction): void {
+    function check({ name, fn }: ExportedFunction) {
       if (!fn.body) {
         return;
       }
@@ -161,32 +154,15 @@ export const explicitApiStates = defineRule({
 
     return {
       Program(program) {
-        const exportedNames = new Set<string>();
+        const exportedNames = locallyExportedValueNames(program.body);
 
         for (const statement of program.body) {
-          if (statement.type === "ExportNamedDeclaration" && !statement.source) {
-            if (statement.exportKind === "type") {
-              continue;
-            }
-
+          if (
+            (statement.type === "ExportNamedDeclaration" && statement.exportKind !== "type") ||
+            statement.type === "ExportDefaultDeclaration"
+          ) {
             for (const entry of exportedFunctions(statement.declaration)) {
               check(entry);
-            }
-
-            for (const specifier of statement.specifiers) {
-              if (specifier.exportKind !== "type" && specifier.local.type === "Identifier") {
-                exportedNames.add(specifier.local.name);
-              }
-            }
-          }
-
-          if (statement.type === "ExportDefaultDeclaration") {
-            if (statement.declaration.type === "Identifier") {
-              exportedNames.add(statement.declaration.name);
-            } else {
-              for (const entry of exportedFunctions(statement.declaration)) {
-                check(entry);
-              }
             }
           }
         }

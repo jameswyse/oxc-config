@@ -86,7 +86,7 @@ export function childNodes(node: ESTree.Node, visitorKeys: VisitorKeys): ESTree.
 
 const referencesByScope = new WeakMap<Scope, Map<ESTree.Node, Reference>>();
 
-function scopeReference(scope: Scope, node: ESTree.Node): Reference | undefined {
+function scopeReference(scope: Scope, node: ESTree.Node) {
   let references = referencesByScope.get(scope);
 
   if (references === undefined) {
@@ -139,7 +139,7 @@ export function isGlobal(
   );
 }
 
-function memberKey(node: ESTree.Node): ESTree.Node | null {
+function memberKey(node: ESTree.Node) {
   if ("property" in node) {
     return node.property;
   }
@@ -183,6 +183,26 @@ export function outermostExpression(node: ESTree.Node): ESTree.Node {
     : node;
 }
 
+export function functionUses(sourceCode: SourceCode, fn: FunctionNode): ESTree.Node[] {
+  const expression = outermostExpression(fn);
+  const declarator = expression.parent;
+
+  const binding =
+    fn.type === "FunctionDeclaration"
+      ? fn.id
+      : declarator?.type === "VariableDeclarator" &&
+          declarator.init === expression &&
+          declarator.id.type === "Identifier"
+        ? declarator.id
+        : null;
+
+  const variable = binding ? variableFor(sourceCode, binding) : null;
+
+  return variable
+    ? variable.references.map((reference) => outermostExpression(reference.identifier))
+    : [expression];
+}
+
 export function staticString(node: ESTree.Node | null | undefined): string | null {
   const value = node ? unwrapExpression(node) : null;
 
@@ -203,7 +223,7 @@ export function moduleExportName(node: ESTree.ModuleExportName): string {
   return node.type === "Identifier" ? node.name : node.value;
 }
 
-function dynamicImportSource(node: ESTree.Node): string | null {
+function dynamicImportSource(node: ESTree.Node) {
   const awaited = unwrapExpression(node);
   const loaded = awaited.type === "AwaitExpression" ? unwrapExpression(awaited.argument) : null;
 
@@ -226,13 +246,13 @@ const bindingCache = new WeakMap<Variable, ImportedBinding | null>();
 
 const referenceCache = new WeakMap<Variable, ApiReference | null>();
 
-function memberBinding(owner: ImportedBinding | null, name: string | null): ImportedBinding | null {
+function memberBinding(owner: ImportedBinding | null, name: string | null) {
   return (owner?.name === "*" || owner?.name === "default") && name !== null
     ? { source: owner.source, name }
     : null;
 }
 
-function constAlias(definition: Definition): ConstAlias | null {
+function constAlias(definition: Definition) {
   const declaration = definition.parent;
   const declarator = definition.node;
 
@@ -278,7 +298,7 @@ function aliasTarget<T>(
   alias: ConstAlias,
   resolve: (node: ESTree.Node) => T | null,
   member: (owner: T, name: string) => T | null,
-): T | null {
+) {
   const initial = resolve(alias.init);
 
   if (alias.pattern.type === "Identifier") {
@@ -299,7 +319,7 @@ function cached<T>(
   cache: WeakMap<Variable, T | null>,
   variable: Variable,
   resolve: () => T | null,
-): T | null {
+) {
   if (!cache.has(variable)) {
     cache.set(variable, null);
     cache.set(variable, resolve());
@@ -332,7 +352,7 @@ type StringPiece =
   | { readonly kind: "value"; readonly node: ESTree.Node }
   | { readonly kind: "unknown" };
 
-function isStringRaw(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isStringRaw(sourceCode: SourceCode, node: ESTree.Node) {
   const tag = unwrapExpression(node);
 
   return (
@@ -348,7 +368,7 @@ const maxStringLength = 65_536;
 
 const stringPieceCache = new WeakMap<Variable, StringPiece[] | null>();
 
-function joined(pieces: readonly StringPiece[]): StringPiece[] {
+function joined(pieces: readonly StringPiece[]) {
   const result: StringPiece[] = [];
 
   for (const piece of pieces) {
@@ -367,14 +387,14 @@ function joined(pieces: readonly StringPiece[]): StringPiece[] {
   );
 
   return result.length > maxStringPieces || length > maxStringLength
-    ? [{ kind: "unknown" }]
+    ? [{ kind: "unknown" } as const]
     : result;
 }
 
 function stringPieces(sourceCode: SourceCode, node: ESTree.Node): StringPiece[] {
   const value = unwrapExpression(node);
 
-  function template(literal: ESTree.TemplateLiteral, mode: "raw" | "cooked"): StringPiece[] {
+  function template(literal: ESTree.TemplateLiteral, mode: "raw" | "cooked") {
     return literal.quasis.flatMap((quasi, index) => {
       const text = mode === "raw" ? quasi.value.raw : (quasi.value.cooked ?? quasi.value.raw);
       const expression = literal.expressions[index];
@@ -427,7 +447,7 @@ export function constantString(sourceCode: SourceCode, node: ESTree.Node): strin
     : null;
 }
 
-function isRequireFactory(node: ESTree.Node, resolve: BindingResolver): boolean {
+function isRequireFactory(node: ESTree.Node, resolve: BindingResolver) {
   const binding = node.type === "CallExpression" ? resolve(node.callee) : null;
 
   return (
@@ -454,11 +474,7 @@ function isLoader(sourceCode: SourceCode, node: ESTree.Node, resolve: BindingRes
   );
 }
 
-function loadedSource(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-  resolve: BindingResolver,
-): string | null {
+function loadedSource(sourceCode: SourceCode, node: ESTree.Node, resolve: BindingResolver) {
   const required =
     node.type === "CallExpression" &&
     node.arguments.length === 1 &&
@@ -467,7 +483,7 @@ function loadedSource(
   return required ? staticString(node.arguments[0]) : dynamicImportSource(node);
 }
 
-function importBinding(definition: Definition): ImportedBinding | null {
+function importBinding(definition: Definition) {
   const declaration = definition.parent;
   const specifier = definition.node;
 
@@ -525,7 +541,7 @@ export function isRequire(sourceCode: SourceCode, node: ESTree.Node): boolean {
   return isLoader(sourceCode, node, (callee) => importedBinding(sourceCode, callee));
 }
 
-function bindingReference(binding: ImportedBinding): ApiReference | null {
+function bindingReference(binding: ImportedBinding) {
   const defaultExport = defaultImports.get(binding.source);
 
   if (binding.name === "default") {
@@ -539,7 +555,7 @@ function bindingReference(binding: ImportedBinding): ApiReference | null {
     : { module: binding.source, name: binding.name };
 }
 
-function memberReference(object: ApiReference, name: string): ApiReference | null {
+function memberReference(object: ApiReference, name: string) {
   if (object.name === "*") {
     return bindingReference({ source: object.module, name });
   }
@@ -686,7 +702,7 @@ function isGlobalThrough(
   node: ESTree.Node | null | undefined,
   name: string,
   objects: readonly string[],
-): boolean {
+) {
   const value = node ? unwrapExpression(node) : null;
 
   if (isGlobal(sourceCode, value, name)) {
@@ -716,7 +732,7 @@ export function isNodeGlobalValue(
   return isGlobalThrough(sourceCode, node, name, nodeGlobalObjects);
 }
 
-function returns(callback: FunctionNode, value: ESTree.Node): boolean {
+function returns(callback: FunctionNode, value: ESTree.Node) {
   const body = callback.body;
 
   if (body?.type !== "BlockStatement") {
@@ -733,7 +749,7 @@ function returns(callback: FunctionNode, value: ESTree.Node): boolean {
   );
 }
 
-function isProvider(callback: FunctionNode, value: ESTree.Node): boolean {
+function isProvider(callback: FunctionNode, value: ESTree.Node) {
   const provider = outermostExpression(callback);
   const holder = provider.parent;
 
@@ -830,7 +846,7 @@ export function ownReturns(fn: FunctionNode, visitorKeys: VisitorKeys): ESTree.N
 
   const returned: ESTree.Node[] = [];
 
-  const visit = (node: ESTree.Node): void => {
+  const visit = (node: ESTree.Node) => {
     if (node.type === "ReturnStatement") {
       if (node.argument !== null) {
         returned.push(node.argument);
@@ -873,4 +889,126 @@ export function pipeSteps(sourceCode: SourceCode, call: ESTree.CallExpression): 
   }
 
   return binding.name === "flow" ? { input: null, steps: values } : null;
+}
+
+export type TestRegistration = {
+  readonly options: readonly ESTree.Argument[];
+  readonly timeout: ESTree.Argument | undefined;
+};
+
+const testHooks = new Set(["beforeEach", "afterEach", "beforeAll", "afterAll"]);
+
+function registrationName(sourceCode: SourceCode, callee: ESTree.Expression) {
+  const api = apiReference(sourceCode, callee);
+
+  if (api && (testModules.has(api.module) || api.module === "global")) {
+    return api.name;
+  }
+
+  if (isGlobal(sourceCode, callee, "describe")) {
+    return "describe";
+  }
+
+  const base = callee.type === "MemberExpression" ? callee.object : null;
+
+  return base &&
+    propertyName(callee) === "describe" &&
+    apiReference(sourceCode, base)?.name === "test"
+    ? "describe"
+    : null;
+}
+
+function boundValue(sourceCode: SourceCode, node: ESTree.Node) {
+  const value = unwrapExpression(node);
+  const variable = value.type === "Identifier" ? variableFor(sourceCode, value) : null;
+  const definition = variable?.defs[0];
+
+  if (definition?.type === "FunctionName") {
+    return definition.node;
+  }
+
+  const init = variable === null ? null : unchangedInit(variable);
+
+  return init === null ? value : unwrapExpression(init);
+}
+
+function isCallbackArgument(sourceCode: SourceCode, node: ESTree.Argument | undefined) {
+  if (node === undefined || node.type === "SpreadElement") {
+    return false;
+  }
+
+  const value = boundValue(sourceCode, node);
+
+  return (
+    isFunctionNode(value) ||
+    (unwrapExpression(node).type === "Identifier" && value.type !== "ObjectExpression")
+  );
+}
+
+function timeoutArgument(sourceCode: SourceCode, node: ESTree.Argument | undefined) {
+  if (node === undefined || node.type === "SpreadElement") {
+    return undefined;
+  }
+
+  const value = boundValue(sourceCode, node);
+
+  return value.type === "ObjectExpression" || isFunctionNode(value) ? undefined : node;
+}
+
+export function testRegistration(
+  sourceCode: SourceCode,
+  node: ESTree.CallExpression,
+): TestRegistration | null {
+  const name = registrationName(sourceCode, node.callee);
+  const [, second, third] = node.arguments;
+
+  if (name !== null && testHooks.has(name)) {
+    return {
+      options: second === undefined ? [] : [second],
+      timeout: timeoutArgument(sourceCode, second),
+    };
+  }
+
+  return name !== null && ["test", "it", "describe"].includes(name)
+    ? {
+        options: node.arguments,
+        timeout: isCallbackArgument(sourceCode, second)
+          ? timeoutArgument(sourceCode, third)
+          : undefined,
+      }
+    : null;
+}
+
+export function isTestRunner(
+  sourceCode: SourceCode,
+  node: ESTree.Expression,
+  name: string,
+  modules: readonly string[],
+): boolean {
+  if (isGlobal(sourceCode, node, name)) {
+    return true;
+  }
+
+  const api = apiReference(sourceCode, node);
+
+  return api?.name === name && modules.includes(api.module);
+}
+
+export function isImportedTest(sourceCode: SourceCode, node: ESTree.Expression): boolean {
+  const api = apiReference(sourceCode, node);
+
+  return api?.name === "test" && api.module !== "global";
+}
+
+export function isImportedTestDescribeConfigure(
+  sourceCode: SourceCode,
+  callee: ESTree.Expression,
+): boolean {
+  return (
+    callee.type === "MemberExpression" &&
+    propertyName(callee) === "configure" &&
+    callee.object.type === "MemberExpression" &&
+    propertyName(callee.object) === "describe" &&
+    isImportedTest(sourceCode, callee.object.object)
+  );
 }

@@ -17,7 +17,7 @@ const listenerMethods = new Set([
   "prependOnceListener",
 ]);
 
-function electronName(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function electronName(sourceCode: SourceCode, node: ESTree.Node) {
   if (node.type === "MemberExpression") {
     return propertyName(node);
   }
@@ -37,7 +37,7 @@ function electronName(sourceCode: SourceCode, node: ESTree.Node): string | null 
   return node.name;
 }
 
-function isPropertyPosition(node: ESTree.Node): boolean {
+function isPropertyPosition(node: ESTree.Node) {
   const parent = node.parent;
 
   return (
@@ -46,7 +46,7 @@ function isPropertyPosition(node: ESTree.Node): boolean {
   );
 }
 
-function isWithin(node: ESTree.Node, root: ESTree.Node): boolean {
+function isWithin(node: ESTree.Node, root: ESTree.Node) {
   for (let current: ESTree.Node | null = node; current; current = current.parent) {
     if (current === root) {
       return true;
@@ -71,7 +71,7 @@ function isParameterOf(
   );
 }
 
-function resolveConstant(sourceCode: SourceCode, node: ESTree.Argument): ESTree.Argument {
+function resolveConstant(sourceCode: SourceCode, node: ESTree.Argument) {
   if (node.type !== "Identifier") {
     return node;
   }
@@ -93,7 +93,7 @@ function walk(
   node: ESTree.Node,
   visitorKeys: SourceCode["visitorKeys"],
   visit: (node: ESTree.Node) => void,
-): void {
+) {
   visit(node);
 
   for (const child of childNodes(node, visitorKeys)) {
@@ -121,7 +121,7 @@ export const electronNoRawIpcRendererExposure = defineRule({
   create(context) {
     const sourceCode = context.sourceCode;
 
-    function isIpcRenderer(node: ESTree.Node): boolean {
+    function isIpcRenderer(node: ESTree.Node) {
       return (
         (node.type === "Identifier" || node.type === "MemberExpression") &&
         !isPropertyPosition(node) &&
@@ -129,7 +129,7 @@ export const electronNoRawIpcRendererExposure = defineRule({
       );
     }
 
-    function checkCall(call: ESTree.CallExpression, method: string, root: ESTree.Node): void {
+    function checkCall(call: ESTree.CallExpression, method: string, root: ESTree.Node) {
       const [channel, listener] = call.arguments;
 
       if (channel?.type === "SpreadElement" || isParameterOf(sourceCode, channel, root)) {
@@ -141,7 +141,7 @@ export const electronNoRawIpcRendererExposure = defineRule({
       }
     }
 
-    function check(node: ESTree.Node, root: ESTree.Node): void {
+    function check(node: ESTree.Node, root: ESTree.Node) {
       if (!isIpcRenderer(node)) {
         return;
       }

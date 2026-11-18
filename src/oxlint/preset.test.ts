@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 
-import { lint, temporaryProject, write } from "../shared/config-fixture.ts";
+import { lint, temporaryProject, write } from "../shared/config.test-utils.ts";
 import { defineLintPreset, extendProfile, filesFor } from "./preset.ts";
 import { core } from "./profiles/core.ts";
 import { boundaries } from "./profiles/ownership.ts";
@@ -27,7 +27,7 @@ const createLintConfig = defineLintPreset({
   rules: { "wyse/no-vacuous-test-assertions": "off" },
 });
 
-function project(t: TestContext, config: SharedLintConfig): string {
+function project(t: TestContext, config: SharedLintConfig) {
   const root = temporaryProject(t);
   write(root, "oxlint.config.ts", `export default ${JSON.stringify(config)};\n`);
 

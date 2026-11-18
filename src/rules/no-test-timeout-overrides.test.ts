@@ -4,10 +4,6 @@ import { noTestTimeoutOverrides } from "./no-test-timeout-overrides.ts";
 ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
   valid: [
     'const a = b; const b = a; a("works", { timeout: 30_000 }, () => {});',
-    'import { vi } from "vitest"; vi.setConfig({ retry: 0 });',
-    "jest.retryTimes(0);",
-    'import { vi } from "vitest"; vi.setConfig({ retry: 0 as const });',
-    'import { test } from "vitest"; test("works", () => {}, { retry: 0 } as const);',
     'import { it } from "vitest"; it("works", () => {});',
     'import { it } from "vitest"; it("works", { tags: ["db"] }, () => {});',
     'import { test } from "@playwright/test"; test("works", { tag: "@slow" }, async () => {});',
@@ -20,15 +16,19 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
     "setTimeout(() => {}, 5000);",
     "page.setTimeout(5000);",
     'import { it } from "vitest"; function suite(test) { test.slow(); }',
+    "jest.retryTimes(3);",
+    'import { vi } from "vitest"; vi.setConfig({ retry: 3 });',
+    'import { test } from "vitest"; test("works", () => {}, { retry: 3 });',
+    'import { test } from "@playwright/test"; test.describe.configure({ mode: "serial", retries: 2 });',
+    'import { test } from "vitest"; test("tagged", { tag: "@smoke" }, callback);',
+    'import { test } from "vitest"; const options = { tag: "@smoke" }; test("tagged", options, callback);',
+    'import { test } from "vitest"; function check() {} test("tagged", { tag: "@smoke" }, check);',
+    'import { test } from "vitest"; const check = async () => {}; test("works", run, check);',
+    'import { beforeEach } from "vitest"; function reset() {} beforeEach(setup, reset);',
   ],
   invalid: [
-    { code: "jest.retryTimes(3);", errors: [{ messageId: "override" }] },
     {
       code: 'import { vi } from "vitest"; vi.setConfig({ ["testTimeout"]: 20000 });',
-      errors: [{ messageId: "override" }],
-    },
-    {
-      code: 'import { jest } from "@jest/globals"; jest.retryTimes(2, { logErrorsBeforeRetry: true });',
       errors: [{ messageId: "override" }],
     },
     {
@@ -48,14 +48,6 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
       errors: [{ messageId: "override" }],
     },
     {
-      code: 'import { test } from "vitest"; test("works", () => {}, { retry: 3 });',
-      errors: [{ messageId: "override" }],
-    },
-    {
-      code: 'import { describe } from "vitest"; describe("suite", { retry: 2 }, () => {});',
-      errors: [{ messageId: "override" }],
-    },
-    {
       code: 'import { test } from "node:test"; test("works", { timeout: 60_000 }, async () => {});',
       errors: [{ messageId: "override" }],
     },
@@ -68,15 +60,19 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
       errors: [{ messageId: "override" }],
     },
     {
+      code: 'import { it } from "vitest"; it("works", run, 10_000);',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { it } from "vitest"; const run = () => {}; it("works", run, LONG_TIMEOUT);',
+      errors: [{ messageId: "override" }],
+    },
+    {
       code: 'import { test } from "@playwright/test"; test.setTimeout(120_000);',
       errors: [{ messageId: "override" }],
     },
     {
       code: 'import { test } from "./fixtures"; test("works", async () => { test.slow(); });',
-      errors: [{ messageId: "override" }],
-    },
-    {
-      code: 'import { test } from "@playwright/test"; test.describe.configure({ mode: "serial", retries: 2 });',
       errors: [{ messageId: "override" }],
     },
     {
@@ -105,6 +101,14 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
     },
     {
       code: 'import { test } from "vitest"; (test.only as typeof test)("works", () => {}, 30_000);',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; test.describe.configure({ timeout: 60_000 });',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { test } from "vitest"; test("works", { retry: 2, timeout: 30_000 }, () => {});',
       errors: [{ messageId: "override" }],
     },
   ],

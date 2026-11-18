@@ -10,7 +10,7 @@ import {
   variableFor,
 } from "../shared/index.ts";
 
-import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
+import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 const comparisonMatchers = new Set([
   "toBe",
@@ -25,15 +25,11 @@ const comparisonMatchers = new Set([
 ]);
 
 const testSupport =
-  /(?:^|[/.])(?:tests?|__tests__|e2e|testing|fixtures?|mocks?|fakes?|stubs?|builders?|factories|support|helpers?)(?:[/.]|$)/u;
+  /(?:^|[/.])(?:tests?|test-utils|__tests__|e2e|testing|fixtures?|mocks?|fakes?|stubs?|builders?|factories|support|helpers?)(?:[/.]|$)/u;
 
 const projectSpecifier = /^(?:\.{1,2}\/|@\/|~\/|#)/u;
 
-function isProductionImport(
-  sourceCode: SourceCode,
-  directory: string,
-  callee: ESTree.Node,
-): boolean {
+function isProductionImport(sourceCode: SourceCode, directory: string, callee: ESTree.Node) {
   const definition = variableFor(sourceCode, callee)?.defs[0];
   const declaration = definition?.parent;
 
@@ -47,7 +43,7 @@ function isProductionImport(
   return projectSpecifier.test(source) && !testSupport.test(path.replaceAll("\\", "/"));
 }
 
-function calledName(sourceCode: SourceCode, directory: string, callee: ESTree.Node): string | null {
+function calledName(sourceCode: SourceCode, directory: string, callee: ESTree.Node) {
   if (callee.type === "Identifier") {
     return isProductionImport(sourceCode, directory, callee) ? callee.name : null;
   }
@@ -63,9 +59,7 @@ function calledName(sourceCode: SourceCode, directory: string, callee: ESTree.No
     : null;
 }
 
-type Constant = { readonly variable: Variable; readonly value: ESTree.Node };
-
-function constantValue(sourceCode: SourceCode, node: ESTree.Node): Constant | null {
+function constantValue(sourceCode: SourceCode, node: ESTree.Node) {
   const variable = node.type === "Identifier" ? variableFor(sourceCode, node) : null;
   const definition = variable?.defs[0];
 
@@ -80,7 +74,7 @@ function constantValue(sourceCode: SourceCode, node: ESTree.Node): Constant | nu
     : null;
 }
 
-function isExpectedArgument(node: ESTree.Node): boolean {
+function isExpectedArgument(node: ESTree.Node) {
   const call = node.parent;
 
   return (
@@ -91,13 +85,13 @@ function isExpectedArgument(node: ESTree.Node): boolean {
   );
 }
 
-function subjectRoots(sourceCode: SourceCode, argument: ESTree.Node): ESTree.Node[] {
+function subjectRoots(sourceCode: SourceCode, argument: ESTree.Node) {
   const constant = constantValue(sourceCode, argument);
 
   return constant === null ? [argument] : [argument, constant.value];
 }
 
-function expectedRoot(sourceCode: SourceCode, argument: ESTree.Node): ESTree.Node {
+function expectedRoot(sourceCode: SourceCode, argument: ESTree.Node) {
   const constant = constantValue(sourceCode, argument);
 
   return constant !== null &&
@@ -108,7 +102,7 @@ function expectedRoot(sourceCode: SourceCode, argument: ESTree.Node): ESTree.Nod
     : argument;
 }
 
-function productionCalls(sourceCode: SourceCode, directory: string, root: ESTree.Node): string[] {
+function productionCalls(sourceCode: SourceCode, directory: string, root: ESTree.Node) {
   const names: string[] = [];
   const pending = [root];
 
@@ -128,10 +122,7 @@ function productionCalls(sourceCode: SourceCode, directory: string, root: ESTree
   return names;
 }
 
-function positiveExpectation(
-  sourceCode: SourceCode,
-  node: ESTree.Node,
-): ESTree.CallExpression | null {
+function positiveExpectation(sourceCode: SourceCode, node: ESTree.Node) {
   let current = node;
 
   while (current.type === "MemberExpression") {

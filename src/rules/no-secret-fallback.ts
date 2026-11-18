@@ -7,7 +7,7 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 const secretName =
   /(?:SECRET|TOKEN|PASSWORD|PASSPHRASE|PRIVATE|CREDENTIAL|SALT|SIGNING|API_?KEY|ACCESS_?KEY|_KEY$|^KEY$)/iu;
 
-function isEnvironment(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isEnvironment(sourceCode: SourceCode, node: ESTree.Node) {
   const environment = unwrapExpression(node);
 
   if (environment.type !== "MemberExpression" || staticPropertyName(environment) !== "env") {
@@ -20,7 +20,7 @@ function isEnvironment(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function secretRead(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function secretRead(sourceCode: SourceCode, node: ESTree.Node) {
   const read = unwrapExpression(node);
   const name = read.type === "MemberExpression" ? staticPropertyName(read) : null;
 
@@ -32,7 +32,7 @@ function secretRead(sourceCode: SourceCode, node: ESTree.Node): string | null {
     : null;
 }
 
-function isLiteralFallback(node: ESTree.Node): boolean {
+function isLiteralFallback(node: ESTree.Node) {
   const fallback = unwrapExpression(node);
 
   return (

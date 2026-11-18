@@ -35,7 +35,7 @@ type ResolvedTypeMatcher = (
 
 const environmentsByProgram = new WeakMap<ESTree.Program, TypeAliasEnvironment>();
 
-function enclosingTypeScope(node: ESTree.Node): ESTree.Node {
+function enclosingTypeScope(node: ESTree.Node) {
   let current: ESTree.Node | null = node.parent;
 
   while (current !== null) {
@@ -55,7 +55,7 @@ function enclosingTypeScope(node: ESTree.Node): ESTree.Node {
   return node;
 }
 
-function declaredTypeBinding(node: ESTree.Node): DeclaredTypeBinding | null {
+function declaredTypeBinding(node: ESTree.Node) {
   if (node.type === "TSTypeAliasDeclaration") {
     return { alias: node, name: node.id.name };
   }
@@ -85,7 +85,7 @@ function collectTypeBindings(
   visitorKeys: VisitorKeys,
   bindingsByName: Map<string, TypeBinding[]>,
   aliases: ESTree.TSTypeAliasDeclaration[],
-): void {
+) {
   const declared = declaredTypeBinding(node);
 
   if (declared !== null) {
@@ -122,7 +122,7 @@ function createTypeAliasEnvironment(
   return environment;
 }
 
-function ancestorDistance(ancestor: ESTree.Node, node: ESTree.Node): number | null {
+function ancestorDistance(ancestor: ESTree.Node, node: ESTree.Node) {
   let current: ESTree.Node | null = node;
   let distance = 0;
 
@@ -138,11 +138,7 @@ function ancestorDistance(ancestor: ESTree.Node, node: ESTree.Node): number | nu
   return null;
 }
 
-function nearestTypeBindings(
-  name: string,
-  use: ESTree.Node,
-  environment: TypeAliasEnvironment,
-): readonly TypeBinding[] {
+function nearestTypeBindings(name: string, use: ESTree.Node, environment: TypeAliasEnvironment) {
   const candidates = environment.bindingsByName.get(name) ?? [];
   let nearestDistance = Number.POSITIVE_INFINITY;
   let nearest: TypeBinding[] = [];
@@ -191,7 +187,7 @@ function hasVisibleTypeBinding(
   );
 }
 
-function typeReferenceName(type: ESTree.TSTypeReference): string | null {
+function typeReferenceName(type: ESTree.TSTypeReference) {
   return type.typeName.type === "Identifier" ? type.typeName.name : null;
 }
 

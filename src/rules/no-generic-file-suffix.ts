@@ -21,7 +21,7 @@ const standardTerms = [
   "crossoriginresourcepolicy",
 ];
 
-function fileName(filename: string): string | null {
+function fileName(filename: string) {
   const segments = basename(filename).split(".").slice(0, -1);
 
   if (segments.at(-1) === "d") {
@@ -37,7 +37,7 @@ function fileName(filename: string): string | null {
   return segments.length > 1 && companionSegments.has(name.toLowerCase()) ? null : name;
 }
 
-function isGeneric(name: string): boolean {
+function isGeneric(name: string) {
   const normalised = name.replaceAll(/[-_]/g, "").toLowerCase();
 
   return (
@@ -46,7 +46,7 @@ function isGeneric(name: string): boolean {
   );
 }
 
-function declaredNames(declaration: ESTree.Declaration): string[] {
+function declaredNames(declaration: ESTree.Declaration) {
   if (declaration.type === "VariableDeclaration") {
     return declaration.declarations.flatMap((declarator) =>
       declarator.id.type === "Identifier" ? [declarator.id.name] : [],
@@ -56,7 +56,7 @@ function declaredNames(declaration: ESTree.Declaration): string[] {
   return declaration.id?.type === "Identifier" ? [declaration.id.name] : [];
 }
 
-function exportedNames(program: ESTree.Program): string[] {
+function exportedNames(program: ESTree.Program) {
   return program.body.flatMap((statement) => {
     if (statement.type !== "ExportNamedDeclaration") {
       return [];

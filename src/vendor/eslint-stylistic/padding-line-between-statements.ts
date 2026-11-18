@@ -11,7 +11,7 @@ import {
 } from "./padding-line-ast.ts";
 
 // Adapted from ESLint Stylistic's padding-line-between-statements rule, by way of anti-slop.
-import type { Context, CreateRule, ESTree, Location, SourceCode } from "@oxlint/plugins";
+import type { Context, CreateRule, ESTree, SourceCode } from "@oxlint/plugins";
 
 import type { TokenOrComment } from "./padding-line-ast.ts";
 
@@ -67,9 +67,9 @@ function isSelectorOption(option: StatementOption): option is SelectorOption {
   return typeof option === "object" && !isStatementMatcherList(option);
 }
 
-function newKeywordTester(type: string | string[], keyword: string): NodeTestObject {
+function newKeywordTester(type: string | string[], keyword: string) {
   return {
-    test(node, sourceCode) {
+    test(node: ESTree.Node, sourceCode: SourceCode) {
       const isSameKeyword = sourceCode.getFirstToken(node)?.value === keyword;
       const isSameType = Array.isArray(type) ? type.includes(node.type) : type === node.type;
 
@@ -78,11 +78,11 @@ function newKeywordTester(type: string | string[], keyword: string): NodeTestObj
   };
 }
 
-function newNodeTypeTester(type: string): NodeTestObject {
-  return { test: (node) => node.type === type };
+function newNodeTypeTester(type: string) {
+  return { test: (node: ESTree.Node) => node.type === type };
 }
 
-function isIIFEStatement(node: ESTree.Node): boolean {
+function isIIFEStatement(node: ESTree.Node) {
   if (node.type === "ExpressionStatement") {
     let expression = skipChainExpression(node.expression);
 
@@ -110,7 +110,7 @@ function isIIFEStatement(node: ESTree.Node): boolean {
   return false;
 }
 
-function isCJSRequire(node: ESTree.Node): boolean {
+function isCJSRequire(node: ESTree.Node) {
   if (node.type === "VariableDeclaration") {
     const declaration = node.declarations[0];
 
@@ -130,7 +130,7 @@ function isCJSRequire(node: ESTree.Node): boolean {
   return false;
 }
 
-function isBlockLikeStatement(node: ESTree.Node, sourceCode: SourceCode): boolean {
+function isBlockLikeStatement(node: ESTree.Node, sourceCode: SourceCode) {
   if (node.type === "DoWhileStatement" && node.body.type === "BlockStatement") {
     return true;
   }
@@ -152,7 +152,7 @@ function isBlockLikeStatement(node: ESTree.Node, sourceCode: SourceCode): boolea
   );
 }
 
-function isDirective(node: ESTree.Node, sourceCode: SourceCode): boolean {
+function isDirective(node: ESTree.Node, sourceCode: SourceCode) {
   return (
     isTopLevelExpressionStatement(node) &&
     node.expression.type === "Literal" &&
@@ -161,7 +161,7 @@ function isDirective(node: ESTree.Node, sourceCode: SourceCode): boolean {
   );
 }
 
-function isDirectivePrologue(node: ESTree.Node, sourceCode: SourceCode): boolean {
+function isDirectivePrologue(node: ESTree.Node, sourceCode: SourceCode) {
   if (
     isDirective(node, sourceCode) &&
     node.parent &&
@@ -184,7 +184,7 @@ function isDirectivePrologue(node: ESTree.Node, sourceCode: SourceCode): boolean
   return false;
 }
 
-function isCJSExport(node: ESTree.Node): boolean {
+function isCJSExport(node: ESTree.Node) {
   if (node.type === "ExpressionStatement") {
     const expression = node.expression;
 
@@ -210,11 +210,11 @@ function isCJSExport(node: ESTree.Node): boolean {
   return false;
 }
 
-function isExpression(node: ESTree.Node, sourceCode: SourceCode): boolean {
+function isExpression(node: ESTree.Node, sourceCode: SourceCode) {
   return node.type === "ExpressionStatement" && !isDirectivePrologue(node, sourceCode);
 }
 
-function getActualLastToken(node: ESTree.Node, sourceCode: SourceCode): TokenOrComment {
+function getActualLastToken(node: ESTree.Node, sourceCode: SourceCode) {
   const semiToken = sourceCode.getLastToken(node);
 
   if (semiToken === null) {
@@ -235,15 +235,11 @@ function getActualLastToken(node: ESTree.Node, sourceCode: SourceCode): TokenOrC
   return isSemicolonLessStyle ? prevToken : semiToken;
 }
 
-function replacerToRemovePaddingLines(
-  _: string,
-  trailingSpaces: string,
-  indentSpaces: string,
-): string {
+function replacerToRemovePaddingLines(_: string, trailingSpaces: string, indentSpaces: string) {
   return trailingSpaces + indentSpaces;
 }
 
-function getReportLoc(node: ESTree.Node, sourceCode: SourceCode): Location {
+function getReportLoc(node: ESTree.Node, sourceCode: SourceCode) {
   if (isSingleLine(node)) {
     return node.loc;
   }
@@ -258,14 +254,14 @@ function getReportLoc(node: ESTree.Node, sourceCode: SourceCode): Location {
   return { start: node.loc.start, end: { line, column: sourceLine.length } };
 }
 
-function verifyForAny(): void {}
+function verifyForAny() {}
 
 function verifyForNever(
   context: Context,
   _: ESTree.Node,
   nextNode: ESTree.Node,
   paddingLines: readonly PaddingPair[],
-): void {
+) {
   if (paddingLines.length === 0) {
     return;
   }
@@ -303,7 +299,7 @@ function verifyForAlways(
   prevNode: ESTree.Node,
   nextNode: ESTree.Node,
   paddingLines: readonly PaddingPair[],
-): void {
+) {
   if (paddingLines.length > 0) {
     return;
   }
@@ -314,7 +310,7 @@ function verifyForAlways(
     loc: getReportLoc(nextNode, context.sourceCode),
     fix(fixer) {
       const sourceCode = context.sourceCode;
-      let prevToken = getActualLastToken(prevNode, sourceCode);
+      let prevToken: TokenOrComment = getActualLastToken(prevNode, sourceCode);
 
       const nextToken =
         sourceCode.getFirstTokenBetween(prevToken, nextNode, {
@@ -343,7 +339,7 @@ const PaddingTypes: Readonly<Record<PaddingType, { readonly verify: Verify }>> =
   always: { verify: verifyForAlways },
 };
 
-function hasCJSExportText(node: ESTree.Node, sourceCode: SourceCode): boolean {
+function hasCJSExportText(node: ESTree.Node, sourceCode: SourceCode) {
   return (
     node.type === "ExpressionStatement" &&
     node.expression.type === "AssignmentExpression" &&
@@ -351,7 +347,7 @@ function hasCJSExportText(node: ESTree.Node, sourceCode: SourceCode): boolean {
   );
 }
 
-function hasCJSImportText(node: ESTree.Node, sourceCode: SourceCode): boolean {
+function hasCJSImportText(node: ESTree.Node, sourceCode: SourceCode) {
   if (node.type !== "VariableDeclaration") {
     return false;
   }
@@ -421,8 +417,8 @@ type StatementType =
 
 const StatementTypes = new Map<string, NodeTestObject>([
   ...Object.entries(BaseStatementTypes),
-  ...Object.entries(MaybeMultilineStatementType).flatMap(
-    ([key, value]): [string, NodeTestObject][] => [
+  ...Object.entries(MaybeMultilineStatementType).flatMap<[string, NodeTestObject]>(
+    ([key, value]) => [
       [key, value],
       [
         `singleline-${key}`,
@@ -501,7 +497,7 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
       const selectorMatchedNodes = new Map<string, Set<ESTree.Node>>();
       const pendingPairs: PendingPair[] = [];
 
-      function collectSelectorOption(option: StatementOption): void {
+      function collectSelectorOption(option: StatementOption) {
         if (isStatementMatcherList(option)) {
           for (const item of option) {
             collectSelectorOption(item);
@@ -524,11 +520,11 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
 
       let scopeInfo: ScopeInfo | null = null;
 
-      function enterScope(): void {
+      function enterScope() {
         scopeInfo = { upper: scopeInfo, prevNode: null };
       }
 
-      function exitScope(): void {
+      function exitScope() {
         if (scopeInfo) {
           scopeInfo = scopeInfo.upper;
         }
@@ -572,10 +568,7 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
         }
       }
 
-      function getPaddingType(
-        prevNode: ESTree.Node,
-        nextNode: ESTree.Node,
-      ): { readonly verify: Verify } {
+      function getPaddingType(prevNode: ESTree.Node, nextNode: ESTree.Node) {
         for (let i = options.length - 1; i >= 0; --i) {
           const configure = options[i];
 
@@ -591,16 +584,15 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
         return PaddingTypes.any;
       }
 
-      function getPaddingLineSequences(
-        prevNode: ESTree.Node,
-        nextNode: ESTree.Node,
-      ): PaddingPair[] {
+      function getPaddingLineSequences(prevNode: ESTree.Node, nextNode: ESTree.Node) {
         const pairs: PaddingPair[] = [];
-        let prevToken = getActualLastToken(prevNode, sourceCode);
+        let prevToken: TokenOrComment = getActualLastToken(prevNode, sourceCode);
 
         if (nextNode.loc.start.line - prevToken.loc.end.line >= 2) {
           do {
-            const token = sourceCode.getTokenAfter(prevToken, { includeComments: true });
+            const token: TokenOrComment | null = sourceCode.getTokenAfter(prevToken, {
+              includeComments: true,
+            });
 
             if (token === null) {
               throw new Error("Padding rule invariant: token after padding is missing");
@@ -617,7 +609,7 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
         return pairs;
       }
 
-      function verify(node: ESTree.Node): void {
+      function verify(node: ESTree.Node) {
         if (
           !node.parent ||
           ![
@@ -647,7 +639,7 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
         scopeInfo.prevNode = node;
       }
 
-      function verifyPendingPairs(): void {
+      function verifyPendingPairs() {
         for (const { prevNode, nextNode } of pendingPairs) {
           const type = getPaddingType(prevNode, nextNode);
           const paddingLines = getPaddingLineSequences(prevNode, nextNode);
@@ -655,15 +647,15 @@ function createPaddingLineRule(options: readonly PaddingLineOption[]): CreateRul
         }
       }
 
-      function verifyThenEnterScope(node: ESTree.Node): void {
+      function verifyThenEnterScope(node: ESTree.Node) {
         verify(node);
         enterScope();
       }
 
       const selectorMatchListeners = Object.fromEntries(
-        Array.from(
+        Array.from<string, [string, (node: ESTree.Node) => void]>(
           selectorMatchedNodes.keys(),
-          (selector): [string, (node: ESTree.Node) => void] => [
+          (selector) => [
             selector,
             (node) => {
               selectorMatchedNodes.get(selector)?.add(node);

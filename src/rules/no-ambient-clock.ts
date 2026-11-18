@@ -46,23 +46,23 @@ const clockHelpers = new Set([
   "date-fns/fp/isMatchWithOptions",
 ]);
 
-function helperPath(source: string, name: string): string {
+function helperPath(source: string, name: string) {
   return name === "default" || source.endsWith(`/${name}`) ? source : `${source}/${name}`;
 }
 
-function isClockHelper(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isClockHelper(sourceCode: SourceCode, node: ESTree.Node) {
   const binding = importedBinding(sourceCode, node);
 
   return binding !== null && clockHelpers.has(helperPath(binding.source, binding.name));
 }
 
-function exposesClockHelper(source: string): boolean {
+function exposesClockHelper(source: string) {
   return [...clockHelpers].some(
     (helper) => helperPath(source, helper.slice(helper.lastIndexOf("/") + 1)) === helper,
   );
 }
 
-function isTypeImport(definition: Variable["defs"][number]): boolean {
+function isTypeImport(definition: Variable["defs"][number]) {
   const declaration = definition.parent;
   const specifier = definition.node;
 
@@ -73,7 +73,7 @@ function isTypeImport(definition: Variable["defs"][number]): boolean {
   );
 }
 
-function isTypePosition(node: ESTree.Node): boolean {
+function isTypePosition(node: ESTree.Node) {
   const parent = node.parent;
   const declaration = parent?.parent;
 
@@ -86,7 +86,7 @@ function isTypePosition(node: ESTree.Node): boolean {
   );
 }
 
-function isValueReference(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isValueReference(sourceCode: SourceCode, node: ESTree.Node) {
   const variable = variableFor(sourceCode, node);
   const definition = variable?.defs[0];
 
@@ -122,7 +122,7 @@ function helperUse(node: ESTree.Node): ESTree.Node {
   return node;
 }
 
-function isWriteTarget(node: ESTree.Node): boolean {
+function isWriteTarget(node: ESTree.Node) {
   const expression = outermostExpression(node);
 
   const target =
@@ -148,7 +148,7 @@ function isWriteTarget(node: ESTree.Node): boolean {
   );
 }
 
-function isFollowedAlias(node: ESTree.Node): boolean {
+function isFollowedAlias(node: ESTree.Node) {
   const value = outermostExpression(node);
   const declarator = value.parent;
   const declaration = declarator?.parent;
@@ -163,10 +163,7 @@ function isFollowedAlias(node: ESTree.Node): boolean {
   );
 }
 
-function destructuredExports(
-  sourceCode: SourceCode,
-  node: ESTree.ExportNamedDeclaration,
-): ESTree.Node[] {
+function destructuredExports(sourceCode: SourceCode, node: ESTree.ExportNamedDeclaration) {
   const declaration = node.declaration;
 
   if (declaration?.type !== "VariableDeclaration") {
@@ -179,13 +176,13 @@ function destructuredExports(
     .flatMap((variable) => variable.identifiers);
 }
 
-function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isTimeZoneDate(sourceCode: SourceCode, node: ESTree.Node) {
   const binding = importedBinding(sourceCode, node);
 
   return binding !== null && timeZoneModules.has(binding.source) && timeZoneDates.has(binding.name);
 }
 
-function isCurrentTimeZoneDate(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+function isCurrentTimeZoneDate(sourceCode: SourceCode, node: ESTree.CallExpression) {
   const callee = unwrapExpression(node.callee);
   const [zone] = node.arguments;
 
@@ -211,13 +208,13 @@ export const noAmbientClock = defineRule({
   create(context) {
     const sourceCode = context.sourceCode;
 
-    function report(node: ESTree.Node): void {
+    function report(node: ESTree.Node) {
       if (!isInjectionSeam(node)) {
         context.report({ node, messageId: "clock" });
       }
     }
 
-    function reportHelper(reference: ESTree.Node): void {
+    function reportHelper(reference: ESTree.Node) {
       const use = helperUse(reference);
 
       if ((use !== reference || !isFollowedAlias(reference)) && !isInjectedValue(use)) {

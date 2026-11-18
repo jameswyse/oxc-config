@@ -4,13 +4,7 @@ type SortImports = OxfmtConfig["sortImports"];
 
 export type FormatConfig = OxfmtConfig & { ignorePatterns: string[] };
 
-function mergedSortImports({
-  defaults,
-  option,
-}: {
-  defaults: SortImports;
-  option: SortImports;
-}): SortImports {
+function mergedSortImports({ defaults, option }: { defaults: SortImports; option: SortImports }) {
   if (option === undefined || (option === true && typeof defaults === "object")) {
     return defaults;
   }

@@ -4,20 +4,22 @@ import {
   variableFor,
   isGlobal,
   propertyName,
+  staticPropertyName,
   isPlaywright,
   apiReference,
+  importedBinding,
   isEffectModule,
   testContext,
+  unwrapExpression,
 } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 import type { TestContext } from "../shared/index.ts";
 
-function constantValue(
-  sourceCode: SourceCode,
-  node: ESTree.Node | null | undefined,
-): ESTree.Node | null | undefined {
+function constantValue(sourceCode: SourceCode, argument: ESTree.Node | null | undefined) {
+  const node = argument ? unwrapExpression(argument) : argument;
+
   if (node?.type !== "Identifier") {
     return node;
   }
@@ -29,12 +31,13 @@ function constantValue(
     definition?.type === "Variable" &&
     definition.parent?.type === "VariableDeclaration" &&
     definition.parent.kind === "const" &&
-    declarator?.type === "VariableDeclarator"
-    ? declarator.init
+    declarator?.type === "VariableDeclarator" &&
+    declarator.init
+    ? unwrapExpression(declarator.init)
     : node;
 }
 
-function numericLiteral(sourceCode: SourceCode, argument: ESTree.Node | null | undefined): boolean {
+function numericLiteral(sourceCode: SourceCode, argument: ESTree.Node | null | undefined) {
   const node = constantValue(sourceCode, argument);
 
   return (
@@ -46,21 +49,53 @@ function numericLiteral(sourceCode: SourceCode, argument: ESTree.Node | null | u
   );
 }
 
-function globalTimer(sourceCode: SourceCode, callee: ESTree.Expression): boolean {
+function globalTimer(sourceCode: SourceCode, callee: ESTree.Expression) {
   if (isGlobal(sourceCode, callee, "setTimeout")) {
     return true;
   }
 
   return (
     callee.type === "MemberExpression" &&
-    propertyName(callee) === "setTimeout" &&
+    staticPropertyName(callee) === "setTimeout" &&
     ["globalThis", "global", "window"].some((name) => isGlobal(sourceCode, callee.object, name))
   );
 }
 
-function singleExpression(
-  body: ESTree.FunctionBody | ESTree.Expression | null,
-): ESTree.Expression | null {
+const timerModules = ["node:timers/promises", "timers/promises"];
+
+function isScheduler(sourceCode: SourceCode, node: ESTree.Expression) {
+  const api = apiReference(sourceCode, node);
+
+  return (
+    (api?.name === "scheduler" && timerModules.includes(api.module)) ||
+    isGlobal(sourceCode, node, "scheduler")
+  );
+}
+
+function isBunSleep(sourceCode: SourceCode, callee: ESTree.Expression) {
+  const binding = importedBinding(sourceCode, callee);
+
+  return binding?.source === "bun" && binding.name === "sleep";
+}
+
+function isRuntimeSleep(sourceCode: SourceCode, callee: ESTree.Expression) {
+  if (isBunSleep(sourceCode, callee)) {
+    return true;
+  }
+
+  if (callee.type !== "MemberExpression") {
+    return false;
+  }
+
+  const method = staticPropertyName(callee);
+
+  return (
+    (method === "wait" && isScheduler(sourceCode, callee.object)) ||
+    (method === "sleep" && isGlobal(sourceCode, callee.object, "Bun"))
+  );
+}
+
+function singleExpression(body: ESTree.FunctionBody | ESTree.Expression | null) {
   if (body === null) {
     return null;
   }
@@ -86,7 +121,7 @@ function resolvesWithoutValue(
   sourceCode: SourceCode,
   callback: ESTree.Argument | undefined,
   resolve: ESTree.BindingIdentifier,
-): boolean {
+) {
   if (callback?.type === "Identifier") {
     return variableFor(sourceCode, callback) === variableFor(sourceCode, resolve);
   }
@@ -110,7 +145,7 @@ function resolvesWithoutValue(
   );
 }
 
-function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression): boolean {
+function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression) {
   if (!isGlobal(sourceCode, node.callee, "Promise")) {
     return false;
   }
@@ -144,11 +179,7 @@ function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression): boole
   return resolvesWithoutValue(sourceCode, timer.arguments[0], resolve);
 }
 
-function playwrightPage(
-  sourceCode: SourceCode,
-  node: ESTree.Expression,
-  enclosing: TestContext,
-): boolean {
+function playwrightPage(sourceCode: SourceCode, node: ESTree.Expression, enclosing: TestContext) {
   if (!isPlaywright(enclosing.api.module) || node.type !== "Identifier") {
     return false;
   }
@@ -174,7 +205,7 @@ function playwrightPage(
   });
 }
 
-function isFixedDuration(sourceCode: SourceCode, argument: ESTree.Argument | undefined): boolean {
+function isFixedDuration(sourceCode: SourceCode, argument: ESTree.Argument | undefined) {
   const node = constantValue(sourceCode, argument);
 
   if (node?.type === "Literal") {
@@ -195,10 +226,10 @@ function isFixedDuration(sourceCode: SourceCode, argument: ESTree.Argument | und
   );
 }
 
-function isEffectSleep(sourceCode: SourceCode, node: ESTree.CallExpression): boolean {
+function isEffectSleep(sourceCode: SourceCode, node: ESTree.CallExpression) {
   return (
     node.callee.type === "MemberExpression" &&
-    propertyName(node.callee) === "sleep" &&
+    staticPropertyName(node.callee) === "sleep" &&
     isEffectModule(sourceCode, node.callee.object, "Effect") &&
     isFixedDuration(sourceCode, node.arguments[0])
   );
@@ -242,16 +273,19 @@ export const noFixedTestDelay = defineRule({
 
         const importedTimer =
           api?.name === "setTimeout" &&
-          ["node:timers/promises", "timers/promises"].includes(api.module) &&
+          timerModules.includes(api.module) &&
           numericLiteral(sourceCode, node.arguments[0]);
+
+        const runtimeTimer =
+          isRuntimeSleep(sourceCode, node.callee) && numericLiteral(sourceCode, node.arguments[0]);
 
         const browserTimer =
           node.callee.type === "MemberExpression" &&
-          propertyName(node.callee) === "waitForTimeout" &&
+          staticPropertyName(node.callee) === "waitForTimeout" &&
           numericLiteral(sourceCode, node.arguments[0]) &&
           playwrightPage(sourceCode, node.callee.object, enclosing);
 
-        if (importedTimer || browserTimer) {
+        if (importedTimer || runtimeTimer || browserTimer) {
           context.report({ node, messageId: "delay" });
         }
       },

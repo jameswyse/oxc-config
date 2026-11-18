@@ -9,7 +9,7 @@ function collectInferTypeParameterNames(
   node: ESTree.Node,
   visitorKeys: VisitorKeys,
   names: Set<string>,
-): void {
+) {
   if (node.type === "TSInferType") {
     names.add(node.typeParameter.name.name);
   }

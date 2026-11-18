@@ -28,10 +28,14 @@ import { noGenericObjectGuard } from "./rules/no-generic-object-guard.ts";
 import { noGetPasswordForm } from "./rules/no-get-password-form.ts";
 import { noHardcodedCredential } from "./rules/no-hardcoded-credential.ts";
 import { noImportTimeEffects } from "./rules/no-import-time-effects.ts";
+import { noInternalReturnTypes } from "./rules/no-internal-return-types.ts";
 import { noOptionalTestAction } from "./rules/no-optional-test-action.ts";
 import { noPassThroughFunction } from "./rules/no-pass-through-function.ts";
+import { noRecorderPolling } from "./rules/no-recorder-polling.ts";
 import { noSecretFallback } from "./rules/no-secret-fallback.ts";
+import { noStubbedBehavior } from "./rules/no-stubbed-behavior.ts";
 import { noSwallowedErrors } from "./rules/no-swallowed-errors.ts";
+import { noTestRetries } from "./rules/no-test-retries.ts";
 import { noTestTimeoutOverrides } from "./rules/no-test-timeout-overrides.ts";
 import { noTimingUnsafeComparison } from "./rules/no-timing-unsafe-comparison.ts";
 import { noUnboundedRetry } from "./rules/no-unbounded-retry.ts";
@@ -40,10 +44,13 @@ import { noUncheckedIndexSearch } from "./rules/no-unchecked-index-search.ts";
 import { noUncontrolledTestClock } from "./rules/no-uncontrolled-test-clock.ts";
 import { noUnsettledPromise } from "./rules/no-unsettled-promise.ts";
 import { noVacuousTestAssertions } from "./rules/no-vacuous-test-assertions.ts";
+import { noWildcardSourceExports } from "./rules/no-wildcard-source-exports.ts";
+import { requireMswUnhandledError } from "./rules/require-msw-unhandled-error.ts";
 import { requireServiceOperationSpan } from "./rules/require-service-operation-span.ts";
 import { requireSuppressionReason } from "./rules/require-suppression-reason.ts";
 import { serverActionGuard } from "./rules/server-action-guard.ts";
 import { statementSpacing } from "./rules/statement-spacing.ts";
+import { testFileSuffixes } from "./rules/test-file-suffixes.ts";
 import { typeGuardName } from "./rules/type-guard-name.ts";
 import { noManualEffectErrorTag } from "./vendor/anti-slop/effect/rules/no-manual-effect-error-tag.ts";
 import { noServiceConstructorImports } from "./vendor/anti-slop/effect/rules/no-service-constructor-imports.ts";
@@ -63,7 +70,7 @@ import { noUnknownTypeAliases } from "./vendor/anti-slop/rules/no-unknown-type-a
 import { noUnsafeDictionaryType } from "./vendor/anti-slop/rules/no-unsafe-dictionary-type.ts";
 import { noWidenThenAssert } from "./vendor/anti-slop/rules/no-widen-then-assert.ts";
 
-function packageVersion(): string {
+function packageVersion() {
   const manifest: unknown = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   );
@@ -114,12 +121,14 @@ const wyse = definePlugin({
     "no-get-password-form": noGetPasswordForm,
     "no-hardcoded-credential": noHardcodedCredential,
     "no-import-time-effects": noImportTimeEffects,
+    "no-internal-return-types": noInternalReturnTypes,
     "no-known-value-widening": noKnownValueWidening,
     "no-manual-effect-error-tag": noManualEffectErrorTag,
     "no-module-mocking": noModuleMocking,
     "no-object-parameters": noObjectParameters,
     "no-optional-test-action": noOptionalTestAction,
     "no-pass-through-function": noPassThroughFunction,
+    "no-recorder-polling": noRecorderPolling,
     "no-reduce-accumulator-copy": noReduceAccumulatorCopy,
     "no-reflect-apply": noReflectApply,
     "no-reflect-get": noReflectGet,
@@ -127,23 +136,28 @@ const wyse = definePlugin({
     "no-secret-fallback": noSecretFallback,
     "no-service-constructor-imports": noServiceConstructorImports,
     "no-shape-in-symbol-names": noForbiddenTermInSymbolNames,
+    "no-stubbed-behavior": noStubbedBehavior,
     "no-swallowed-errors": noSwallowedErrors,
+    "no-test-retries": noTestRetries,
     "no-test-timeout-overrides": noTestTimeoutOverrides,
     "no-timing-unsafe-comparison": noTimingUnsafeComparison,
+    "no-unbounded-retry": noUnboundedRetry,
     "no-unchecked-fetch-response": noUncheckedFetchResponse,
     "no-unchecked-index-search": noUncheckedIndexSearch,
     "no-uncontrolled-test-clock": noUncontrolledTestClock,
-    "no-unbounded-retry": noUnboundedRetry,
     "no-unknown-returns": noUnknownReturns,
     "no-unknown-type-aliases": noUnknownTypeAliases,
     "no-unsafe-dictionary-type": noUnsafeDictionaryType,
     "no-unsettled-promise": noUnsettledPromise,
     "no-vacuous-test-assertions": noVacuousTestAssertions,
     "no-widen-then-assert": noWidenThenAssert,
-    "require-suppression-reason": requireSuppressionReason,
+    "no-wildcard-source-exports": noWildcardSourceExports,
+    "require-msw-unhandled-error": requireMswUnhandledError,
     "require-service-operation-span": requireServiceOperationSpan,
+    "require-suppression-reason": requireSuppressionReason,
     "server-action-guard": serverActionGuard,
     "statement-spacing": statementSpacing,
+    "test-file-suffixes": testFileSuffixes,
     "type-guard-name": typeGuardName,
   },
 });

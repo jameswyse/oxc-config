@@ -6,7 +6,7 @@ import type { ESTree, Reference } from "@oxlint/plugins";
 
 type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
-function isOptionallyReached(reference: Reference, executor: FunctionNode): boolean {
+function isOptionallyReached(reference: Reference, executor: FunctionNode) {
   let child: ESTree.Node = reference.identifier;
 
   for (
@@ -28,7 +28,7 @@ function isOptionallyReached(reference: Reference, executor: FunctionNode): bool
   return false;
 }
 
-function doesNothing(executor: FunctionNode): boolean {
+function doesNothing(executor: FunctionNode) {
   const body = executor.body;
 
   if (body?.type === "BlockStatement") {
@@ -43,7 +43,7 @@ function doesNothing(executor: FunctionNode): boolean {
   );
 }
 
-function endsByThrowing(executor: FunctionNode): boolean {
+function endsByThrowing(executor: FunctionNode) {
   return (
     executor.body?.type === "BlockStatement" && executor.body.body.at(-1)?.type === "ThrowStatement"
   );

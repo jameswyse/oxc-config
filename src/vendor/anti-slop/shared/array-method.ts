@@ -51,7 +51,7 @@ function arrayMethodTarget(expression: ESTree.Node): ArrayMethodTarget | null {
   return null;
 }
 
-function isArrayAnnotation(type: ESTree.TSType): boolean {
+function isArrayAnnotation(type: ESTree.TSType) {
   if (type.type === "TSArrayType" || type.type === "TSTupleType") {
     return true;
   }

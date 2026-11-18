@@ -1,9 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join, matchesGlob, resolve } from "node:path";
+import { basename, dirname, matchesGlob, resolve } from "node:path";
 
 import { defineRule } from "@oxlint/plugins";
 
 import { projectPath } from "../shared/index.ts";
+import { nearestPackageDirectory, readPackageManifest } from "../shared/package-manifest.ts";
 
 import type { ESTree } from "@oxlint/plugins";
 
@@ -30,30 +30,6 @@ const routeFiles = new Set([
 
 const rootFiles = new Set(["middleware", "proxy", "instrumentation", "instrumentation-client"]);
 
-const manifests = new Map<string, string | null>();
-
-const entrypoints = new Map<string, string[]>();
-
-function manifestDirectory(directory: string): string | null {
-  const cached = manifests.get(directory);
-
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const parent = dirname(directory);
-
-  const manifest = existsSync(join(directory, "package.json"))
-    ? directory
-    : parent === directory
-      ? null
-      : manifestDirectory(parent);
-
-  manifests.set(directory, manifest);
-
-  return manifest;
-}
-
 function targets(value: unknown): string[] {
   if (typeof value === "string") {
     return [value];
@@ -70,22 +46,8 @@ function targets(value: unknown): string[] {
   return [];
 }
 
-function manifestFields(directory: string): ReadonlyMap<string, unknown> {
-  const manifest: unknown = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
-
-  return new Map<string, unknown>(
-    typeof manifest === "object" && manifest !== null ? Object.entries(manifest) : [],
-  );
-}
-
-function packageEntrypoints(directory: string): string[] {
-  const cached = entrypoints.get(directory);
-
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const manifest = manifestFields(directory);
+function packageEntrypoints(directory: string) {
+  const manifest = readPackageManifest(directory) ?? new Map<string, unknown>();
 
   const fields = [
     manifest.get("main") ?? "index.js",
@@ -96,20 +58,16 @@ function packageEntrypoints(directory: string): string[] {
     manifest.get("typings"),
   ];
 
-  const resolved = [...targets(fields), ...targets(manifest.get("exports"))].map((target) =>
+  return [...targets(fields), ...targets(manifest.get("exports"))].map((target) =>
     resolve(directory, target),
   );
-
-  entrypoints.set(directory, resolved);
-
-  return resolved;
 }
 
-function withoutExtension(path: string): string {
+function withoutExtension(path: string) {
   return path.replace(/(?:\.d)?\.[cm]?[jt]sx?$/, "");
 }
 
-function isPackageEntrypoint(directory: string, filename: string): boolean {
+function isPackageEntrypoint(directory: string, filename: string) {
   const file = withoutExtension(filename);
 
   return packageEntrypoints(directory).some((target) =>
@@ -119,7 +77,7 @@ function isPackageEntrypoint(directory: string, filename: string): boolean {
   );
 }
 
-function isFrameworkFile(directory: string, filename: string): boolean {
+function isFrameworkFile(directory: string, filename: string) {
   const path = projectPath(directory, filename).split("/").slice(0, -1);
   const name = withoutExtension(basename(filename));
   const directories = path[0] === "src" ? path.slice(1) : path;
@@ -131,11 +89,11 @@ function isFrameworkFile(directory: string, filename: string): boolean {
   );
 }
 
-function exportedLocalName(specifier: ESTree.ExportSpecifier): string {
+function exportedLocalName(specifier: ESTree.ExportSpecifier) {
   return specifier.local.type === "Literal" ? specifier.local.value : specifier.local.name;
 }
 
-function isForwarding(body: ESTree.Program["body"]): boolean {
+function isForwarding(body: ESTree.Program["body"]) {
   const imported = new Set<string>();
   const exported = new Set<string>();
   let forwards = false;
@@ -203,10 +161,10 @@ export const noForwardingModule = defineRule({
           return;
         }
 
-        const directory = manifestDirectory(dirname(context.filename));
+        const directory = nearestPackageDirectory(dirname(context.filename));
 
         if (
-          directory === null ||
+          directory === undefined ||
           (!isFrameworkFile(directory, context.filename) &&
             !isPackageEntrypoint(directory, context.filename))
         ) {

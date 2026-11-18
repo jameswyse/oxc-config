@@ -56,11 +56,11 @@ function isTypeNode(node: ESTree.Node): node is ESTree.TSType {
   return typeNodeKinds.has(node.type);
 }
 
-function typeReferenceName(type: ESTree.TSTypeReference): string | null {
+function typeReferenceName(type: ESTree.TSTypeReference) {
   return type.typeName.type === "Identifier" ? type.typeName.name : null;
 }
 
-function isInsideTypeAliasDeclaration(node: ESTree.Node): boolean {
+function isInsideTypeAliasDeclaration(node: ESTree.Node) {
   let current: ESTree.Node | null = node.parent;
 
   while (current !== null && current.type !== "Program") {
@@ -74,7 +74,7 @@ function isInsideTypeAliasDeclaration(node: ESTree.Node): boolean {
   return false;
 }
 
-function isPlainAliasConsumerUse(node: ESTree.TSType, environment: TypeEnvironment): boolean {
+function isPlainAliasConsumerUse(node: ESTree.TSType, environment: TypeEnvironment) {
   if (node.type !== "TSTypeReference" || node.typeArguments?.params.length) {
     return false;
   }
@@ -88,7 +88,7 @@ function isPlainAliasConsumerUse(node: ESTree.TSType, environment: TypeEnvironme
   );
 }
 
-function isInsideTypeParameterConstraint(node: ESTree.TSType): boolean {
+function isInsideTypeParameterConstraint(node: ESTree.TSType) {
   let child: ESTree.Node = node;
   let parent: ESTree.Node = node.parent;
 
@@ -104,7 +104,7 @@ function isInsideTypeParameterConstraint(node: ESTree.TSType): boolean {
   return false;
 }
 
-function shouldReportType(node: ESTree.TSType, environment: TypeEnvironment): boolean {
+function shouldReportType(node: ESTree.TSType, environment: TypeEnvironment) {
   if (isInsideTypeParameterConstraint(node)) {
     return false;
   }
@@ -145,11 +145,11 @@ export const noUnsafeDictionaryType = defineRule({
   createOnce(context) {
     let environment: TypeEnvironment | null = null;
 
-    const report = (node: ESTree.Node, value: string): void => {
+    const report = (node: ESTree.Node, value: string) => {
       context.report({ node, messageId: "unsafeDictionary", data: { value } });
     };
 
-    const reportIfUnsafe = (node: ESTree.TSType): void => {
+    const reportIfUnsafe = (node: ESTree.TSType) => {
       if (environment === null || !shouldReportType(node, environment)) {
         return;
       }

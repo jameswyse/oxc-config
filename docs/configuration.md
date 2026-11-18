@@ -54,7 +54,7 @@ Add the scripts:
 }
 ```
 
-Errors fail the run. Warnings mark patterns worth reviewing that have legitimate uses, so they report without blocking: dependency cycles, barrel and forwarding modules, `typeof` outside type guards, swallowed errors, boolean parameters on exported functions, pass-through functions, import-time effects, deprecated APIs, tests without a matching owner file, test timeout overrides, test expectations derived from production code, and with the `effect` profile, dropped error causes, retries that never stop and service operations without spans. `lint:fix` formats after applying lint fixes, then lints again to confirm the result.
+Errors fail the run. Warnings mark patterns worth reviewing that have legitimate uses, so they report without blocking: dependency cycles, barrel and forwarding modules, `typeof` outside type guards, swallowed errors, boolean parameters on exported functions, pass-through functions, import-time effects, deprecated APIs, test expectations derived from production code, and with the `effect` profile, dropped error causes, retries that never stop and service operations without spans. `lint:fix` formats after applying lint fixes, then lints again to confirm the result.
 
 The defaults enable no framework profiles or project boundaries, because both depend on the project. [Select the profiles](#select-framework-and-runtime-profiles), then [configure the boundaries](#enforce-project-boundaries) that fit.
 

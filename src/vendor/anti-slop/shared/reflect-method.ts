@@ -3,7 +3,7 @@ import { variableFor } from "../../../shared/index.ts";
 // Adapted from dmmulroy/anti-slop
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
-function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Node): boolean {
+function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Node) {
   if (expression.type !== "Identifier" || expression.name !== "Reflect") {
     return false;
   }

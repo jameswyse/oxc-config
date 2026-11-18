@@ -11,7 +11,7 @@ import {
   run,
   temporaryProject,
   write,
-} from "../shared/config-fixture.ts";
+} from "../shared/config.test-utils.ts";
 import { createLintConfig } from "./config.ts";
 
 import type { LintOptions } from "./config.ts";
@@ -20,7 +20,7 @@ const lintUrl = new URL("./config.ts", import.meta.url).href;
 
 const formatUrl = new URL("../oxfmt/config.ts", import.meta.url).href;
 
-function fixture(t: TestContext, options: LintOptions = {}): string {
+function fixture(t: TestContext, options: LintOptions = {}) {
   const root = temporaryProject(t);
   write(
     root,
@@ -121,6 +121,8 @@ test("framework policy is scoped and React rules survive a matching test overrid
   const source = 'export function View() {\n  return <img src="/image.png" />;\n}\n';
   write(root, "client/view.test.tsx", source);
   write(root, "server/view.test.tsx", source);
+  write(root, "client/view.tsx", source);
+  write(root, "server/view.tsx", source);
   const client = lint(root, "client/view.test.tsx");
   assert.equal(client.status, 1, client.output);
   assert.match(client.output, /alt-text/);
@@ -525,7 +527,7 @@ test("the electron profile guards renderer imports and window preferences", (t) 
   assert.equal(withoutProfile.status, 0, withoutProfile.output);
 });
 
-test("timeout overrides warn in unit tests and are ignored in end-to-end tests", (t) => {
+test("timeout overrides fail in unit tests and are ignored in end-to-end tests, while retries fail everywhere", (t) => {
   const root = fixture(t, { vitest: true, tests: ["e2e/**/*.ts"] });
   write(root, "src/slow.ts", "export function run(): number {\n  return 1;\n}\n");
   write(
@@ -538,12 +540,79 @@ test("timeout overrides warn in unit tests and are ignored in end-to-end tests",
     "e2e/flow.e2e.ts",
     'import { expect, test } from "@playwright/test";\n\ntest("opens", async ({ page }) => {\n  test.setTimeout(120_000);\n  await expect(page).toHaveTitle("App");\n});\n',
   );
+  write(
+    root,
+    "e2e/retry.e2e.ts",
+    'import { expect, test } from "@playwright/test";\n\ntest.describe.configure({ retries: 2 });\n\ntest("opens", async ({ page }) => {\n  await expect(page).toHaveTitle("App");\n});\n',
+  );
+  write(
+    root,
+    "playwright.config.ts",
+    'import { defineConfig } from "@playwright/test";\n\nexport default defineConfig({ retries: 2 });\n',
+  );
   const unit = lint(root, "src/slow.test.ts");
-  assert.equal(unit.status, 0, unit.output);
+  assert.equal(unit.status, 1, unit.output);
   assert.match(unit.output, /no-test-timeout-overrides/);
   const endToEnd = lint(root, "e2e/flow.e2e.ts");
   assert.equal(endToEnd.status, 0, endToEnd.output);
   assert.doesNotMatch(endToEnd.output, /no-test-timeout-overrides/);
+  const retry = lint(root, "e2e/retry.e2e.ts");
+  assert.equal(retry.status, 1, retry.output);
+  assert.match(retry.output, /no-test-retries/);
+  const config = lint(root, "playwright.config.ts");
+  assert.equal(config.status, 1, config.output);
+  assert.match(config.output, /no-test-retries/);
+});
+
+test("retries are checked in every file and colocated e2e tests keep their timeout exemption", (t) => {
+  const root = fixture(t, { vitest: true });
+
+  const retried =
+    'import { test } from "@playwright/test";\n\ntest.describe.configure({ retries: 2 });\n';
+
+  write(root, "src/login.e2e.ts", retried);
+  write(root, "jest.setup.ts", 'import { jest } from "@jest/globals";\n\njest.retryTimes(3);\n');
+  write(
+    root,
+    "vitest.workspace.ts",
+    'import { defineWorkspace } from "vitest/config";\n\nexport default defineWorkspace([{ test: { retry: 3 } }]);\n',
+  );
+  write(root, "src/client.ts", "export const options = { retries: 3 };\n");
+  write(root, "src/checkout.ts", "export const checkout = 1;\n");
+  write(
+    root,
+    "src/checkout.e2e.test.ts",
+    'import { expect, test } from "@playwright/test";\n\nimport { checkout } from "./checkout";\n\ntest("opens", () => {\n  test.setTimeout(120_000);\n  expect(checkout).toStrictEqual(1);\n});\n',
+  );
+
+  for (const path of ["src/login.e2e.ts", "jest.setup.ts", "vitest.workspace.ts"]) {
+    const result = lint(root, path);
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /no-test-retries/);
+  }
+
+  const production = lint(root, "src/client.ts");
+  assert.equal(production.status, 0, production.output);
+  assert.doesNotMatch(production.output, /no-test-retries/);
+  const endToEnd = lint(root, "src/checkout.e2e.test.ts");
+  assert.equal(endToEnd.status, 0, endToEnd.output);
+  assert.doesNotMatch(endToEnd.output, /no-test-timeout-overrides/);
+});
+
+test("MSW setup and test support file names are checked outside the test globs", (t) => {
+  const root = fixture(t);
+  write(
+    root,
+    "src/setup.ts",
+    'import { setupServer } from "msw/node";\n\nexport const server = setupServer();\n\nserver.listen();\n',
+  );
+  write(root, "src/user.test-helpers.ts", 'export const user = { name: "Ada" };\n');
+  const setup = lint(root, "src/setup.ts");
+  assert.equal(setup.status, 1, setup.output);
+  assert.match(setup.output, /require-msw-unhandled-error/);
+  const mocks = lint(root, "src/user.test-helpers.ts");
+  assert.equal(mocks.status, 1, mocks.output);
+  assert.match(mocks.output, /test-file-suffixes/);
 });
 
 test("production, unit-test and React rules stay in their scopes", (t) => {

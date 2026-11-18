@@ -20,7 +20,7 @@ import type { TypeEnvironment, WideningTarget } from "../shared/dictionary-types
 
 type FunctionExpression = ESTree.ArrowFunctionExpression | ESTree.Function;
 
-function unwrapExpression(expression: ESTree.Expression): ESTree.Expression {
+function unwrapExpression(expression: ESTree.Expression) {
   let current = expression;
 
   while (
@@ -36,7 +36,7 @@ function unwrapExpression(expression: ESTree.Expression): ESTree.Expression {
   return current;
 }
 
-function variableDeclarator(variable: Variable): ESTree.VariableDeclarator | null {
+function variableDeclarator(variable: Variable) {
   if (variable.defs.length !== 1) {
     return null;
   }
@@ -48,7 +48,7 @@ function variableDeclarator(variable: Variable): ESTree.VariableDeclarator | nul
     : null;
 }
 
-function isStableConstVariable(variable: Variable, declarator: ESTree.VariableDeclarator): boolean {
+function isStableConstVariable(variable: Variable, declarator: ESTree.VariableDeclarator) {
   return (
     declarator.parent.type === "VariableDeclaration" &&
     declarator.parent.kind === "const" &&
@@ -60,7 +60,7 @@ function hasKnownEvidence(
   sourceCode: SourceCode,
   expression: ESTree.Expression,
   visitedVariables = new Set<Variable>(),
-): boolean {
+) {
   if (isKnownEvidenceExpression(expression)) {
     return true;
   }
@@ -102,10 +102,7 @@ function isFunctionExpression(node: ESTree.Node): node is FunctionExpression {
   );
 }
 
-function localFunctionForCall(
-  sourceCode: SourceCode,
-  callee: ESTree.Expression,
-): FunctionExpression | null {
+function localFunctionForCall(sourceCode: SourceCode, callee: ESTree.Expression) {
   const unwrapped = unwrapExpression(callee);
 
   if (isFunctionExpression(unwrapped)) {
@@ -147,10 +144,7 @@ function localFunctionForCall(
   return isFunctionExpression(unwrappedInitializer) ? unwrappedInitializer : null;
 }
 
-function variableTypeAnnotation(
-  sourceCode: SourceCode,
-  variable: Variable,
-): ESTree.TSTypeAnnotation | null {
+function variableTypeAnnotation(sourceCode: SourceCode, variable: Variable) {
   if (variable.defs.length !== 1) {
     return null;
   }
@@ -180,7 +174,7 @@ function variableTypeAnnotation(
   return parameter === void 0 ? null : (functionParameterTypeAnnotation(parameter) ?? null);
 }
 
-function hasInformativeType(type: ESTree.TSType, environment: TypeEnvironment): boolean {
+function hasInformativeType(type: ESTree.TSType, environment: TypeEnvironment) {
   return classifyUnsafeDictionaryValue(type, environment) === null;
 }
 
@@ -189,7 +183,7 @@ function hasKnownCallArgumentEvidence(
   expression: ESTree.Expression,
   environment: TypeEnvironment,
   visitedVariables = new Set<Variable>(),
-): boolean {
+) {
   if (expression.type === "ParenthesizedExpression" || expression.type === "TSNonNullExpression") {
     return hasKnownCallArgumentEvidence(
       sourceCode,
@@ -250,10 +244,7 @@ function hasKnownCallArgumentEvidence(
   return hasKnownCallArgumentEvidence(sourceCode, declarator.init, environment, visitedVariables);
 }
 
-function typePredicateSubjectIndex(
-  sourceCode: SourceCode,
-  owner: FunctionExpression,
-): number | null {
+function typePredicateSubjectIndex(sourceCode: SourceCode, owner: FunctionExpression) {
   const predicate = owner.returnType?.typeAnnotation;
 
   if (predicate?.type !== "TSTypePredicate" || predicate.parameterName.type !== "Identifier") {
@@ -272,13 +263,13 @@ function typePredicateSubjectIndex(
 function annotationTarget(
   annotation: ESTree.TSTypeAnnotation | null | undefined,
   environment: TypeEnvironment,
-): WideningTarget | null {
+) {
   return annotation === null || annotation === void 0
     ? null
     : classifyWideningTarget(annotation.typeAnnotation, environment);
 }
 
-function enclosingFunction(node: ESTree.Node): FunctionExpression | null {
+function enclosingFunction(node: ESTree.Node) {
   let current: ESTree.Node | null = node.parent;
 
   while (current !== null && current.type !== "Program") {
@@ -296,7 +287,7 @@ function enclosingFunction(node: ESTree.Node): FunctionExpression | null {
   return null;
 }
 
-function sourceKeyName(sourceCode: SourceCode, key: ESTree.PropertyKey): string {
+function sourceKeyName(sourceCode: SourceCode, key: ESTree.PropertyKey) {
   if (key.type === "Identifier" || key.type === "PrivateIdentifier") {
     return key.name;
   }
@@ -308,7 +299,7 @@ function sourceKeyName(sourceCode: SourceCode, key: ESTree.PropertyKey): string 
   return sourceCode.getText(key);
 }
 
-function functionName(sourceCode: SourceCode, owner: FunctionExpression | null): string {
+function functionName(sourceCode: SourceCode, owner: FunctionExpression | null) {
   if (owner === null) {
     return "anonymous function";
   }
@@ -330,17 +321,17 @@ function functionName(sourceCode: SourceCode, owner: FunctionExpression | null):
   return "anonymous function";
 }
 
-function isEmptyObjectExpression(expression: ESTree.Expression): boolean {
+function isEmptyObjectExpression(expression: ESTree.Expression) {
   const unwrapped = unwrapExpression(expression);
 
   return unwrapped.type === "ObjectExpression" && unwrapped.properties.length === 0;
 }
 
-function isDictionaryAccumulatorTarget(destination: WideningTarget): boolean {
+function isDictionaryAccumulatorTarget(destination: WideningTarget) {
   return destination.kind === "open dictionary" || destination.kind === "generic container";
 }
 
-function hasParentAssertion(node: ESTree.TSAsExpression | ESTree.TSTypeAssertion): boolean {
+function hasParentAssertion(node: ESTree.TSAsExpression | ESTree.TSTypeAssertion) {
   return node.parent.type === "TSAsExpression" || node.parent.type === "TSTypeAssertion";
 }
 
@@ -363,7 +354,7 @@ export const noKnownValueWidening = defineRule({
       expression: ESTree.Expression,
       destination: WideningTarget | null,
       subject: string,
-    ): void => {
+    ) => {
       if (destination === null) {
         return;
       }
@@ -383,9 +374,7 @@ export const noKnownValueWidening = defineRule({
       });
     };
 
-    const targetFromAnnotation = (
-      annotation: ESTree.TSTypeAnnotation | null | undefined,
-    ): WideningTarget | null =>
+    const targetFromAnnotation = (annotation: ESTree.TSTypeAnnotation | null | undefined) =>
       environment === null ? null : annotationTarget(annotation, environment);
 
     return {

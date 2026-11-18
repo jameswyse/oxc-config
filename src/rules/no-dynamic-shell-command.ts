@@ -21,17 +21,13 @@ const shellCommands = new Set(["exec", "execSync"]);
 
 const shellOptionCommands = new Set(["spawn", "spawnSync", "execFile", "execFileSync"]);
 
-type ShellOption = { readonly node: ESTree.Node; readonly index: number };
-
-function childProcessFunction(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function childProcessFunction(sourceCode: SourceCode, node: ESTree.Node) {
   const binding = importedBinding(sourceCode, node);
 
   return binding !== null && childProcessModules.has(binding.source) ? binding.name : null;
 }
 
-type ConstChain = { readonly value: ESTree.Node; readonly variables: readonly Variable[] };
-
-function constChain(sourceCode: SourceCode, node: ESTree.Node): ConstChain {
+function constChain(sourceCode: SourceCode, node: ESTree.Node) {
   const variables: Variable[] = [];
   let value = unwrapExpression(node);
 
@@ -53,7 +49,7 @@ function constChain(sourceCode: SourceCode, node: ESTree.Node): ConstChain {
   return { value, variables };
 }
 
-function promisifiedFunction(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function promisifiedFunction(sourceCode: SourceCode, node: ESTree.Node) {
   const call = constChain(sourceCode, node).value;
   const binding = call.type === "CallExpression" ? importedBinding(sourceCode, call.callee) : null;
   const original = call.type === "CallExpression" ? call.arguments[0] : undefined;
@@ -66,15 +62,13 @@ function promisifiedFunction(sourceCode: SourceCode, node: ESTree.Node): string 
     : null;
 }
 
-function isDynamic(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isDynamic(sourceCode: SourceCode, node: ESTree.Node) {
   return node.type === "SpreadElement" || dynamicParts(sourceCode, node).length > 0;
 }
 
-function childProcessCallee(sourceCode: SourceCode, node: ESTree.Node): string | null {
+function childProcessCallee(sourceCode: SourceCode, node: ESTree.Node) {
   return childProcessFunction(sourceCode, node) ?? promisifiedFunction(sourceCode, node);
 }
-
-type ReferenceUse = "input" | "read" | "write" | "alias" | "escape";
 
 const readingParents = new Set(["TSTypeQuery"]);
 
@@ -94,7 +88,7 @@ function patternRoot(node: ESTree.Node): ESTree.Node {
   return isPatternPart ? patternRoot(parent) : node;
 }
 
-function isAssignmentTarget(node: ESTree.Node): boolean {
+function isAssignmentTarget(node: ESTree.Node) {
   const target = patternRoot(node);
   const holder = target.parent;
 
@@ -105,7 +99,7 @@ function isAssignmentTarget(node: ESTree.Node): boolean {
   );
 }
 
-function memberUse(member: ESTree.Node): ReferenceUse {
+function memberUse(member: ESTree.Node) {
   const outer = outermostExpression(member);
   const user = outer.parent;
 
@@ -119,7 +113,7 @@ function memberUse(member: ESTree.Node): ReferenceUse {
   return isWrite ? "write" : "read";
 }
 
-function referenceUse(sourceCode: SourceCode, identifier: ESTree.Node): ReferenceUse {
+function referenceUse(sourceCode: SourceCode, identifier: ESTree.Node) {
   const reference = outermostExpression(identifier);
   const parent = reference.parent;
 
@@ -138,7 +132,7 @@ function referenceUse(sourceCode: SourceCode, identifier: ESTree.Node): Referenc
   return parent !== null && readingParents.has(parent.type) ? "read" : "escape";
 }
 
-function staticArray(sourceCode: SourceCode, node: ESTree.Node): ESTree.ArrayExpression | null {
+function staticArray(sourceCode: SourceCode, node: ESTree.Node) {
   const value = unwrapExpression(node);
 
   if (value.type === "ArrayExpression") {
@@ -164,7 +158,7 @@ function staticArray(sourceCode: SourceCode, node: ESTree.Node): ESTree.ArrayExp
     : null;
 }
 
-function hasDynamicArguments(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function hasDynamicArguments(sourceCode: SourceCode, node: ESTree.Node) {
   const array = staticArray(sourceCode, node);
 
   return array === null
@@ -172,7 +166,7 @@ function hasDynamicArguments(sourceCode: SourceCode, node: ESTree.Node): boolean
     : array.elements.some((element) => element !== null && isDynamic(sourceCode, element));
 }
 
-function aliasVariable(sourceCode: SourceCode, identifier: ESTree.Node): Variable | null {
+function aliasVariable(sourceCode: SourceCode, identifier: ESTree.Node) {
   const declarator = outermostExpression(identifier).parent;
 
   const alias =
@@ -183,7 +177,7 @@ function aliasVariable(sourceCode: SourceCode, identifier: ESTree.Node): Variabl
   return alias !== null && unchangedInit(alias) !== null ? alias : null;
 }
 
-function isWrittenTo(sourceCode: SourceCode, variable: Variable): boolean {
+function isWrittenTo(sourceCode: SourceCode, variable: Variable) {
   const pending = [variable];
   const checked = new Set<Variable>();
 
@@ -211,7 +205,7 @@ function isWrittenTo(sourceCode: SourceCode, variable: Variable): boolean {
   return false;
 }
 
-function optionsObject(sourceCode: SourceCode, node: ESTree.Node): ESTree.ObjectExpression | null {
+function optionsObject(sourceCode: SourceCode, node: ESTree.Node) {
   const { value, variables } = constChain(sourceCode, node);
 
   return value.type === "ObjectExpression" &&
@@ -223,7 +217,7 @@ function optionsObject(sourceCode: SourceCode, node: ESTree.Node): ESTree.Object
 function enablesShell(
   sourceCode: SourceCode,
   property: ESTree.ObjectExpression["properties"][number],
-): boolean {
+) {
   if (property.type !== "Property" || staticPropertyName(property) !== "shell") {
     return false;
   }
@@ -237,7 +231,7 @@ function enablesShell(
   return Boolean(constantString(sourceCode, value));
 }
 
-function shellOption(sourceCode: SourceCode, call: ESTree.CallExpression): ShellOption | null {
+function shellOption(sourceCode: SourceCode, call: ESTree.CallExpression) {
   for (const [index, argument] of call.arguments.entries()) {
     const options = optionsObject(sourceCode, argument);
     const property = options?.properties.find((candidate) => enablesShell(sourceCode, candidate));

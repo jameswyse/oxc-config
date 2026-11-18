@@ -22,15 +22,13 @@ function unwrap(node: ESTree.Node): ESTree.Node {
   return value.type === "AwaitExpression" ? unwrap(value.argument) : value;
 }
 
-function isFetch(sourceCode: SourceCode, node: ESTree.Node | null): boolean {
+function isFetch(sourceCode: SourceCode, node: ESTree.Node | null) {
   const value = node === null ? null : unwrap(node);
 
   return value?.type === "CallExpression" && isGlobalValue(sourceCode, value.callee, "fetch");
 }
 
-type Use = "body" | "check" | "metadata" | "other";
-
-function isLogged(sourceCode: SourceCode, node: ESTree.Node): boolean {
+function isLogged(sourceCode: SourceCode, node: ESTree.Node) {
   const position = node.parent;
 
   return (
@@ -42,7 +40,7 @@ function isLogged(sourceCode: SourceCode, node: ESTree.Node): boolean {
   );
 }
 
-function use(sourceCode: SourceCode, reference: Reference): Use {
+function use(sourceCode: SourceCode, reference: Reference) {
   const response = outermostExpression(reference.identifier);
   const member = response.parent;
 
@@ -68,7 +66,7 @@ function use(sourceCode: SourceCode, reference: Reference): Use {
     : "other";
 }
 
-function readsBodyUnchecked(sourceCode: SourceCode, variables: readonly Variable[]): boolean {
+function readsBodyUnchecked(sourceCode: SourceCode, variables: readonly Variable[]) {
   const uses = variables.flatMap((variable) =>
     variable.references
       .filter((reference) => reference.isRead())

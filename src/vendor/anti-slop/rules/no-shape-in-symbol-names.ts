@@ -7,11 +7,11 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 const FORBIDDEN_SYMBOL_NAME = "shape";
 
-function containsForbiddenSymbolName(name: string): boolean {
+function containsForbiddenSymbolName(name: string) {
   return name.toLowerCase().includes(FORBIDDEN_SYMBOL_NAME);
 }
 
-function isBorrowedMemberName(node: ESTree.Node): boolean {
+function isBorrowedMemberName(node: ESTree.Node) {
   const parent = node.parent;
 
   if (parent === null || parent.type !== "MemberExpression") {
@@ -21,7 +21,7 @@ function isBorrowedMemberName(node: ESTree.Node): boolean {
   return parent.property === node && !parent.computed;
 }
 
-function importedName(specifier: ESTree.ImportSpecifier): string {
+function importedName(specifier: ESTree.ImportSpecifier) {
   return specifier.imported.type === "Identifier"
     ? specifier.imported.name
     : specifier.imported.value;
@@ -38,7 +38,7 @@ function isPackageImport(specifier: ESTree.Node): specifier is ESTree.ImportSpec
 function isBorrowedImportName(
   sourceCode: SourceCode,
   node: ESTree.Node & { readonly name: string },
-): boolean {
+) {
   const parent = node.parent;
 
   if (parent?.type === "ImportSpecifier" && parent.imported === node) {
@@ -71,7 +71,7 @@ export const noForbiddenTermInSymbolNames = defineRule({
     },
   },
   createOnce(context) {
-    const reportForbiddenSymbolName = (node: ESTree.Node & { readonly name: string }): void => {
+    const reportForbiddenSymbolName = (node: ESTree.Node & { readonly name: string }) => {
       if (
         !containsForbiddenSymbolName(node.name) ||
         isBorrowedMemberName(node) ||

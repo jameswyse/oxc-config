@@ -6,11 +6,6 @@ import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 type Preference = readonly [name: string, expected: boolean | string];
 
-type Setting = {
-  readonly property: ESTree.ObjectProperty | null;
-  readonly known: boolean;
-};
-
 const hardenedPreferences: readonly Preference[] = [
   ["contextIsolation", true],
   ["sandbox", true],
@@ -28,7 +23,7 @@ const dangerousPreferences: readonly Preference[] = [
   ["webviewTag", false],
 ];
 
-function unwrap(node: ESTree.Node | null | undefined): ESTree.Node | null | undefined {
+function unwrap(node: ESTree.Node | null | undefined) {
   if (
     node?.type === "TSAsExpression" ||
     node?.type === "TSSatisfiesExpression" ||
@@ -41,7 +36,7 @@ function unwrap(node: ESTree.Node | null | undefined): ESTree.Node | null | unde
   return node;
 }
 
-function keyName(property: ESTree.ObjectProperty): string | null {
+function keyName(property: ESTree.ObjectProperty) {
   if (!property.computed && property.key.type === "Identifier") {
     return property.key.name;
   }
@@ -49,7 +44,7 @@ function keyName(property: ESTree.ObjectProperty): string | null {
   return property.key.type === "Literal" ? String(property.key.value) : null;
 }
 
-function setting(object: ESTree.ObjectExpression, name: string): Setting {
+function setting(object: ESTree.ObjectExpression, name: string) {
   let property: ESTree.ObjectProperty | null = null;
   let known = true;
 
@@ -67,7 +62,7 @@ function setting(object: ESTree.ObjectExpression, name: string): Setting {
   return { property, known };
 }
 
-function hasValue(property: ESTree.ObjectProperty | null, expected: boolean | string): boolean {
+function hasValue(property: ESTree.ObjectProperty | null, expected: boolean | string) {
   const value = unwrap(property?.value);
 
   return value?.type === "Literal" && value.value === expected;

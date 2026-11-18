@@ -3,7 +3,7 @@ import { noHardcodedCredential } from "./no-hardcoded-credential.ts";
 
 const error = { messageId: "credential" };
 
-function assembled(...parts: string[]): string {
+function assembled(...parts: string[]) {
   return parts.join("");
 }
 

@@ -9,7 +9,7 @@ function isTypeAssertionExpression(node: ESTree.Node): node is TypeAssertionExpr
   return node.type === "TSAsExpression" || node.type === "TSTypeAssertion";
 }
 
-function unwrapParenthesizedExpression(expression: ESTree.Expression): ESTree.Expression {
+function unwrapParenthesizedExpression(expression: ESTree.Expression) {
   let current = expression;
 
   while (current.type === "ParenthesizedExpression") {
@@ -19,7 +19,7 @@ function unwrapParenthesizedExpression(expression: ESTree.Expression): ESTree.Ex
   return current;
 }
 
-function isConstAssertion(node: TypeAssertionExpression): boolean {
+function isConstAssertion(node: TypeAssertionExpression) {
   const { typeAnnotation } = node;
 
   return (
@@ -29,7 +29,7 @@ function isConstAssertion(node: TypeAssertionExpression): boolean {
   );
 }
 
-function isOutermostAssertionInChain(node: TypeAssertionExpression): boolean {
+function isOutermostAssertionInChain(node: TypeAssertionExpression) {
   let current: ESTree.Expression = node;
   let parent = node.parent;
 
@@ -41,7 +41,7 @@ function isOutermostAssertionInChain(node: TypeAssertionExpression): boolean {
   return !isTypeAssertionExpression(parent) || parent.expression !== current;
 }
 
-function isForbiddenAssertionChain(node: TypeAssertionExpression): boolean {
+function isForbiddenAssertionChain(node: TypeAssertionExpression) {
   let assertionCount = 0;
   let hasNonConstAssertion = false;
   let current: ESTree.Expression = node;
@@ -68,7 +68,7 @@ export const noChainedTypeAssertions = defineRule({
     },
   },
   createOnce(context) {
-    const checkTypeAssertion = (node: TypeAssertionExpression): void => {
+    const checkTypeAssertion = (node: TypeAssertionExpression) => {
       if (!isOutermostAssertionInChain(node) || !isForbiddenAssertionChain(node)) {
         return;
       }

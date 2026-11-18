@@ -4,7 +4,7 @@ import { isShortCircuited, testContext } from "../shared/index.ts";
 
 import type { ESTree } from "@oxlint/plugins";
 
-function isStep(chain: ESTree.ChainExpression): boolean {
+function isStep(chain: ESTree.ChainExpression) {
   const step = chain.parent.type === "AwaitExpression" ? chain.parent : chain;
   const position = step.parent;
 
@@ -15,7 +15,7 @@ function isStep(chain: ESTree.ChainExpression): boolean {
   );
 }
 
-function enclosingFunction(node: ESTree.Node): ESTree.Node | null {
+function enclosingFunction(node: ESTree.Node) {
   for (let ancestor = node.parent; ancestor !== null; ancestor = ancestor.parent) {
     if (
       ancestor.type === "ArrowFunctionExpression" ||

@@ -8,13 +8,13 @@ type ServerAction = ESTree.Function | ESTree.ArrowFunctionExpression;
 
 type BodyStatement = ESTree.Directive | ESTree.Statement;
 
-function hasDirective(statements: readonly BodyStatement[], directive: string): boolean {
+function hasDirective(statements: readonly BodyStatement[], directive: string) {
   return statements.some(
     (statement) => statement.type === "ExpressionStatement" && statement.directive === directive,
   );
 }
 
-function firstStatement(statements: readonly BodyStatement[]): BodyStatement | undefined {
+function firstStatement(statements: readonly BodyStatement[]) {
   return statements.find(
     (statement) => statement.type !== "ExpressionStatement" || !statement.directive,
   );
@@ -23,7 +23,7 @@ function firstStatement(statements: readonly BodyStatement[]): BodyStatement | u
 function awaitsGuard(
   expression: ESTree.Expression | null | undefined,
   guards: ReadonlySet<string>,
-): boolean {
+) {
   return (
     expression?.type === "AwaitExpression" &&
     expression.argument.type === "CallExpression" &&
@@ -32,7 +32,7 @@ function awaitsGuard(
   );
 }
 
-function startsWithGuard(action: ServerAction, guards: ReadonlySet<string>): boolean {
+function startsWithGuard(action: ServerAction, guards: ReadonlySet<string>) {
   if (action.body?.type !== "BlockStatement") {
     return false;
   }
@@ -49,7 +49,7 @@ function startsWithGuard(action: ServerAction, guards: ReadonlySet<string>): boo
   );
 }
 
-function functionName(node: ServerAction): string {
+function functionName(node: ServerAction) {
   if (node.id?.type === "Identifier") {
     return node.id.name;
   }
@@ -83,7 +83,7 @@ export const serverActionGuard = defineRule({
     const guardList = [...guards].join(", ");
     let isServerModule = false;
 
-    function requireGuard(action: ServerAction): void {
+    function requireGuard(action: ServerAction) {
       if (!startsWithGuard(action, guards)) {
         context.report({
           node: action,
@@ -93,7 +93,7 @@ export const serverActionGuard = defineRule({
       }
     }
 
-    function checkInline(node: ServerAction): void {
+    function checkInline(node: ServerAction) {
       if (
         !isServerModule &&
         node.body?.type === "BlockStatement" &&
