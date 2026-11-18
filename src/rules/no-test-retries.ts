@@ -342,8 +342,16 @@ function layerProjects(sourceCode: SourceCode, layer: Layer) {
   return projects === null || projects.kind === "unknown" ? ["unknown" as const] : [];
 }
 
+function clearsProjects(sourceCode: SourceCode, layer: Layer) {
+  return layer !== "unknown" && resolveProperty(sourceCode, layer, "projects").kind === "undefined";
+}
+
 function mergedProjects(sourceCode: SourceCode, layers: readonly Layer[]) {
   return layers.reduce<Project[]>((projects, layer) => {
+    if (clearsProjects(sourceCode, layer)) {
+      return [];
+    }
+
     const overrides = layerProjects(sourceCode, layer).map((entry) => ({
       name: projectName(sourceCode, entry),
       layers: [entry],

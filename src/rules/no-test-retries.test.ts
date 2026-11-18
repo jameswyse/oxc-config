@@ -160,6 +160,10 @@ ruleTester.run("no-test-retries", noTestRetries, {
     ),
     inFile(
       "playwright.config.ts",
+      'import { defineConfig } from "@playwright/test"; export default defineConfig({ projects: [{ name: "chromium", retries: 2 }] }, { projects: undefined });',
+    ),
+    inFile(
+      "playwright.config.ts",
       'import { defineConfig } from "@playwright/test"; import overrides from "./overrides"; export default defineConfig({ projects: [{ name: "chromium", retries: 2 }] }, overrides);',
     ),
     inFile(

@@ -223,6 +223,37 @@ function callsThroughObjectBinding(
   );
 }
 
+function classBindings(sourceCode: SourceCode, member: ESTree.Node) {
+  const classNode = member.parent?.parent;
+
+  if (classNode?.type !== "ClassDeclaration" && classNode?.type !== "ClassExpression") {
+    return [];
+  }
+
+  const declarator = outermostExpression(classNode).parent;
+
+  return [
+    ...sourceCode.getDeclaredVariables(classNode),
+    ...(declarator?.type === "VariableDeclarator" &&
+    declarator.init === outermostExpression(classNode)
+      ? sourceCode.getDeclaredVariables(declarator)
+      : []),
+  ];
+}
+
+function callsThroughClassBinding(
+  sourceCode: SourceCode,
+  fn: FunctionNode,
+  member: ESTree.Node,
+  name: string,
+) {
+  return classBindings(sourceCode, member).some((variable) =>
+    variable.references.some(
+      ({ identifier }) => isWithin(identifier, fn) && isCalledMember(identifier, name),
+    ),
+  );
+}
+
 function thisOwner(node: ESTree.Node) {
   for (let current = node.parent; current; current = current.parent) {
     if (current.type === "FunctionExpression" || current.type === "FunctionDeclaration") {
@@ -271,7 +302,10 @@ export const noInternalReturnTypes = defineRule({
 
       return (
         thisCalls.get(fn)?.has(name) === true ||
-        (member.type === "Property" && callsThroughObjectBinding(sourceCode, fn, member, name))
+        (member.type === "Property" && callsThroughObjectBinding(sourceCode, fn, member, name)) ||
+        (member.type !== "Property" &&
+          member.static &&
+          callsThroughClassBinding(sourceCode, fn, member, name))
       );
     }
 

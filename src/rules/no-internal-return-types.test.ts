@@ -105,8 +105,18 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     "const tree = { walk(n: number): number { return items.map(() => tree.walk(n - 1)).length; } };",
     "export class Cart { protected total(): number { return 1; } }",
     "export abstract class Shape { protected abstract area(): number; protected scaled(): number { return 1; } }",
+    "class Tree { static depth(n: number): number { return n === 0 ? 0 : Tree.depth(n - 1) + 1; } }",
+    "const Tree = class { static depth(n: number): number { return n === 0 ? 0 : Tree.depth(n - 1) + 1; } };",
   ],
   invalid: [
+    reported(
+      "class Tree { depth(n: number): number { return n === 0 ? 0 : Tree.depth(n - 1) + 1; } }",
+      "class Tree { depth(n: number) { return n === 0 ? 0 : Tree.depth(n - 1) + 1; } }",
+    ),
+    reported(
+      "class Tree { static depth(n: number): number { const Tree = other; return Tree.depth(n); } }",
+      "class Tree { static depth(n: number) { const Tree = other; return Tree.depth(n); } }",
+    ),
     reported(
       "function depth(node: Tree): number { return 0; } const other = (node: Tree) => depth(node);",
       "function depth(node: Tree) { return 0; } const other = (node: Tree) => depth(node);",
