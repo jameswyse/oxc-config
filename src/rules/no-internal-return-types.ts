@@ -302,6 +302,7 @@ function resultExpressions(node: ESTree.Node): ESTree.Node[] {
   if (
     node.type === "ParenthesizedExpression" ||
     node.type === "ChainExpression" ||
+    node.type === "TSNonNullExpression" ||
     node.type === "TSSatisfiesExpression"
   ) {
     return resultExpressions(node.expression);

@@ -142,6 +142,7 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     "async function read(response: Response): Promise<string> { const { name } = await response.json(); return name; }",
     "async function read(response: Response): Promise<string> { const { name } = (await response.json()) ?? {}; return name; }",
     "function read(raw: string): string { const name = JSON.parse(raw) satisfies string; return name; }",
+    'function tags(): [string] { return ["tag"]!; }',
     "function list(flag: boolean): (string | number)[] { if (flag) { const data = { list: [1] }; return data.list; } const data = { list: ['a'] }; return data.list; }",
     "function choose(flag: boolean): (string | number)[] { if (flag) { const result = [1]; return result; } const result = ['a']; return result; }",
   ],
