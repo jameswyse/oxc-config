@@ -7,6 +7,7 @@ import {
   ownReturns,
   propertyName,
   isJsonParse,
+  unchangedDeclarator,
   variableFor,
 } from "../shared/index.ts";
 import { isEmittedClassMember, locallyExportedNames } from "../shared/module-exports.ts";
@@ -375,20 +376,7 @@ function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
   );
 }
 
-function untypedInit(variable: Variable) {
-  const [definition, ...otherDefinitions] = variable.defs;
-  const declarator = definition?.node;
-
-  return otherDefinitions.length === 0 &&
-    definition?.type === "Variable" &&
-    declarator?.type === "VariableDeclarator" &&
-    !declarator.id.typeAnnotation &&
-    variable.references.every((reference) => reference.init || !reference.isWrite())
-    ? declarator.init
-    : null;
-}
-
-function returnsAny(
+function returnsUntypedJson(
   sourceCode: SourceCode,
   node: ESTree.Node,
   visited = new Set<Variable>(),
@@ -398,32 +386,51 @@ function returnsAny(
     node.type === "ChainExpression" ||
     node.type === "TSNonNullExpression"
   ) {
-    return returnsAny(sourceCode, node.expression, visited);
+    return returnsUntypedJson(sourceCode, node.expression, visited);
   }
 
   if (node.type === "AwaitExpression") {
-    return returnsAny(sourceCode, node.argument, visited);
+    return returnsUntypedJson(sourceCode, node.argument, visited);
   }
 
   if (node.type === "MemberExpression") {
-    return returnsAny(sourceCode, node.object, visited);
+    return returnsUntypedJson(sourceCode, node.object, visited);
+  }
+
+  if (node.type === "TSSatisfiesExpression") {
+    return returnsUntypedJson(sourceCode, node.expression, visited);
+  }
+
+  if (node.type === "LogicalExpression" || node.type === "ConditionalExpression") {
+    return resultExpressions(node).some((result) =>
+      returnsUntypedJson(sourceCode, result, visited),
+    );
   }
 
   const variable = node.type === "Identifier" ? variableFor(sourceCode, node) : null;
+  const declarator = variable === null ? null : unchangedDeclarator(variable);
 
   if (variable !== null) {
-    const init = untypedInit(variable);
-
-    if (init === null || visited.has(variable)) {
+    if (!declarator?.init || declarator.id.typeAnnotation || visited.has(variable)) {
       return false;
     }
 
     visited.add(variable);
 
-    return returnsAny(sourceCode, init, visited);
+    return returnsUntypedJson(sourceCode, declarator.init, visited);
   }
 
   return node.type === "CallExpression" && !node.typeArguments && isJsonParse(sourceCode, node);
+}
+
+function rootIdentifier(node: ESTree.Node): ESTree.Node {
+  return node.type === "MemberExpression" ? rootIdentifier(node.object) : node;
+}
+
+function returnedValue(sourceCode: SourceCode, node: ESTree.Node) {
+  const binding = variableFor(sourceCode, rootIdentifier(node))?.defs[0]?.name;
+
+  return `${sourceCode.getText(node)}@${binding?.range[0] ?? ""}`;
 }
 
 function constructsFromContext(node: ESTree.Node) {
@@ -475,7 +482,7 @@ function annotationTypesReturns(
     return resolved?.type !== "TSVoidKeyword";
   }
 
-  if (results.some((result) => returnsAny(sourceCode, result))) {
+  if (results.some((result) => returnsUntypedJson(sourceCode, result))) {
     return true;
   }
 
@@ -486,7 +493,7 @@ function annotationTypesReturns(
   const values = new Set(
     results
       .filter((result) => !isAbsent(sourceCode, result))
-      .map((result) => variableFor(sourceCode, result) ?? sourceCode.getText(result)),
+      .map((result) => returnedValue(sourceCode, result)),
   );
 
   return values.size > 1 || results.some((result) => needsContext(result, sourceCode));

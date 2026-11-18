@@ -72,7 +72,9 @@ function isConfirmationName(name: string) {
 
   return (
     words.some((part) => confirmationWords.has(part)) &&
-    words.every((part, index) => part === "password" || !endsSecret(words, index))
+    words.every(
+      (part, index) => part === "password" || (!secretWords.has(part) && !endsSecret(words, index)),
+    )
   );
 }
 

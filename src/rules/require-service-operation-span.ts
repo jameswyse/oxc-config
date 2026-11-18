@@ -61,8 +61,17 @@ function isNamedEffectFn(sourceCode: SourceCode, node: ESTree.Node) {
   );
 }
 
+function streamFunction(sourceCode: SourceCode, node: ESTree.Node) {
+  const value = unwrapExpression(node);
+  const binding = value.type === "Identifier" ? importedBinding(sourceCode, value) : null;
+
+  return binding?.source === "effect/Stream" && binding.name !== "*"
+    ? binding.name
+    : effectMember(sourceCode, value, "Stream");
+}
+
 function isSpanOperator(sourceCode: SourceCode, node: ESTree.Node) {
-  const name = effectMember(sourceCode, node, "Effect") ?? effectMember(sourceCode, node, "Stream");
+  const name = effectMember(sourceCode, node, "Effect") ?? streamFunction(sourceCode, node);
 
   return name !== null && spanOperators.has(name);
 }
@@ -249,24 +258,40 @@ function tagDeclaration(sourceCode: SourceCode, tag: ESTree.Node) {
   return definition?.type === "ClassDeclaration" ? definition : declaredValue(sourceCode, value);
 }
 
-function typeMembers(sourceCode: SourceCode, type: ESTree.TSType | undefined) {
+function typeMembers(
+  sourceCode: SourceCode,
+  type: ESTree.Node | undefined,
+  visited: Set<ESTree.Node>,
+): ESTree.TSSignature[] {
   if (type?.type === "TSTypeLiteral") {
     return type.members;
   }
 
-  if (type?.type !== "TSTypeReference" || type.typeName.type !== "Identifier") {
+  const name =
+    type?.type === "TSTypeReference" || type?.type === "TSInterfaceHeritage"
+      ? type.type === "TSTypeReference"
+        ? type.typeName
+        : type.expression
+      : null;
+
+  const declaration =
+    name?.type === "Identifier" ? variableFor(sourceCode, name)?.defs.at(0)?.node : undefined;
+
+  if (declaration === undefined || visited.has(declaration)) {
     return [];
   }
 
-  const declaration = variableFor(sourceCode, type.typeName)?.defs.at(0)?.node;
+  visited.add(declaration);
 
-  if (declaration?.type === "TSInterfaceDeclaration") {
-    return declaration.body.body;
+  if (declaration.type === "TSInterfaceDeclaration") {
+    return [
+      ...declaration.body.body,
+      ...declaration.extends.flatMap((heritage) => typeMembers(sourceCode, heritage, visited)),
+    ];
   }
 
-  return declaration?.type === "TSTypeAliasDeclaration" &&
-    declaration.typeAnnotation.type === "TSTypeLiteral"
-    ? declaration.typeAnnotation.members
+  return declaration.type === "TSTypeAliasDeclaration"
+    ? typeMembers(sourceCode, declaration.typeAnnotation, visited)
     : [];
 }
 
@@ -283,7 +308,7 @@ function serviceKeyOperations(sourceCode: SourceCode, key: ESTree.Node | null) {
 
   const [identifier, operations] = factory.typeArguments?.params ?? [];
 
-  return typeMembers(sourceCode, operations ?? identifier);
+  return typeMembers(sourceCode, operations ?? identifier, new Set());
 }
 
 function serviceKey(declaration: ESTree.Node | null) {
@@ -366,15 +391,9 @@ function isStreamExit(name: string) {
 function streamMember(sourceCode: SourceCode, node: ESTree.Node): string | null {
   const value = unwrapExpression(node);
 
-  if (value.type === "CallExpression") {
-    return streamMember(sourceCode, value.callee);
-  }
-
-  const binding = value.type === "Identifier" ? importedBinding(sourceCode, value) : null;
-
-  return binding?.source === "effect/Stream" && binding.name !== "*"
-    ? binding.name
-    : effectMember(sourceCode, value, "Stream");
+  return value.type === "CallExpression"
+    ? streamMember(sourceCode, value.callee)
+    : streamFunction(sourceCode, value);
 }
 
 function isStreamExpression(
@@ -384,10 +403,15 @@ function isStreamExpression(
 ): boolean {
   const value = unwrapExpression(node);
 
-  if (value.type === "ConditionalExpression") {
+  if (value.type === "ConditionalExpression" || value.type === "LogicalExpression") {
+    const [first, second] =
+      value.type === "ConditionalExpression"
+        ? [value.consequent, value.alternate]
+        : [value.left, value.right];
+
     return (
-      isStreamExpression(sourceCode, value.consequent, visited) ||
-      isStreamExpression(sourceCode, value.alternate, visited)
+      isStreamExpression(sourceCode, first, visited) ||
+      isStreamExpression(sourceCode, second, visited)
     );
   }
 
@@ -419,8 +443,12 @@ function isStreamExpression(
     const last = pipe.steps.at(-1);
     const step = last === undefined ? null : streamMember(sourceCode, last);
 
+    if (pipe.input === null) {
+      return false;
+    }
+
     return last === undefined
-      ? pipe.input !== null && isStreamExpression(sourceCode, pipe.input, visited)
+      ? isStreamExpression(sourceCode, pipe.input, visited)
       : step !== null && !isStreamExit(step);
   }
 

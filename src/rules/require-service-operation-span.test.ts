@@ -49,6 +49,7 @@ export const layer = Layer.effect(Service, Effect.gen(function* () {
     effect +
       "export function layer(urls: () => string[]) {\n  return Layer.succeed(Service, Service.of({ urls }));\n}",
     'import { Effect, Layer } from "./effect";\nLayer.succeed(Service, { get: (id) => find(id) });',
+    'import { Layer } from "effect";\nimport { make, withSpan } from "effect/Stream";\nLayer.succeed(Feed, { watch: () => make(1).pipe(withSpan("Feed.watch")) });',
   ],
   invalid: [
     {
@@ -276,6 +277,26 @@ export const layer = Layer.succeed(Feed, {
   }
 }`,
       errors: [untracedStream("watch", "Feed")],
+    },
+    {
+      code:
+        effect +
+        `interface Watchable {
+  watch(): Stream.Stream<number>;
+}
+interface FeedOperations extends Watchable {}
+const Feed = Context.Service<FeedOperations>("Feed");
+const events = store.cached ?? Stream.empty;
+export const layer = Layer.succeed(Feed, {
+  watch: () => store.watch(),
+  cached: () => events,
+  project: () => flow(Stream.map(f), Stream.take(1)),
+});`,
+      errors: [
+        untracedStream("watch", "Feed"),
+        untracedStream("cached", "Feed"),
+        untraced("project", "Feed"),
+      ],
     },
   ],
 });

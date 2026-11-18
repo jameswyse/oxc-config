@@ -88,7 +88,7 @@ ruleTester.run("no-timing-unsafe-comparison", noTimingUnsafeComparison, {
     { code: "if (provided === confirmationToken) {}", errors: [error] },
     { code: "if (hash1 === hash2) {}", errors: [error] },
     { code: "if (tokenHash === stored.tokenHash) {}", errors: [error] },
-    { code: "if (verificationTokenHash === stored.verificationTokenHash) {}", errors: [error] },
+    { code: "if (storedPassword === request.query.confirmSessionHash) {}", errors: [error] },
     { code: "if (apiKeyHash === stored.apiKeyHash) {}", errors: [error] },
     { code: "if (confirmApiKey === storedPassword) {}", errors: [error] },
     { code: "if (contentHash !== previousHash) {}", errors: [error] },
