@@ -454,7 +454,7 @@ function isStreamExpression(
 
   const callee = declaredValue(sourceCode, value.callee);
 
-  if (!isFunctionNode(callee) || visited.has(callee)) {
+  if (!isFunctionNode(callee) || callee.async || visited.has(callee)) {
     return false;
   }
 

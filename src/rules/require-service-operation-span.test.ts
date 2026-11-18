@@ -291,11 +291,16 @@ export const layer = Layer.succeed(Feed, {
   watch: () => store.watch(),
   cached: () => events,
   project: () => flow(Stream.map(f), Stream.take(1)),
-});`,
+  later: () => loadLater(),
+});
+async function loadLater() {
+  return Stream.empty;
+}`,
       errors: [
         untracedStream("watch", "Feed"),
         untracedStream("cached", "Feed"),
         untraced("project", "Feed"),
+        untraced("later", "Feed"),
       ],
     },
   ],
