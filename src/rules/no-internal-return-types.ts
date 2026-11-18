@@ -1,6 +1,12 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { isFunctionNode, outermostExpression, ownReturns, propertyName } from "../shared/index.ts";
+import {
+  isFunctionNode,
+  isGlobal,
+  outermostExpression,
+  ownReturns,
+  propertyName,
+} from "../shared/index.ts";
 import { isEmittedClassMember, locallyExportedNames } from "../shared/module-exports.ts";
 
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
@@ -290,7 +296,11 @@ function isKeywordType(type: ESTree.TSType) {
 }
 
 function resultExpressions(node: ESTree.Node): ESTree.Node[] {
-  if (node.type === "ParenthesizedExpression") {
+  if (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSSatisfiesExpression"
+  ) {
     return resultExpressions(node.expression);
   }
 
@@ -336,7 +346,11 @@ function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
     );
   }
 
-  if (node.type === "ObjectExpression" || node.type === "ArrayExpression") {
+  if (
+    node.type === "ObjectExpression" ||
+    node.type === "ArrayExpression" ||
+    node.type === "TemplateLiteral"
+  ) {
     return true;
   }
 
@@ -359,8 +373,42 @@ function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
   );
 }
 
-function isCall(node: ESTree.Node) {
-  return node.type === "CallExpression" || node.type === "NewExpression";
+function returnsAny(sourceCode: SourceCode, node: ESTree.Node) {
+  const callee = node.type === "CallExpression" ? node.callee : null;
+
+  if (callee?.type !== "MemberExpression") {
+    return false;
+  }
+
+  const name = propertyName(callee);
+
+  return (
+    (name === "parse" && isGlobal(sourceCode, callee.object, "JSON")) ||
+    (name === "json" && node.type === "CallExpression" && node.arguments.length === 0)
+  );
+}
+
+function isAbsent(sourceCode: SourceCode, node: ESTree.Node) {
+  return (
+    (node.type === "Literal" && node.value === null) ||
+    (node.type === "UnaryExpression" && node.operator === "void") ||
+    isGlobal(sourceCode, node, "undefined")
+  );
+}
+
+function resolvedType(fn: FunctionNode, annotation: ESTree.TSType) {
+  if (!fn.async) {
+    return annotation;
+  }
+
+  const [resolved, ...rest] =
+    annotation.type === "TSTypeReference" &&
+    annotation.typeName.type === "Identifier" &&
+    annotation.typeName.name === "Promise"
+      ? (annotation.typeArguments?.params ?? [])
+      : [];
+
+  return rest.length === 0 ? resolved : undefined;
 }
 
 function annotationTypesReturns(
@@ -372,14 +420,24 @@ function annotationTypesReturns(
     return true;
   }
 
-  if (isKeywordType(annotation)) {
+  const results = fnResults(fn, sourceCode);
+  const resolved = resolvedType(fn, annotation);
+
+  if (results.length === 0) {
+    return resolved?.type !== "TSVoidKeyword";
+  }
+
+  if (results.some((result) => returnsAny(sourceCode, result))) {
+    return true;
+  }
+
+  if (resolved !== undefined && isKeywordType(resolved)) {
     return false;
   }
 
-  const results = fnResults(fn, sourceCode);
-
   return (
-    results.filter(isCall).length > 1 || results.some((result) => needsContext(result, sourceCode))
+    results.filter((result) => !isAbsent(sourceCode, result)).length > 1 ||
+    results.some((result) => needsContext(result, sourceCode))
   );
 }
 
@@ -394,7 +452,7 @@ export const noInternalReturnTypes = defineRule({
     schema: [],
     messages: {
       explicitReturnType:
-        "Remove the return type and let TypeScript infer it. Pin a type with a typed variable or `satisfies` at the return site where it matters.",
+        "Remove the return type and let TypeScript infer it. Where the type matters, pin it at the return site: a typed variable widens it, and `satisfies` keeps its literal types.",
       removeReturnType: "Remove the return type annotation.",
     },
   },

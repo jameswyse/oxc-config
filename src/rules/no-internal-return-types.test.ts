@@ -124,6 +124,16 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     "function handler(): Handler { return function (event) { return event.id; }; }",
     "function* ids(): Generator<number> { yield 1; }",
     'const call = Effect.fn("call")(function* (id: string): Effect.fn.Return<CallEnd, CallError> { return yield* end(id); });',
+    'function plan(message: string): Plan { return { _tag: "Refused", message } satisfies Plan; }',
+    "function step(n: number): `step-${number}` { return `step-${n}`; }",
+    "function fail(message: string): Result { throw new Error(message); }",
+    "async function wait(): Promise<number> { await sleep(); }",
+    "function load(id: string): Effect.Effect<User, NotFound> { const stored = cache.get(id); if (stored) { return stored; } return Effect.fail(notFound); }",
+    "async function load(id: string): Promise<User> { return cached ?? (await fetchUser(id)); }",
+    "function config(raw: string): Config { return JSON.parse(raw); }",
+    "function name(raw: string): string { return JSON.parse(raw); }",
+    "async function user(response: Response): Promise<User> { return response.json(); }",
+    "function load(id: string): Effect.Effect<Plan> { return client?.load({ id }); }",
   ],
   invalid: [
     reported(
@@ -176,8 +186,28 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
       "async function load(id: string) { return fetchUser(id); }",
     ),
     reported(
-      'function plan(message: string): Plan { return { _tag: "Refused", message } satisfies Plan; }',
-      'function plan(message: string) { return { _tag: "Refused", message } satisfies Plan; }',
+      "function log(message: string): void { console.log(message); }",
+      "function log(message: string) { console.log(message); }",
+    ),
+    reported(
+      "async function readSession(response: Response): Promise<Session> { return decodeSession(await response.json()); }",
+      "async function readSession(response: Response) { return decodeSession(await response.json()); }",
+    ),
+    reported(
+      "async function check(root: string): Promise<string | null> { if (root === '') { return `${root} is missing`; } return null; }",
+      "async function check(root: string) { if (root === '') { return `${root} is missing`; } return null; }",
+    ),
+    reported(
+      "async function save(): Promise<void> { await write(); }",
+      "async function save() { await write(); }",
+    ),
+    reported(
+      "function find(id: string): User | undefined { if (id === '') { return undefined; } return users.get(id); }",
+      "function find(id: string) { if (id === '') { return undefined; } return users.get(id); }",
+    ),
+    reported(
+      "function find(id: string): User | null { return id === '' ? null : users.get(id); }",
+      "function find(id: string) { return id === '' ? null : users.get(id); }",
     ),
     reported('function mode(): string { return "light"; }', 'function mode() { return "light"; }'),
     reported(
@@ -191,10 +221,6 @@ ruleTester.run("no-internal-return-types", noInternalReturnTypes, {
     reported(
       "function find(id: string): Effect.Effect<User, NotFound> { return users.get(id); }",
       "function find(id: string) { return users.get(id); }",
-    ),
-    reported(
-      "async function load(id: string): Promise<User> { return cached ?? (await fetchUser(id)); }",
-      "async function load(id: string) { return cached ?? (await fetchUser(id)); }",
     ),
     reported(
       "function ids(items: Item[]): string[] { return items.map((item: Item) => item.id); }",
