@@ -219,6 +219,21 @@ export function staticPropertyName(node: ESTree.Node): string | null {
   return "computed" in node && node.computed ? staticString(memberKey(node)) : propertyName(node);
 }
 
+export function isJsonParse(sourceCode: SourceCode, node: ESTree.Node): boolean {
+  const callee = node.type === "CallExpression" ? node.callee : null;
+
+  if (callee?.type !== "MemberExpression" || node.type !== "CallExpression") {
+    return false;
+  }
+
+  const name = propertyName(callee);
+
+  return (
+    (name === "parse" && isGlobal(sourceCode, callee.object, "JSON")) ||
+    (name === "json" && node.arguments.length === 0)
+  );
+}
+
 export function moduleExportName(node: ESTree.ModuleExportName): string {
   return node.type === "Identifier" ? node.name : node.value;
 }
@@ -334,17 +349,22 @@ const loaderCache = new WeakMap<Variable, boolean | null>();
 
 type BindingResolver = (node: ESTree.Node) => ImportedBinding | null;
 
-export function unchangedInit(variable: Variable): ESTree.Expression | null {
+export function unchangedDeclarator(variable: Variable): ESTree.VariableDeclarator | null {
   const [definition, ...otherDefinitions] = variable.defs;
   const declarator = definition?.node;
 
   return otherDefinitions.length === 0 &&
     definition?.type === "Variable" &&
     declarator?.type === "VariableDeclarator" &&
-    declarator.id === definition.name &&
     variable.references.every((reference) => reference.init || !reference.isWrite())
-    ? declarator.init
+    ? declarator
     : null;
+}
+
+export function unchangedInit(variable: Variable): ESTree.Expression | null {
+  const declarator = unchangedDeclarator(variable);
+
+  return declarator !== null && declarator.id === variable.defs[0]?.name ? declarator.init : null;
 }
 
 type StringPiece =

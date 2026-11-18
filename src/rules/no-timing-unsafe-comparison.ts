@@ -4,6 +4,7 @@ import {
   childNodes,
   isGlobal,
   staticPropertyName,
+  staticString,
   unwrapExpression,
   variableFor,
 } from "../shared/index.ts";
@@ -16,24 +17,37 @@ const secretWords = new Set([
   "password",
   "secret",
   "token",
-  "hash",
   "signature",
+  "hash",
   "digest",
   "apikey",
+]);
+
+const confirmationWords = new Set([
+  "confirm",
+  "confirmation",
+  "confirmed",
+  "repeat",
+  "repeated",
+  "retype",
+  "retyped",
 ]);
 
 const word = /[A-Z]?[a-z]+|[A-Z]+(?![a-z])/gu;
 
 const pascalCase = /^[A-Z](?=[A-Za-z0-9]*[a-z])[A-Za-z0-9]*$/u;
 
-function isSecretName(name: string) {
-  if (pascalCase.test(name)) {
-    return false;
-  }
+function nameWords(name: string) {
+  return (name.match(word) ?? []).map((part) => part.toLowerCase());
+}
 
-  const words = (name.match(word) ?? []).map((part) => part.toLowerCase());
-  const last = words.at(-1);
-  const beforeLast = words.at(-2);
+function endsSecret(words: readonly string[], end: number) {
+  const last = words[end];
+  const beforeLast = words[end - 1];
+
+  if (last === "hash") {
+    return beforeLast !== "session";
+  }
 
   return (
     (last !== undefined && secretWords.has(last)) ||
@@ -43,17 +57,68 @@ function isSecretName(name: string) {
   );
 }
 
-function comparedName(node: ESTree.Node) {
+function isSecretName(name: string) {
+  if (pascalCase.test(name)) {
+    return false;
+  }
+
+  const words = nameWords(name);
+
+  return endsSecret(words, words.length - 1);
+}
+
+function isConfirmationName(name: string) {
+  const words = nameWords(name);
+
+  return (
+    words.some((part) => confirmationWords.has(part)) &&
+    words.every(
+      (part, index) => part === "password" || (!secretWords.has(part) && !endsSecret(words, index)),
+    )
+  );
+}
+
+function comparedValue(node: ESTree.Node) {
   const unwrapped = unwrapExpression(node);
 
-  const value =
-    unwrapped.type === "ChainExpression" ? unwrapExpression(unwrapped.expression) : unwrapped;
+  return unwrapped.type === "ChainExpression" ? unwrapExpression(unwrapped.expression) : unwrapped;
+}
+
+function comparedName(node: ESTree.Node) {
+  const value = comparedValue(node);
 
   if (value.type === "Identifier") {
     return value.name;
   }
 
   return value.type === "MemberExpression" ? staticPropertyName(value) : null;
+}
+
+function singleStringArgument(node: ESTree.Node) {
+  const value = comparedValue(node);
+
+  return value.type === "CallExpression" && value.arguments.length === 1
+    ? staticString(value.arguments[0])
+    : null;
+}
+
+function isConfirmationValue(node: ESTree.Node) {
+  const name = comparedName(node) ?? singleStringArgument(node);
+
+  return name !== null && isConfirmationName(name);
+}
+
+function isPasswordValue(node: ESTree.Node) {
+  const name = comparedName(node);
+
+  return name !== null && nameWords(name).at(-1) === "password";
+}
+
+function isPasswordConfirmation(left: ESTree.Node, right: ESTree.Node) {
+  return (
+    (isConfirmationValue(left) && isPasswordValue(right)) ||
+    (isConfirmationValue(right) && isPasswordValue(left))
+  );
 }
 
 function readonlyTarget(sourceCode: SourceCode, type: ESTree.TSType | null) {
@@ -265,7 +330,8 @@ export const noTimingUnsafeComparison = defineRule({
         if (
           !equalityOperators.has(node.operator) ||
           isNonSecretValue(sourceCode, node.left) ||
-          isNonSecretValue(sourceCode, node.right)
+          isNonSecretValue(sourceCode, node.right) ||
+          isPasswordConfirmation(node.left, node.right)
         ) {
           return;
         }

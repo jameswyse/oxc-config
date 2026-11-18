@@ -4,6 +4,7 @@ import {
   childNodes,
   effectMember,
   isGlobal,
+  isJsonParse,
   propertyName,
   unwrapExpression,
   variableFor,
@@ -143,19 +144,9 @@ function isParser(sourceCode: SourceCode, node: ESTree.CallExpression | ESTree.N
     );
   }
 
-  if (parserFunctions.some((name) => isGlobal(sourceCode, callee, name))) {
-    return true;
-  }
-
-  if (callee.type !== "MemberExpression") {
-    return false;
-  }
-
-  const name = propertyName(callee);
-
   return (
-    (name === "parse" && isGlobal(sourceCode, callee.object, "JSON")) ||
-    (name === "json" && node.arguments.length === 0)
+    parserFunctions.some((name) => isGlobal(sourceCode, callee, name)) ||
+    isJsonParse(sourceCode, node)
   );
 }
 

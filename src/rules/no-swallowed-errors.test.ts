@@ -70,6 +70,10 @@ ruleTester.run("no-swallowed-errors", noSwallowedErrors, {
       errors: [{ messageId: "swallowed" }],
     },
     {
+      code: 'async function run() { try { return await client["json"](); } catch { return null; } }',
+      errors: [{ messageId: "swallowed" }],
+    },
+    {
       code: "const JSON = custom; function parse(text: string) { try { return JSON.parse(text); } catch { return null; } }",
       errors: [{ messageId: "swallowed" }],
     },

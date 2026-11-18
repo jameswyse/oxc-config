@@ -1,6 +1,15 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { outermostExpression, propertyName } from "../shared/index.ts";
+import {
+  isFunctionNode,
+  isGlobal,
+  outermostExpression,
+  ownReturns,
+  propertyName,
+  isJsonParse,
+  unchangedDeclarator,
+  variableFor,
+} from "../shared/index.ts";
 import { isEmittedClassMember, locallyExportedNames } from "../shared/module-exports.ts";
 
 import type { ESTree, SourceCode, Variable } from "@oxlint/plugins";
@@ -272,6 +281,225 @@ function thisOwner(node: ESTree.Node) {
   return null;
 }
 
+const keywordTypes = new Set([
+  "TSBigIntKeyword",
+  "TSBooleanKeyword",
+  "TSNullKeyword",
+  "TSNumberKeyword",
+  "TSStringKeyword",
+  "TSSymbolKeyword",
+  "TSUndefinedKeyword",
+  "TSVoidKeyword",
+]);
+
+function isKeywordType(type: ESTree.TSType) {
+  const members = type.type === "TSUnionType" ? type.types : [type];
+
+  return members.every((member) => keywordTypes.has(member.type));
+}
+
+function resultExpressions(node: ESTree.Node): ESTree.Node[] {
+  if (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSSatisfiesExpression"
+  ) {
+    return resultExpressions(node.expression);
+  }
+
+  if (node.type === "AwaitExpression") {
+    return resultExpressions(node.argument);
+  }
+
+  if (node.type === "ConditionalExpression") {
+    return [...resultExpressions(node.consequent), ...resultExpressions(node.alternate)];
+  }
+
+  if (node.type === "LogicalExpression") {
+    return [...resultExpressions(node.left), ...resultExpressions(node.right)];
+  }
+
+  const last = node.type === "SequenceExpression" ? node.expressions.at(-1) : undefined;
+
+  return last === undefined ? [node] : resultExpressions(last);
+}
+
+function hasTypeAnnotation(parameter: ESTree.Node): boolean {
+  if (parameter.type === "AssignmentPattern") {
+    return hasTypeAnnotation(parameter.left);
+  }
+
+  return "typeAnnotation" in parameter && parameter.typeAnnotation !== null;
+}
+
+function fnResults(fn: FunctionNode, sourceCode: SourceCode) {
+  return ownReturns(fn, sourceCode.visitorKeys).flatMap(resultExpressions);
+}
+
+function needsContext(node: ESTree.Node, sourceCode: SourceCode): boolean {
+  if (isFunctionNode(node)) {
+    return (
+      !node.params.every(hasTypeAnnotation) ||
+      (!node.returnType &&
+        fnResults(node, sourceCode).some((result) => needsContext(result, sourceCode)))
+    );
+  }
+
+  if (
+    node.type === "ObjectExpression" ||
+    node.type === "ArrayExpression" ||
+    node.type === "TemplateLiteral"
+  ) {
+    return true;
+  }
+
+  if (node.type === "Literal") {
+    return ["string", "number", "bigint", "boolean"].includes(typeof node.value);
+  }
+
+  if (node.type === "UnaryExpression") {
+    return ["-", "+"].includes(node.operator) && needsContext(node.argument, sourceCode);
+  }
+
+  if (node.type !== "CallExpression" && node.type !== "NewExpression") {
+    return false;
+  }
+
+  return (
+    !node.typeArguments &&
+    ((node.type === "NewExpression" && node.arguments.length === 0) ||
+      node.arguments.some(
+        (argument) =>
+          argument.type !== "SpreadElement" &&
+          resultExpressions(argument).some((result) => needsContext(result, sourceCode)),
+      ))
+  );
+}
+
+function returnsUntypedJson(
+  sourceCode: SourceCode,
+  node: ESTree.Node,
+  visited = new Set<Variable>(),
+): boolean {
+  if (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSNonNullExpression"
+  ) {
+    return returnsUntypedJson(sourceCode, node.expression, visited);
+  }
+
+  if (node.type === "AwaitExpression") {
+    return returnsUntypedJson(sourceCode, node.argument, visited);
+  }
+
+  if (node.type === "MemberExpression") {
+    return returnsUntypedJson(sourceCode, node.object, visited);
+  }
+
+  if (node.type === "TSSatisfiesExpression") {
+    return returnsUntypedJson(sourceCode, node.expression, visited);
+  }
+
+  if (node.type === "LogicalExpression" || node.type === "ConditionalExpression") {
+    return resultExpressions(node).some((result) =>
+      returnsUntypedJson(sourceCode, result, visited),
+    );
+  }
+
+  const variable = node.type === "Identifier" ? variableFor(sourceCode, node) : null;
+  const declarator = variable === null ? null : unchangedDeclarator(variable);
+
+  if (variable !== null) {
+    if (!declarator?.init || declarator.id.typeAnnotation || visited.has(variable)) {
+      return false;
+    }
+
+    visited.add(variable);
+
+    return returnsUntypedJson(sourceCode, declarator.init, visited);
+  }
+
+  return node.type === "CallExpression" && !node.typeArguments && isJsonParse(sourceCode, node);
+}
+
+function rootIdentifier(node: ESTree.Node): ESTree.Node {
+  return node.type === "MemberExpression" ? rootIdentifier(node.object) : node;
+}
+
+function returnedValue(sourceCode: SourceCode, node: ESTree.Node) {
+  const binding = variableFor(sourceCode, rootIdentifier(node))?.defs[0]?.name;
+
+  return `${sourceCode.getText(node)}@${binding?.range[0] ?? ""}`;
+}
+
+function constructsFromContext(node: ESTree.Node) {
+  return (
+    node.type === "NewExpression" &&
+    !node.typeArguments &&
+    node.arguments.some(
+      (argument) => isFunctionNode(argument) && !argument.params.every(hasTypeAnnotation),
+    )
+  );
+}
+
+function isAbsent(sourceCode: SourceCode, node: ESTree.Node) {
+  return (
+    (node.type === "Literal" && node.value === null) ||
+    (node.type === "UnaryExpression" && node.operator === "void") ||
+    isGlobal(sourceCode, node, "undefined")
+  );
+}
+
+function resolvedType(fn: FunctionNode, annotation: ESTree.TSType) {
+  if (!fn.async) {
+    return annotation;
+  }
+
+  const [resolved, ...rest] =
+    annotation.type === "TSTypeReference" &&
+    annotation.typeName.type === "Identifier" &&
+    annotation.typeName.name === "Promise"
+      ? (annotation.typeArguments?.params ?? [])
+      : [];
+
+  return rest.length === 0 ? resolved : undefined;
+}
+
+function annotationTypesReturns(
+  fn: FunctionNode,
+  annotation: ESTree.TSType,
+  sourceCode: SourceCode,
+) {
+  if (fn.generator) {
+    return true;
+  }
+
+  const results = fnResults(fn, sourceCode);
+  const resolved = resolvedType(fn, annotation);
+
+  if (results.length === 0) {
+    return resolved?.type !== "TSVoidKeyword";
+  }
+
+  if (results.some((result) => returnsUntypedJson(sourceCode, result))) {
+    return true;
+  }
+
+  if (resolved !== undefined && isKeywordType(resolved)) {
+    return results.some(constructsFromContext);
+  }
+
+  const values = new Set(
+    results
+      .filter((result) => !isAbsent(sourceCode, result))
+      .map((result) => returnedValue(sourceCode, result)),
+  );
+
+  return values.size > 1 || results.some((result) => needsContext(result, sourceCode));
+}
+
 export const noInternalReturnTypes = defineRule({
   meta: {
     type: "suggestion",
@@ -283,7 +511,7 @@ export const noInternalReturnTypes = defineRule({
     schema: [],
     messages: {
       explicitReturnType:
-        "Remove the return type and let TypeScript infer it. Pin a type with a typed variable or `satisfies` at the return site where it matters.",
+        "Remove the return type and let TypeScript infer it. Where the type matters, pin it at the return site: a typed variable widens it, and `satisfies` keeps its literal types.",
       removeReturnType: "Remove the return type annotation.",
     },
   },
@@ -321,9 +549,11 @@ export const noInternalReturnTypes = defineRule({
 
       if (
         !returnType ||
+        !annotation ||
         !fn.body ||
-        annotation?.type === "TSTypePredicate" ||
-        annotation?.type === "TSNeverKeyword" ||
+        annotation.type === "TSTypePredicate" ||
+        annotation.type === "TSNeverKeyword" ||
+        annotationTypesReturns(fn, annotation, sourceCode) ||
         isExportedApi(fn) ||
         referencesOwnName(sourceCode, fn) ||
         callsItselfAsMember(fn)
