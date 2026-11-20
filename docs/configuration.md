@@ -21,6 +21,26 @@ peerDependencyRules:
 
 `autoInstallPeers` affects every dependency in the workspace. No ESLint configuration is needed either way.
 
+### Use tsrs instead of oxlint-tsgolint
+
+[tsrs](https://github.com/oxc-project/tsrs) is the Oxc team's Rust port of the TypeScript 7 compiler. Its `tsrs-lint` backend runs the same type-aware rules as `oxlint-tsgolint` in about half the CPU time: on a project with 2,000 TypeScript files, `oxlint .` took 8 seconds instead of 12. Oxlint 1.92 and later uses `tsrs-lint` whenever `tsrs` is installed, so the lint config stays the same:
+
+```sh
+pnpm add -D -E tsrs
+pnpm remove oxlint-tsgolint
+```
+
+Every tsrs release is a prerelease that targets TypeScript 7.1 beta. Pin an exact version and upgrade it deliberately, because SemVer sorts `7.1.0-beta.tsrs10` before `7.1.0-beta.tsrs9` and a version range won't pick up new releases in order.
+
+pnpm's `trustPolicy: no-downgrade` setting rejects tsrs as a possible package takeover, although current releases are published from GitHub Actions with provenance. Exclude it in `pnpm-workspace.yaml`:
+
+```yaml
+trustPolicyExclude:
+  - tsrs
+```
+
+Set `TSRS_FAST=1` when running Oxlint to turn on tsrs's fast mode, which sizes its checkers to the machine. In the same test it cut peak memory from 2.1 GB to 1.8 GB.
+
 ## Create the config files
 
 Create `oxlint.config.ts` in the project root:
@@ -31,7 +51,7 @@ import { createLintConfig } from "@jameswyse/oxc-config/oxlint";
 export default createLintConfig();
 ```
 
-Type-aware checking is on by default. It needs the project's `tsconfig.json` and `oxlint-tsgolint`, which uses TypeScript 7. Configurations that rely on removed options such as `baseUrl` need migrating first. For plain JavaScript or a TypeScript project that is not yet compatible, pass `typeAware: false`. Syntax and scope rules still run, and explicit `any` is still rejected.
+Type-aware checking is on by default. It needs the project's `tsconfig.json` and a TypeScript 7 backend: `oxlint-tsgolint`, or [tsrs](#use-tsrs-instead-of-oxlint-tsgolint) for faster runs. Configurations that rely on removed options such as `baseUrl` need migrating first. For plain JavaScript or a TypeScript project that is not yet compatible, pass `typeAware: false`. Syntax and scope rules still run, and explicit `any` is still rejected.
 
 Create `oxfmt.config.ts` beside it:
 

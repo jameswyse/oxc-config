@@ -59,7 +59,7 @@ import { createFormatConfig } from "@jameswyse/oxc-config/oxfmt";
 export default createFormatConfig();
 ```
 
-Type-aware checking is on by default and needs a `tsconfig.json` that TypeScript 7 accepts. The defaults enable no framework profiles or project boundaries. The [configuration guide](docs/configuration.md) covers supported versions, scripts, framework profiles, project boundaries, the shared tsconfig, exceptions and formatter options.
+Type-aware checking is on by default and needs a `tsconfig.json` that TypeScript 7 accepts. Installing [tsrs](docs/configuration.md#use-tsrs-instead-of-oxlint-tsgolint) in place of `oxlint-tsgolint` makes it faster. The defaults enable no framework profiles or project boundaries. The [configuration guide](docs/configuration.md) covers supported versions, scripts, framework profiles, project boundaries, the shared tsconfig, exceptions and formatter options.
 
 ## Build a preset for a team
 
