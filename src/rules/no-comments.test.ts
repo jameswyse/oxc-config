@@ -142,6 +142,8 @@ ruleTester.run("no-comments", noComments, {
     "/** Base shape. */\nclass Base {\n  /** Width. */\n  width = 0;\n}\nclass Shape extends Base {}\nexport interface Expanded extends Shape {\n  height: number;\n}",
     "interface Base {\n  /** Property. */\n  value: string;\n}\ndeclare global {\n  interface Child extends Base {}\n}\nexport {};",
     'interface Base {\n  /** Property. */\n  value: string;\n}\ndeclare module "parser" {\n  export interface Options extends Base {}\n}',
+    '/** Base entity. */\nconst Base = class {\n  /** Display name. */\n  name = "";\n};\nexport class Child extends Base {}',
+    'let Base = class {\n  /** Display name. */\n  name = "";\n};\nexport class Child extends Base {}',
     {
       code: "/** Shared settings. */\ninterface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\nexport interface Settings extends Shared {}",
       filename: "src/api/settings.ts",
@@ -370,6 +372,14 @@ ruleTester.run("no-comments", noComments, {
     {
       code: "class Shape {\n  /** Width. */\n  private width = 0;\n  /** Depth. */\n  #depth = 0;\n  /**\n   * Height.\n   * @internal\n   */\n  height = 0;\n}\nexport interface Expanded extends Shape {}",
       errors: [{ messageId: "comment" }, { messageId: "comment" }, { messageId: "comment" }],
+    },
+    {
+      code: 'namespace Local {\n  export class Base {\n    /** Display name. */\n    name = "";\n  }\n}\nexport class Child extends Local[Base] {}',
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: 'let Base = class {\n  /** Display name. */\n  name = "";\n};\nBase = class {};\nexport class Child extends Base {}',
+      errors: [{ messageId: "comment" }],
     },
   ],
 });

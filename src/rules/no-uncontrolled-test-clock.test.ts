@@ -35,8 +35,46 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
     'import { test, vi } from "vitest"; const timers = { toFake: ["Date"] }; timers.toFake = ["performance"]; vi.useFakeTimers(timers); test("fast", () => { expect(performance.now()).toBe(0); });',
     'import { performance } from "node:perf_hooks"; test("fast", () => { const performance = fakePerformance; expect(performance.now()).toBe(0); });',
     'const performance = fakePerformance; test("fast", () => { expect(performance.now()).toBe(0); });',
+    'import { test, vi } from "vitest"; const toFake = ["performance"]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+    'import { test, vi } from "vitest"; const toFake = flag ? ["Date"] : ["performance"]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+    'import { test, vi } from "vitest"; let toFake = ["Date"]; toFake = ["performance"]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+    'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: false }); test("now", () => { expect(Date.now()).toBe(0); });',
+    'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: true, ...modern }); test("now", () => { expect(Date.now()).toBe(0); });',
+    'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: legacy }); test("now", () => { expect(Date.now()).toBe(0); });',
   ],
   invalid: [
+    {
+      code: 'import { test, vi } from "vitest"; const toFake = ["Date"]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+      errors: [performanceError],
+    },
+    {
+      code: 'import { test, vi } from "vitest"; const toFake = ["Date"] as const; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+      errors: [performanceError],
+    },
+    {
+      code: 'import { test, vi } from "vitest"; const toFake = ["Date"] satisfies string[]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+      errors: [performanceError],
+    },
+    {
+      code: 'import { jest, test } from "@jest/globals"; const doNotFake = ["performance"]; jest.useFakeTimers({ doNotFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+      errors: [performanceError],
+    },
+    {
+      code: 'import { install } from "@sinonjs/fake-timers"; const toNotFake = ["performance"]; install({ toNotFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
+      errors: [performanceError],
+    },
+    {
+      code: 'import { mock, test } from "node:test"; const apis = ["setTimeout"]; mock.timers.enable({ apis }); test("now", () => { expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
+    {
+      code: 'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: true }); test("now", () => { expect(Date.now()).toBeGreaterThan(0); });',
+      errors: [error],
+    },
+    {
+      code: 'import { jest, test } from "@jest/globals"; const legacy = { legacyFakeTimers: true }; jest.useFakeTimers(legacy); test("fast", () => { expect(performance.now()).toBe(0); });',
+      errors: [performanceError],
+    },
     {
       code: 'beforeEach(async () => { await clock.setFixedTime(0); }); test("fast", () => { expect(performance.now()).toBe(0); });',
       errors: [performanceError],

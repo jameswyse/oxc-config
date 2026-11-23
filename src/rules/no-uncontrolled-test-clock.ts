@@ -9,7 +9,7 @@ import {
   unwrapExpression,
   variableFor,
 } from "../shared/index.ts";
-import { resolveProperty } from "../shared/object-properties.ts";
+import { resolveProperty, valueBranches } from "../shared/object-properties.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
@@ -31,6 +31,22 @@ function nameOf(node: ESTree.Node) {
   return value.type === "Identifier" ? value.name : staticPropertyName(value);
 }
 
+function listFakes(list: ESTree.Node, name: string, api: TimerApi) {
+  if (list.type !== "ArrayExpression") {
+    return true;
+  }
+
+  const values = list.elements.map((element) =>
+    element?.type === "Literal" ? element.value : undefined,
+  );
+
+  if (values.length === 0 || values.includes(undefined)) {
+    return true;
+  }
+
+  return timerExclusionLists.has(name) ? !values.includes(api) : values.includes(api);
+}
+
 function fakes(sourceCode: SourceCode, options: ESTree.Node | undefined, api: TimerApi) {
   if (options === undefined) {
     return true;
@@ -38,22 +54,24 @@ function fakes(sourceCode: SourceCode, options: ESTree.Node | undefined, api: Ti
 
   return timerLists.every((name) => {
     const resolved = resolveProperty(sourceCode, options, name);
-    const list = resolved.kind === "known" ? unwrapExpression(resolved.value) : null;
 
-    if (list?.type !== "ArrayExpression") {
-      return true;
-    }
-
-    const values = list.elements.map((element) =>
-      element?.type === "Literal" ? element.value : undefined,
+    return (
+      resolved.kind !== "known" ||
+      valueBranches(sourceCode, resolved.value).some((list) => listFakes(list, name, api))
     );
-
-    if (values.length === 0 || values.includes(undefined)) {
-      return true;
-    }
-
-    return timerExclusionLists.has(name) ? !values.includes(api) : values.includes(api);
   });
+}
+
+function usesLegacyTimers(sourceCode: SourceCode, options: ESTree.Node | undefined) {
+  const resolved =
+    options === undefined ? null : resolveProperty(sourceCode, options, "legacyFakeTimers");
+
+  return (
+    resolved?.kind === "known" &&
+    valueBranches(sourceCode, resolved.value).every(
+      (value) => value.type === "Literal" && value.value === true,
+    )
+  );
 }
 
 function fakedClocks(
@@ -94,7 +112,9 @@ function controlledClocks(sourceCode: SourceCode, call: ESTree.CallExpression): 
   }
 
   if (name === "useFakeTimers") {
-    return fakedClocks(sourceCode, call.arguments[0], ["performance"]);
+    return usesLegacyTimers(sourceCode, call.arguments[0])
+      ? []
+      : fakedClocks(sourceCode, call.arguments[0], ["performance"]);
   }
 
   if (isSinonInstall(sourceCode, callee)) {

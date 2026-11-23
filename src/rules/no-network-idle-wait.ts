@@ -45,14 +45,16 @@ function waitUntilOptions(node: ESTree.CallExpression) {
   return index === undefined ? undefined : node.arguments[index];
 }
 
-function networkIdleOption(sourceCode: SourceCode, options: ESTree.Argument) {
-  const waitUntil = resolveProperty(sourceCode, options, "waitUntil");
+function networkIdleOptions(sourceCode: SourceCode, options: ESTree.Argument) {
+  return valueBranches(sourceCode, options).flatMap((branch) => {
+    const waitUntil = resolveProperty(sourceCode, branch, "waitUntil");
 
-  if (waitUntil.kind !== "known" || !waitsForNetworkIdle(sourceCode, waitUntil.value)) {
-    return null;
-  }
+    if (waitUntil.kind !== "known" || !waitsForNetworkIdle(sourceCode, waitUntil.value)) {
+      return [];
+    }
 
-  return waitUntil.value.parent?.type === "Property" ? waitUntil.value.parent : options;
+    return [waitUntil.value.parent?.type === "Property" ? waitUntil.value.parent : branch];
+  });
 }
 
 function networkIdleLoadState(sourceCode: SourceCode, node: ESTree.CallExpression) {
@@ -96,10 +98,9 @@ export const noNetworkIdleWait = defineRule({
         }
 
         const options = waitUntilOptions(node);
-        const option = options === undefined ? null : networkIdleOption(sourceCode, options);
 
-        if (option !== null) {
-          report(option);
+        if (options !== undefined) {
+          networkIdleOptions(sourceCode, options).forEach(report);
         }
       },
     };

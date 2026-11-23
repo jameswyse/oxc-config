@@ -40,6 +40,7 @@ ruleTester.run("no-network-idle-wait", noNetworkIdleWait, {
     'await cache.setContent({ waitUntil: "networkidle" });',
     'await page.goto(url, { waitUntil: "load" }, { waitUntil: "networkidle" });',
     'await page.reload({ waitUntil: "load" }, { waitUntil: "networkidle" });',
+    'await page.goto(url, fast ? { waitUntil: "commit" } : { waitUntil: "load" });',
   ],
   invalid: [
     { code: 'await page.waitForLoadState("networkidle");', errors: [error] },
@@ -107,6 +108,14 @@ ruleTester.run("no-network-idle-wait", noNetworkIdleWait, {
     {
       code: 'const options = { waitUntil: "networkidle" } satisfies GotoOptions; await page.goto(a, options); await page.goto(b, options);',
       errors: [error],
+    },
+    {
+      code: 'await page.goto(url, process.env.CI ? { waitUntil: "networkidle" } : { waitUntil: "load" });',
+      errors: [{ ...error, column: 40, endColumn: 64 }],
+    },
+    {
+      code: 'await page.reload(overrides || { waitUntil: "networkidle" });',
+      errors: [{ ...error, column: 33, endColumn: 57 }],
     },
   ],
 });

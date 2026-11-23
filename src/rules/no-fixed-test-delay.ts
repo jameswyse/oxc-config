@@ -396,25 +396,20 @@ export const noFixedTestDelay = defineRule({
           return;
         }
 
-        const returner = returningFunction(node);
-
-        if (!isAwaited(node) && !returner) {
+        if (!isAwaited(node) && !returningFunction(node)) {
           return;
         }
 
         const test = testContext(sourceCode, node);
 
-        if (!test) {
+        if (!test || !awaitedByTest(node, test)) {
           return;
         }
 
-        const awaited = awaitedByTest(node, test);
-        const directSleep = awaited && numericLiteral(sourceCode, sleepDelay(sourceCode, node));
-
-        const helperSleep =
-          (awaited || returner?.async === true) && callsFixedSleepHelper(sourceCode, node);
-
-        if (directSleep || helperSleep) {
+        if (
+          numericLiteral(sourceCode, sleepDelay(sourceCode, node)) ||
+          callsFixedSleepHelper(sourceCode, node)
+        ) {
           context.report({ node, messageId: "delay" });
         }
       },

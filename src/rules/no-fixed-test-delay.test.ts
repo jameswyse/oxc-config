@@ -78,6 +78,9 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     'import { test } from "vitest"; import { sleep } from "bun"; test("ready", async () => { await sleep(delay); });',
     'import { test } from "vitest"; import { sleepSync } from "bun"; test("ready", async () => { await sleepSync(100); });',
     'import { sleep } from "bun"; await sleep(100);',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", () => { items.forEach(async () => sleep(100)); });',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(async () => sleep(5))));',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(async () => { return sleep(5); })));',
   ],
   invalid: [
     {
@@ -162,14 +165,6 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     },
     {
       code: 'const sleep = async (ms) => await Bun.sleep(ms); const pause = 50 as const; test("x", async () => { await sleep(pause); });',
-      errors: [{ messageId: "delay" }],
-    },
-    {
-      code: 'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(async () => sleep(5))));',
-      errors: [{ messageId: "delay" }],
-    },
-    {
-      code: 'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(async () => { return sleep(5); })));',
       errors: [{ messageId: "delay" }],
     },
     {

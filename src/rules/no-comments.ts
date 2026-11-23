@@ -4,13 +4,14 @@ import {
   childNodes,
   matchesAny,
   projectPath,
+  unchangedInit,
   unwrapExpression,
   variableFor,
 } from "../shared/index.ts";
 import { isPublicClassMember, locallyExportedNames } from "../shared/module-exports.ts";
 import { optionStrings } from "../shared/rule-options.ts";
 
-import type { Comment, ESTree, Options, SourceCode } from "@oxlint/plugins";
+import type { Comment, ESTree, Options, SourceCode, Variable } from "@oxlint/plugins";
 
 import type { ModuleStatement } from "../shared/module-exports.ts";
 
@@ -231,7 +232,11 @@ function inheritedTypeReferences(node: ESTree.Node | null): ESTree.Node[] {
 }
 
 function qualifiedName(reference: ESTree.Node) {
-  if (reference.type === "MemberExpression" && reference.property.type === "Identifier") {
+  if (
+    reference.type === "MemberExpression" &&
+    !reference.computed &&
+    reference.property.type === "Identifier"
+  ) {
     return { qualifier: reference.object, member: reference.property.name };
   }
 
@@ -252,9 +257,19 @@ function exportedNamespaceMembers(namespace: ESTree.Node, name: string) {
   );
 }
 
+function boundDeclarations(variable: Variable) {
+  const declarations = variable.defs.map((definition) => definition.node);
+
+  return unchangedInit(variable) === null
+    ? declarations.filter((declaration) => declaration.type !== "VariableDeclarator")
+    : declarations;
+}
+
 function referencedDeclarations(sourceCode: SourceCode, reference: ESTree.Node): ESTree.Node[] {
   if (reference.type === "Identifier") {
-    return variableFor(sourceCode, reference)?.defs.map((definition) => definition.node) ?? [];
+    const variable = variableFor(sourceCode, reference);
+
+    return variable === null ? [] : boundDeclarations(variable);
   }
 
   const qualified = qualifiedName(reference);
@@ -266,8 +281,24 @@ function referencedDeclarations(sourceCode: SourceCode, reference: ESTree.Node):
       );
 }
 
-function declarationStatement(declaration: HeritageDeclaration): ModuleStatement {
-  return declaration.parent.type === "ExportNamedDeclaration" ? declaration.parent : declaration;
+function exportedStatement(
+  statement: HeritageDeclaration | ESTree.VariableDeclaration,
+): ModuleStatement {
+  return statement.parent.type === "ExportNamedDeclaration" ? statement.parent : statement;
+}
+
+function heritageTarget(node: ESTree.Node) {
+  if (node.type !== "VariableDeclarator") {
+    return isHeritageDeclaration(node)
+      ? { declaration: node, statement: exportedStatement(node) }
+      : null;
+  }
+
+  const value = node.init === null ? null : unwrapExpression(node.init);
+
+  return value?.type === "ClassExpression" && node.parent.type === "VariableDeclaration"
+    ? { declaration: value, statement: exportedStatement(node.parent) }
+    : null;
 }
 
 function publicApiStarts(program: ESTree.Program, sourceCode: SourceCode) {
@@ -322,11 +353,13 @@ function publicApiStarts(program: ESTree.Program, sourceCode: SourceCode) {
   const reached = new Set<HeritageDeclaration>();
 
   for (const reference of inheritedReferences) {
-    for (const declaration of referencedDeclarations(sourceCode, reference)) {
-      if (isHeritageDeclaration(declaration) && !reached.has(declaration)) {
-        reached.add(declaration);
-        addStatement(declarationStatement(declaration));
-        inheritedReferences.push(...heritageReferences(declaration));
+    for (const node of referencedDeclarations(sourceCode, reference)) {
+      const target = heritageTarget(node);
+
+      if (target !== null && !reached.has(target.declaration)) {
+        reached.add(target.declaration);
+        addStatement(target.statement);
+        inheritedReferences.push(...heritageReferences(target.declaration));
       }
     }
   }
