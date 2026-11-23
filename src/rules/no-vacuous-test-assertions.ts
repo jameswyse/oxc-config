@@ -1,6 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { variableFor, propertyName, apiReference } from "../shared/index.ts";
+import { variableFor, propertyName, apiReference, expectModules } from "../shared/index.ts";
 
 import type { ESTree } from "@oxlint/plugins";
 
@@ -65,17 +65,7 @@ export const noVacuousTestAssertions = defineRule({
 
         const api = apiReference(sourceCode, actualCall.callee);
 
-        if (
-          api?.name !== "expect" ||
-          ![
-            "vitest",
-            "@effect/vitest",
-            "@jest/globals",
-            "@playwright/test",
-            "playwright/test",
-            "global",
-          ].includes(api.module)
-        ) {
+        if (api?.name !== "expect" || !expectModules.has(api.module)) {
           return;
         }
 

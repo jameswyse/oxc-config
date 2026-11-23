@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 import { defineRule } from "@oxlint/plugins";
 
 import {
@@ -8,13 +10,23 @@ import {
   isTestRunner,
   isImportedTest,
   isImportedTestDescribeConfigure,
+  vitestModules,
 } from "../shared/index.ts";
+import {
+  configExportVisitors,
+  configFileRunner,
+  vitestRootTestValue,
+} from "../shared/test-runner-config.ts";
 
-import type { ESTree, SourceCode } from "@oxlint/plugins";
+import type { Context, ESTree, SourceCode } from "@oxlint/plugins";
 
 const optionKeys = new Set(["timeout"]);
 
 const configKeys = new Set(["testTimeout", "hookTimeout"]);
+
+function isEndToEndConfig(filename: string) {
+  return basename(filename).split(".").includes("e2e");
+}
 
 function hasOverrideKey(node: ESTree.Argument | undefined, keys: ReadonlySet<string>) {
   const options = node === undefined ? undefined : unwrapExpression(node);
@@ -50,7 +62,7 @@ function runnerOverride(sourceCode: SourceCode, node: ESTree.CallExpression) {
 
   if (method === "setConfig") {
     return (
-      isTestRunner(sourceCode, callee.object, "vi", ["vitest", "@effect/vitest"]) &&
+      isTestRunner(sourceCode, callee.object, "vi", vitestModules) &&
       hasOverrideKey(node.arguments[0], configKeys)
     );
   }
@@ -72,6 +84,22 @@ function runnerOverride(sourceCode: SourceCode, node: ESTree.CallExpression) {
   );
 }
 
+function configTimeoutChecks(context: Context) {
+  const sourceCode = context.sourceCode;
+  const reported = new Set<ESTree.Node>();
+
+  return configExportVisitors(sourceCode, (layers) => {
+    configKeys.forEach((key) => {
+      const value = vitestRootTestValue(sourceCode, layers, key);
+
+      if (value !== null && !reported.has(value)) {
+        reported.add(value);
+        context.report({ node: value, messageId: "config" });
+      }
+    });
+  });
+}
+
 export const noTestTimeoutOverrides = defineRule({
   meta: {
     type: "suggestion",
@@ -82,17 +110,27 @@ export const noTestTimeoutOverrides = defineRule({
     messages: {
       override:
         "This test raises its timeout to tolerate slow work. Make the test faster or wait for the specific event it needs instead.",
+      config:
+        "A config-level timeout overrides the limit for every test, so a slow test passes without anyone fixing it. Make the slow test faster or wait for the specific event it needs instead.",
     },
   },
   create(context) {
     const sourceCode = context.sourceCode;
 
-    return {
-      CallExpression(node) {
+    const isConfig = configFileRunner(context.filename) === "vitest";
+
+    if (isConfig && isEndToEndConfig(context.filename)) {
+      return {};
+    }
+
+    const callChecks = {
+      CallExpression(node: ESTree.CallExpression) {
         if (registrationOverride(sourceCode, node) || runnerOverride(sourceCode, node)) {
           context.report({ node, messageId: "override" });
         }
       },
     };
+
+    return isConfig ? { ...configTimeoutChecks(context), ...callChecks } : callChecks;
   },
 });

@@ -1,6 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { variableFor, propertyName, apiReference } from "../shared/index.ts";
+import { variableFor, propertyName, apiReference, expectModules } from "../shared/index.ts";
 import { isStringLiteral } from "../vendor/anti-slop/effect/shared/tagged-values.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
@@ -11,15 +11,6 @@ type Expectation = {
   readonly actual: ESTree.Argument;
   readonly expected: readonly ESTree.Argument[];
 };
-
-const expectModules = new Set([
-  "vitest",
-  "@effect/vitest",
-  "@jest/globals",
-  "@playwright/test",
-  "playwright/test",
-  "global",
-]);
 
 const presenceMatchers = new Map<string, boolean>([
   ["toBeDefined", false],

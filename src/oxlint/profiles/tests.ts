@@ -21,6 +21,14 @@ const runnerRules = [
   "valid-expect-in-promise",
 ];
 
+const configExtensions = "{js,jsx,mjs,cjs,ts,tsx,mts,cts}";
+
+const vitestConfigFiles = [
+  `**/{vite,vitest}.config.${configExtensions}`,
+  `**/vitest.*.config.${configExtensions}`,
+  `**/vitest.workspace.${configExtensions}`,
+];
+
 export const tests: BaseProfile = (scope) => [
   {
     rules: {
@@ -35,7 +43,6 @@ export const tests: BaseProfile = (scope) => [
       ...errorRules("wyse", [
         "companion-has-owner",
         "no-edit-proof-assertions",
-        "no-fixed-test-delay",
         "no-optional-test-action",
         "no-recorder-polling",
         "no-stubbed-behavior",
@@ -45,12 +52,22 @@ export const tests: BaseProfile = (scope) => [
     },
   },
   {
+    files: [...scope.tests, ...scope.endToEnd, ...scope.testSupport],
+    rules: errorRules("wyse", ["no-fixed-test-delay", "no-network-idle-wait"]),
+  },
+  {
+    files: [...scope.tests, ...scope.testSupport],
+    rules: { "wyse/no-mutated-imports": "warn" },
+  },
+  {
+    files: [...scope.tests, ...vitestConfigFiles],
+    excludeFiles: scope.endToEnd,
+    rules: { "wyse/no-test-timeout-overrides": "error" },
+  },
+  {
     files: scope.tests,
     excludeFiles: scope.endToEnd,
-    rules: {
-      "wyse/no-test-timeout-overrides": "error",
-      "wyse/no-uncontrolled-test-clock": "error",
-    },
+    rules: { "wyse/no-uncontrolled-test-clock": "error" },
   },
 ];
 

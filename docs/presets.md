@@ -133,7 +133,7 @@ export const mobile: Profile<AppRoots> = (scope, roots) => [
 ];
 ```
 
-The scope holds the globs every profile shares: `source`, `typeScript`, `javaScript`, `tests`, `endToEnd`, `entrypoints` and `programs`. It also holds the project's `typeAware` option. Use `scope.tests` to keep a rule out of test files, so the layer follows the project's `tests` option and its test runners.
+The scope holds the globs every profile shares: `source`, `typeScript`, `javaScript`, `tests`, `endToEnd`, `testSupport` (`*.fixture.*` and `*.test-utils.*` files and `test` and `tests` directories), `entrypoints` and `programs`. It also holds the project's `typeAware` option. Use `scope.tests` to keep a rule out of test files, so the layer follows the project's `tests` option and its test runners.
 
 `@jameswyse/oxc-config/oxlint/preset` exports these helpers:
 

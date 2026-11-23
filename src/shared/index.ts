@@ -21,14 +21,13 @@ export type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
 type VisitorKeys = SourceCode["visitorKeys"];
 
-export const testModules = new Set([
-  "vitest",
-  "@effect/vitest",
-  "@jest/globals",
-  "@playwright/test",
-  "playwright/test",
-  "node:test",
-]);
+export const vitestModules: readonly string[] = ["vitest", "@effect/vitest", "vite-plus/test"];
+
+const assertionModules = [...vitestModules, "@jest/globals", "@playwright/test", "playwright/test"];
+
+export const testModules = new Set([...assertionModules, "node:test"]);
+
+export const expectModules = new Set([...assertionModules, "global"]);
 
 const defaultImports = new Map<string, string>([
   ["@playwright/test", "test"],
@@ -654,7 +653,7 @@ export function apiReference(sourceCode: SourceCode, node: ESTree.Node): ApiRefe
 
     return object &&
       ["test", "it"].includes(object.name) &&
-      (isPlaywright(object.module) || ["vitest", "@effect/vitest"].includes(object.module)) &&
+      (isPlaywright(object.module) || vitestModules.includes(object.module)) &&
       name === "extend"
       ? object
       : null;
@@ -918,6 +917,54 @@ export type TestRegistration = {
 
 const testHooks = new Set(["beforeEach", "afterEach", "beforeAll", "afterAll"]);
 
+function isMemberNamed(member: ESTree.MemberExpression, names: ReadonlySet<string>) {
+  const name = staticPropertyName(member);
+
+  return name !== null && names.has(name);
+}
+
+function unmodifiedCallee(node: ESTree.Node): ESTree.Node {
+  const value = unwrapExpression(node);
+
+  if (value.type === "TaggedTemplateExpression") {
+    const tag = unwrapExpression(value.tag);
+
+    return tag.type === "MemberExpression" && staticPropertyName(tag) === "each"
+      ? unmodifiedCallee(tag.object)
+      : value;
+  }
+
+  if (value.type === "CallExpression") {
+    const callee = unwrapExpression(value.callee);
+
+    return callee.type === "MemberExpression" && isMemberNamed(callee, testFactories)
+      ? unmodifiedCallee(callee.object)
+      : value;
+  }
+
+  return value.type === "MemberExpression" && isMemberNamed(value, testModifiers)
+    ? unmodifiedCallee(value.object)
+    : value;
+}
+
+function isDescribe(sourceCode: SourceCode, node: ESTree.Node) {
+  if (isGlobal(sourceCode, node, "describe")) {
+    return true;
+  }
+
+  const api = apiReference(sourceCode, node);
+
+  if (api?.name === "describe" && testModules.has(api.module)) {
+    return true;
+  }
+
+  return (
+    node.type === "MemberExpression" &&
+    propertyName(node) === "describe" &&
+    apiReference(sourceCode, node.object)?.name === "test"
+  );
+}
+
 function registrationName(sourceCode: SourceCode, callee: ESTree.Expression) {
   const api = apiReference(sourceCode, callee);
 
@@ -925,17 +972,7 @@ function registrationName(sourceCode: SourceCode, callee: ESTree.Expression) {
     return api.name;
   }
 
-  if (isGlobal(sourceCode, callee, "describe")) {
-    return "describe";
-  }
-
-  const base = callee.type === "MemberExpression" ? callee.object : null;
-
-  return base &&
-    propertyName(callee) === "describe" &&
-    apiReference(sourceCode, base)?.name === "test"
-    ? "describe"
-    : null;
+  return isDescribe(sourceCode, unmodifiedCallee(callee)) ? "describe" : null;
 }
 
 function boundValue(sourceCode: SourceCode, node: ESTree.Node) {

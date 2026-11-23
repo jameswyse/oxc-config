@@ -10,6 +10,7 @@ import {
   testModules,
   unwrapExpression,
   variableFor,
+  vitestModules,
 } from "../shared/index.ts";
 
 import type { ESTree, Reference, SourceCode } from "@oxlint/plugins";
@@ -18,8 +19,6 @@ type PollKind = "expect.poll" | "waitFor";
 
 const spyMatcher =
   /^(?:toHaveBeen(?:Last|Nth)?Called|toBeCalled|lastCalledWith|nthCalledWith|toReturn|toHave(?:Last|Nth)?(?:Returned|Resolved))/u;
-
-const viModules = ["vitest", "@effect/vitest"];
 
 const collectionConstructors = new Set(["Array", "Set", "Map"]);
 
@@ -48,8 +47,8 @@ function pollKind(sourceCode: SourceCode, callee: ESTree.Node) {
 
   if (
     value.type === "MemberExpression" &&
-    method === "waitFor" &&
-    isTestRunner(sourceCode, value.object, "vi", viModules)
+    (method === "waitFor" || method === "waitUntil") &&
+    isTestRunner(sourceCode, value.object, "vi", vitestModules)
   ) {
     return "waitFor";
   }

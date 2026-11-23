@@ -3,19 +3,19 @@ import { defineRule } from "@oxlint/plugins";
 import {
   variableFor,
   isGlobal,
-  propertyName,
   staticPropertyName,
-  isPlaywright,
   apiReference,
   importedBinding,
   isEffectModule,
+  isFunctionNode,
+  outermostExpression,
   testContext,
   unwrapExpression,
 } from "../shared/index.ts";
 
 import type { ESTree, SourceCode } from "@oxlint/plugins";
 
-import type { TestContext } from "../shared/index.ts";
+import type { FunctionNode, TestContext } from "../shared/index.ts";
 
 function constantValue(sourceCode: SourceCode, argument: ESTree.Node | null | undefined) {
   const node = argument ? unwrapExpression(argument) : argument;
@@ -145,9 +145,9 @@ function resolvesWithoutValue(
   );
 }
 
-function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression) {
+function timerPromiseDelay(sourceCode: SourceCode, node: ESTree.NewExpression) {
   if (!isGlobal(sourceCode, node.callee, "Promise")) {
-    return false;
+    return null;
   }
 
   const executor = node.arguments[0];
@@ -157,13 +157,13 @@ function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression) {
     (executor.type !== "ArrowFunctionExpression" && executor.type !== "FunctionExpression") ||
     executor.generator
   ) {
-    return false;
+    return null;
   }
 
   const resolve = executor.params[0];
 
   if (resolve?.type !== "Identifier") {
-    return false;
+    return null;
   }
 
   const timer = singleExpression(executor.body);
@@ -171,38 +171,166 @@ function timerPromise(sourceCode: SourceCode, node: ESTree.NewExpression) {
   if (
     timer?.type !== "CallExpression" ||
     !globalTimer(sourceCode, timer.callee) ||
-    !numericLiteral(sourceCode, timer.arguments[1])
+    !resolvesWithoutValue(sourceCode, timer.arguments[0], resolve)
   ) {
-    return false;
+    return null;
   }
 
-  return resolvesWithoutValue(sourceCode, timer.arguments[0], resolve);
+  return timer.arguments[1] ?? null;
 }
 
-function playwrightPage(sourceCode: SourceCode, node: ESTree.Expression, enclosing: TestContext) {
-  if (!isPlaywright(enclosing.api.module) || node.type !== "Identifier") {
+function sleepDelay(sourceCode: SourceCode, node: ESTree.Node) {
+  if (node.type === "NewExpression") {
+    return timerPromiseDelay(sourceCode, node);
+  }
+
+  if (node.type !== "CallExpression") {
+    return null;
+  }
+
+  const api = apiReference(sourceCode, node.callee);
+
+  const sleeps =
+    (api?.name === "setTimeout" && timerModules.includes(api.module)) ||
+    isRuntimeSleep(sourceCode, node.callee);
+
+  return sleeps ? (node.arguments[0] ?? null) : null;
+}
+
+function sameFileHelper(sourceCode: SourceCode, callee: ESTree.Expression) {
+  if (callee.type !== "Identifier") {
+    return null;
+  }
+
+  const [definition, ...others] = variableFor(sourceCode, callee)?.defs ?? [];
+
+  if (!definition || others.length > 0) {
+    return null;
+  }
+
+  if (definition.type === "FunctionName") {
+    return definition.node.type === "FunctionDeclaration" ? definition.node : null;
+  }
+
+  const value = constantValue(sourceCode, callee);
+
+  return value?.type === "ArrowFunctionExpression" || value?.type === "FunctionExpression"
+    ? value
+    : null;
+}
+
+function soleAwaitedOrReturned(body: ESTree.FunctionBody | ESTree.Expression | null) {
+  if (body === null || body.type !== "BlockStatement") {
+    return body;
+  }
+
+  const [statement, ...others] = body.body;
+
+  if (others.length > 0) {
+    return null;
+  }
+
+  if (statement?.type === "ReturnStatement") {
+    return statement.argument;
+  }
+
+  return statement?.type === "ExpressionStatement" &&
+    statement.expression.type === "AwaitExpression"
+    ? statement.expression
+    : null;
+}
+
+function helperSleepDelay(sourceCode: SourceCode, helper: FunctionNode) {
+  if (helper.generator) {
+    return null;
+  }
+
+  const result = soleAwaitedOrReturned(helper.body);
+  const value = result ? unwrapExpression(result) : null;
+  const awaited = value?.type === "AwaitExpression" ? value.argument : value;
+
+  return awaited ? sleepDelay(sourceCode, unwrapExpression(awaited)) : null;
+}
+
+function unchangedParameterIndex(sourceCode: SourceCode, helper: FunctionNode, node: ESTree.Node) {
+  const variable = variableFor(sourceCode, unwrapExpression(node));
+  const [definition, ...others] = variable?.defs ?? [];
+
+  if (
+    !variable ||
+    definition?.type !== "Parameter" ||
+    others.length > 0 ||
+    variable.references.some((reference) => reference.isWrite() && !reference.init)
+  ) {
+    return -1;
+  }
+
+  return helper.params.findIndex(
+    (parameter) =>
+      parameter === definition.name ||
+      (parameter.type === "AssignmentPattern" && parameter.left === definition.name),
+  );
+}
+
+function callsFixedSleepHelper(sourceCode: SourceCode, call: ESTree.CallExpression) {
+  const helper = sameFileHelper(sourceCode, call.callee);
+  const delay = helper ? helperSleepDelay(sourceCode, helper) : null;
+
+  if (!helper || !delay) {
     return false;
   }
 
-  const fixtures = enclosing.callback.params[0];
+  if (numericLiteral(sourceCode, delay)) {
+    return true;
+  }
 
-  if (fixtures?.type !== "ObjectPattern") {
+  const index = unchangedParameterIndex(sourceCode, helper, delay);
+  const parameter = helper.params[index];
+
+  if (!parameter) {
     return false;
   }
 
-  return fixtures.properties.some((property) => {
-    if (property.type !== "Property" || propertyName(property) !== "page") {
-      return false;
+  if (call.arguments.slice(0, index + 1).some((argument) => argument.type === "SpreadElement")) {
+    return false;
+  }
+
+  const argument = call.arguments[index];
+
+  if (argument && !isGlobal(sourceCode, unwrapExpression(argument), "undefined")) {
+    return numericLiteral(sourceCode, argument);
+  }
+
+  return parameter.type === "AssignmentPattern" && numericLiteral(sourceCode, parameter.right);
+}
+
+function enclosingFunction(node: ESTree.Node) {
+  for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (isFunctionNode(ancestor)) {
+      return ancestor;
     }
+  }
 
-    const binding =
-      property.value.type === "AssignmentPattern" ? property.value.left : property.value;
+  return null;
+}
 
-    return (
-      binding.type === "Identifier" &&
-      variableFor(sourceCode, binding) === variableFor(sourceCode, node)
-    );
-  });
+function isAwaited(node: ESTree.Node) {
+  return outermostExpression(node).parent?.type === "AwaitExpression";
+}
+
+function returningFunction(node: ESTree.Node) {
+  const expression = outermostExpression(node);
+  const parent = expression.parent;
+
+  if (parent?.type === "ReturnStatement") {
+    return enclosingFunction(parent);
+  }
+
+  return parent?.type === "ArrowFunctionExpression" && parent.body === expression ? parent : null;
+}
+
+function awaitedByTest(node: ESTree.Node, test: TestContext) {
+  return isAwaited(node) || returningFunction(node) === test.callback;
 }
 
 function isFixedDuration(sourceCode: SourceCode, argument: ESTree.Argument | undefined) {
@@ -259,42 +387,45 @@ export const noFixedTestDelay = defineRule({
           context.report({ node, messageId: "delay" });
         }
 
-        if (node.parent.type !== "AwaitExpression") {
-          return;
-        }
-
-        const enclosing = testContext(sourceCode, node);
-
-        if (!enclosing) {
-          return;
-        }
-
-        const api = apiReference(sourceCode, node.callee);
-
-        const importedTimer =
-          api?.name === "setTimeout" &&
-          timerModules.includes(api.module) &&
-          numericLiteral(sourceCode, node.arguments[0]);
-
-        const runtimeTimer =
-          isRuntimeSleep(sourceCode, node.callee) && numericLiteral(sourceCode, node.arguments[0]);
-
-        const browserTimer =
+        if (
           node.callee.type === "MemberExpression" &&
-          staticPropertyName(node.callee) === "waitForTimeout" &&
-          numericLiteral(sourceCode, node.arguments[0]) &&
-          playwrightPage(sourceCode, node.callee.object, enclosing);
+          staticPropertyName(node.callee) === "waitForTimeout"
+        ) {
+          context.report({ node, messageId: "delay" });
 
-        if (importedTimer || runtimeTimer || browserTimer) {
+          return;
+        }
+
+        const returner = returningFunction(node);
+
+        if (!isAwaited(node) && !returner) {
+          return;
+        }
+
+        const test = testContext(sourceCode, node);
+
+        if (!test) {
+          return;
+        }
+
+        const awaited = awaitedByTest(node, test);
+        const directSleep = awaited && numericLiteral(sourceCode, sleepDelay(sourceCode, node));
+
+        const helperSleep =
+          (awaited || returner?.async === true) && callsFixedSleepHelper(sourceCode, node);
+
+        if (directSleep || helperSleep) {
           context.report({ node, messageId: "delay" });
         }
       },
       NewExpression(node) {
-        if (
-          node.parent.type === "AwaitExpression" &&
-          testContext(sourceCode, node) &&
-          timerPromise(sourceCode, node)
-        ) {
+        if (!numericLiteral(sourceCode, timerPromiseDelay(sourceCode, node))) {
+          return;
+        }
+
+        const test = testContext(sourceCode, node);
+
+        if (test && awaitedByTest(node, test)) {
           context.report({ node, messageId: "delay" });
         }
       },

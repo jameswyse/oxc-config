@@ -29,6 +29,10 @@ ruleTester.run("no-module-mocking", noModuleMocking, {
       errors: [{ messageId: "moduleMock" }],
     },
     {
+      code: 'import { vi } from "vite-plus/test"; vi.mock("./database");',
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
       code: 'import { vi } from "@effect/vitest"; vi.mock("./database");',
       errors: [{ messageId: "moduleMock" }],
     },

@@ -3,7 +3,6 @@ import { noFixedTestDelay } from "./no-fixed-test-delay.ts";
 
 ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
   valid: [
-    'import { test } from "@playwright/test"; let delay = 500; test("ready", async ({ page }) => { await page.waitForTimeout(delay); });',
     'import { it } from "@effect/vitest"; import { Effect, TestClock } from "effect"; it.effect("expires", () => Effect.gen(function* () { yield* TestClock.adjust("1 minute"); }));',
     'import { Effect } from "effect"; export const retry = Effect.gen(function* () { yield* Effect.sleep("50 millis"); });',
     'import { it } from "@effect/vitest"; import { Effect } from "effect"; it.effect("waits", () => Effect.gen(function* () { yield* Effect.sleep(backoff); }));',
@@ -20,10 +19,28 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     'test("ready", async () => { await new Promise(resolve => setTimeout(work, 100)); });',
     'test("ready", async () => { await new Promise(resolve => { start(); setTimeout(resolve, 100); }); });',
     'import { setTimeout as delay } from "node:timers/promises"; test("ready", async () => { await delay(configuredDelay); });',
-    'import { test } from "vitest"; test("ready", async ({ page }) => { await page.waitForTimeout(100); });',
+    'const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); test("x", async () => { await sleep(backoff); });',
+    'const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); let backoff = 100; test("x", async () => { await sleep(backoff); });',
+    'const sleep = async (ms) => { await Bun.sleep(ms); log("slept"); }; test("x", async () => { await sleep(250); });',
+    'const sleep = (ms) => { start(); return Bun.sleep(ms); }; test("x", async () => { await sleep(250); });',
+    'const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)); const nap = (ms) => sleep(ms); test("x", async () => { await nap(250); });',
+    'import { sleep } from "./sleep"; test("x", async () => { await sleep(250); });',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", async (sleep) => { await sleep(250); });',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", async () => { const sleep = createSleeper(); await sleep(250); });',
+    "const sleep = (ms) => Bun.sleep(ms); async function setup() { await sleep(250); }",
+    'import { test } from "other-test-framework"; const sleep = (ms) => Bun.sleep(ms); test("x", async () => { await sleep(250); });',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", async () => { sleep(250); });',
+    'const sleep = (ms) => { ms = ms * 2; return Bun.sleep(ms); }; test("x", async () => { await sleep(250); });',
+    'const nap = (ms = backoff) => Bun.sleep(ms); test("x", async () => { await nap(); });',
+    'const nap = (ms = 100) => Bun.sleep(ms); test("x", async () => { await nap(backoff); });',
+    'const nap = (label, ms = 100) => Bun.sleep(ms); test("x", async () => { await nap(...args); });',
+    'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(() => sleep(5))));',
+    'const sleep = (ms, factor) => Bun.sleep(factor); test("x", async () => { await sleep(250, backoff); });',
+    'const sleep = (ms) => { Bun.sleep(ms); }; test("x", async () => { await sleep(250); });',
+    'let sleep = (ms) => Bun.sleep(ms); test("x", async () => { await sleep(250); });',
+    'const sleep = function* (ms) { yield Bun.sleep(ms); }; test("x", async () => { await sleep(250); });',
     'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await page.waitForSelector("button"); });',
-    'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await (async (page) => { await page.waitForTimeout(100); })(customPage); });',
-    'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await otherPage.waitForTimeout(100); });',
+    'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await page[method](100); });',
     'import { setTimeout as delay } from "node:timers/promises"; test.setTimeout("ready", async () => { await delay(100); });',
     'test("ready", async (globalThis) => { await new Promise(resolve => globalThis.setTimeout(resolve, 100)); });',
     'import test from "./test"; test("ready", async () => { await new Promise(resolve => setTimeout(resolve, 100)); });',
@@ -63,6 +80,134 @@ ruleTester.run("no-fixed-test-delay", noFixedTestDelay, {
     'import { sleep } from "bun"; await sleep(100);',
   ],
   invalid: [
+    {
+      code: 'const sleep = (ms) => Bun.sleep(ms); test("x", () => sleep(100));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = (ms) => Bun.sleep(ms); test("x", () => { return sleep(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("x", () => Bun.sleep(100));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("x", () => Bun.sleep(100) as Promise<void>);',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = () => Bun.sleep(100); test("x", () => sleep() as Promise<void>);',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = async () => (await Bun.sleep(100)) as void; test("x", () => sleep());',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("x", async () => { await (<Promise<void>>Bun.sleep(100)); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("x", () => { return (new Promise((resolve) => setTimeout(resolve, 100)) satisfies Promise<unknown>)!; });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: "beforeEach(function () { return Bun.sleep(100); });",
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("x", () => new Promise((resolve) => setTimeout(resolve, 100)));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const nap = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms)); test("x", async () => { await nap(); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const nap = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms)); test("x", async () => { await nap(undefined); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const nap = (ms = backoff) => new Promise((resolve) => setTimeout(resolve, ms)); test("x", async () => { await nap(250); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = (ms = 100) => Bun.sleep(ms); test("x", async () => { await sleep(250); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); test("x", async () => { await sleep(250); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'test("x", async () => { await rest(300); }); function rest(ms) { return new Promise((resolve) => { setTimeout(resolve, ms); }); }',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: "const doze = function (ms) { return Bun.sleep(ms); }; beforeEach(async () => { await doze(10); });",
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { setTimeout as delay } from "node:timers/promises"; const pause = (ms) => delay(ms); test("x", async () => { await pause(20); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { setTimeout as delay } from "node:timers/promises"; const settle = () => delay(100); test("x", async () => { await settle(); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const settleMs = 100; const settle = async () => { await Bun.sleep(settleMs); }; test("x", async () => { await settle(); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = async (ms) => await Bun.sleep(ms); const pause = 50 as const; test("x", async () => { await sleep(pause); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(async () => sleep(5))));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'const sleep = (ms) => Bun.sleep(ms); test("x", () => Promise.all([1].map(async () => { return sleep(5); })));',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { scheduler } from "node:timers/promises"; const sleep = (label, ms) => scheduler.wait(ms); test("x", async () => { await sleep("settle", 75); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; let delay = 500; test("ready", async ({ page }) => { await page.waitForTimeout(delay); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "vitest"; test("ready", async ({ page }) => { await page.waitForTimeout(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await (async (page) => { await page.waitForTimeout(100); })(customPage); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "@playwright/test"; test("ready", async ({ page }) => { await otherPage.waitForTimeout(100); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: "export async function settle(page) { await page.waitForTimeout(SETTLE_MS); }",
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: 'import { test } from "./fixtures"; test("ready", async ({ page }) => { await page.waitForTimeout(250); });',
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: "export class LoginPage { constructor(page) { this.page = page; } async submit() { this.page.waitForTimeout(100); } }",
+      errors: [{ messageId: "delay" }],
+    },
+    {
+      code: "export const settle = (page) => page?.waitForTimeout();",
+      errors: [{ messageId: "delay" }],
+    },
     {
       code: 'import { test } from "@playwright/test"; const delay = 500; test("ready", async ({ page }) => { await page.waitForTimeout(delay); });',
       errors: [{ messageId: "delay" }],
