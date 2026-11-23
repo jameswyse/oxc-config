@@ -4,6 +4,7 @@ import {
   importedBinding,
   isGlobalValue,
   isPlaywright,
+  isTestRunner,
   staticPropertyName,
   testContext,
   unwrapExpression,
@@ -112,7 +113,9 @@ function controlledClocks(sourceCode: SourceCode, call: ESTree.CallExpression): 
   }
 
   if (name === "useFakeTimers") {
-    const isJest = callee.type === "MemberExpression" && nameOf(callee.object) === "jest";
+    const isJest =
+      callee.type === "MemberExpression" &&
+      isTestRunner(sourceCode, callee.object, "jest", ["@jest/globals"]);
 
     return isJest && usesLegacyTimers(sourceCode, call.arguments[0])
       ? []
