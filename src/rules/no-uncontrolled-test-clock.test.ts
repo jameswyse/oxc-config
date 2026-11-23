@@ -39,6 +39,7 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
     'import { test, vi } from "vitest"; const toFake = flag ? ["Date"] : ["performance"]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
     'import { test, vi } from "vitest"; let toFake = ["Date"]; toFake = ["performance"]; vi.useFakeTimers({ toFake }); test("fast", () => { expect(performance.now()).toBe(0); });',
     'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: false }); test("now", () => { expect(Date.now()).toBe(0); });',
+    'import { test, vi } from "vitest"; const options = { now: 0, legacyFakeTimers: true }; vi.useFakeTimers(options); test("now", () => { expect(Date.now()).toBe(0); });',
     'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: true, ...modern }); test("now", () => { expect(Date.now()).toBe(0); });',
     'import { jest, test } from "@jest/globals"; jest.useFakeTimers({ legacyFakeTimers: legacy }); test("now", () => { expect(Date.now()).toBe(0); });',
   ],

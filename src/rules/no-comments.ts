@@ -358,8 +358,18 @@ function publicApiStarts(program: ESTree.Program, sourceCode: SourceCode) {
 
       if (target !== null && !reached.has(target.declaration)) {
         reached.add(target.declaration);
-        addStatement(target.statement);
         inheritedReferences.push(...heritageReferences(target.declaration));
+
+        if (target.declaration.type !== "ClassExpression") {
+          addStatement(target.statement);
+          continue;
+        }
+
+        starts.add(target.statement.start);
+
+        for (const member of valueMembers(target.declaration)) {
+          starts.add(member.start);
+        }
       }
     }
   }

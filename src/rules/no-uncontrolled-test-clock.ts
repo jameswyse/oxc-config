@@ -112,7 +112,9 @@ function controlledClocks(sourceCode: SourceCode, call: ESTree.CallExpression): 
   }
 
   if (name === "useFakeTimers") {
-    return usesLegacyTimers(sourceCode, call.arguments[0])
+    const isJest = callee.type === "MemberExpression" && nameOf(callee.object) === "jest";
+
+    return isJest && usesLegacyTimers(sourceCode, call.arguments[0])
       ? []
       : fakedClocks(sourceCode, call.arguments[0], ["performance"]);
   }

@@ -378,6 +378,10 @@ ruleTester.run("no-comments", noComments, {
       errors: [{ messageId: "comment" }],
     },
     {
+      code: "const Base = class {},\n  Private = class {\n    /** Internal detail. */\n    value = 0;\n  };\nexport class Child extends Base {}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
       code: 'let Base = class {\n  /** Display name. */\n  name = "";\n};\nBase = class {};\nexport class Child extends Base {}',
       errors: [{ messageId: "comment" }],
     },
