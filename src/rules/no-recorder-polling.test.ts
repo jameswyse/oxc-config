@@ -33,6 +33,8 @@ ruleTester.run("no-recorder-polling", noRecorderPolling, {
     `${vitest}await vi.waitFor(() => { if (!ready) throw new Error("not ready"); });`,
     `${vitest}await vi.waitFor(() => { expect(spy).toHaveBeenCalled(); expect(screen.getByText("Saved")).toBeVisible(); });`,
     `${vitest}await vi.waitFor(() => {});`,
+    `${vitest}await vi.waitUntil(() => store.state.status === "ready");`,
+    `import { vi } from "vite-plus/test";\nawait vi.waitUntil(() => screen.queryByRole("alert"));`,
     `${vitest}await vi.waitFor(() => expect(ref.current).toHaveBeenCalled());`,
     `${vitest}await vi.waitFor(waitForRequests);`,
     `${rtl}await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());`,
@@ -110,6 +112,12 @@ ruleTester.run("no-recorder-polling", noRecorderPolling, {
     },
     { code: `${vitest}${requests}await vi.waitFor(() => requests.length >= 2);`, errors: poll },
     { code: `${vitest}${requests}await vi.waitFor(() => 0 < requests.length);`, errors: poll },
+    { code: `${vitest}${requests}await vi.waitUntil(() => requests.length > 0);`, errors: poll },
+    { code: `${vitest}await vi.waitUntil(() => spy.mock.calls.length > 0);`, errors: poll },
+    {
+      code: `import { vi } from "vite-plus/test";\n${requests}await vi.waitUntil(() => requests.length > 0);`,
+      errors: poll,
+    },
     {
       code: `${vitest}const expected = 2;\nawait expect.poll(() => spy.mock.calls.length === expected).toBe(true);`,
       errors: poll,

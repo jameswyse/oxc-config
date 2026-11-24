@@ -29,6 +29,8 @@ ruleTester.run("no-test-retries", noTestRetries, {
     'import { vi } from "./vi"; vi.setConfig({ retry: 3 });',
     "function suite(test) { test.describe.configure({ retries: 2 }); }",
     "fetchWithRetry(url, { retries: 3 });",
+    'describe.each([{ retry: 3 }])("suite %s", () => {});',
+    'import { describe } from "./suite"; describe.each([1])("suite %s", { retry: 3 }, () => {});',
     'import { defineConfig } from "vitest/config"; export default defineConfig({ test: { retry: 2 } });',
     inFile(
       "vitest.config.ts",
@@ -173,6 +175,14 @@ ruleTester.run("no-test-retries", noTestRetries, {
   ],
   invalid: [
     { code: "jest.retryTimes(3);", errors: [{ messageId: "retry" }] },
+    reportedIn(
+      "vite.config.ts",
+      'import { defineConfig } from "vite-plus"; export default defineConfig({ test: { retry: 2 } });',
+    ),
+    {
+      code: 'import { vi } from "vite-plus/test"; vi.setConfig({ retry: 3 });',
+      errors: [{ messageId: "retry" }],
+    },
     {
       code: 'import { jest } from "@jest/globals"; jest.retryTimes(2, { logErrorsBeforeRetry: true });',
       errors: [{ messageId: "retry" }],
@@ -211,6 +221,34 @@ ruleTester.run("no-test-retries", noTestRetries, {
     },
     {
       code: 'import { test } from "vitest"; test.each([1])("works %s", { ["retry"]: 1 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'describe.each`a\n${1}`("suite $a", { retry: 3 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'describe.each([1])("suite %s", { retry: 3 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'import { describe } from "vitest"; describe.each([1])("suite %s", { retry: 3 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'describe.concurrent.each([1])("suite %s", { retry: 3 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'import { describe } from "vitest"; describe.skip.each([1])("suite %s", { retry: 3 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'describe.for([1])("suite %s", { retry: 3 }, () => {});',
+      errors: [{ messageId: "retry" }],
+    },
+    {
+      code: 'import { describe } from "vitest"; describe.skip("suite", { retry: 2 }, () => {});',
       errors: [{ messageId: "retry" }],
     },
     {

@@ -1,10 +1,17 @@
 import { defineRule } from "@oxlint/plugins";
 
-import { childNodes, matchesAny, projectPath, unwrapExpression } from "../shared/index.ts";
+import {
+  childNodes,
+  matchesAny,
+  projectPath,
+  unchangedInit,
+  unwrapExpression,
+  variableFor,
+} from "../shared/index.ts";
 import { isPublicClassMember, locallyExportedNames } from "../shared/module-exports.ts";
 import { optionStrings } from "../shared/rule-options.ts";
 
-import type { Comment, ESTree, Options, SourceCode } from "@oxlint/plugins";
+import type { Comment, ESTree, Options, SourceCode, Variable } from "@oxlint/plugins";
 
 import type { ModuleStatement } from "../shared/module-exports.ts";
 
@@ -170,12 +177,135 @@ function publicMembers(declaration: ESTree.Node, visitorKeys: VisitorKeys) {
   return valueMembers(declaration);
 }
 
-function collectPublicApi(
-  statements: readonly ModuleStatement[],
-  starts: Set<number>,
-  visitorKeys: VisitorKeys,
-) {
-  const exported = locallyExportedNames(statements);
+type HeritageDeclaration =
+  | ESTree.TSInterfaceDeclaration
+  | ESTree.TSTypeAliasDeclaration
+  | ESTree.Class;
+
+function isHeritageDeclaration(node: ESTree.Node): node is HeritageDeclaration {
+  return (
+    node.type === "TSInterfaceDeclaration" ||
+    node.type === "TSTypeAliasDeclaration" ||
+    node.type === "ClassDeclaration" ||
+    node.type === "ClassExpression"
+  );
+}
+
+function intersectedTypeReferences(type: ESTree.TSType): ESTree.Node[] {
+  if (type.type === "TSIntersectionType") {
+    return type.types.flatMap(intersectedTypeReferences);
+  }
+
+  return type.type === "TSTypeReference" ? [type.typeName] : [];
+}
+
+function heritageReferences(declaration: HeritageDeclaration): ESTree.Node[] {
+  if (declaration.type === "TSTypeAliasDeclaration") {
+    return intersectedTypeReferences(declaration.typeAnnotation);
+  }
+
+  if (declaration.type === "TSInterfaceDeclaration") {
+    return declaration.extends.map((heritage) => heritage.expression);
+  }
+
+  const implemented = (declaration.implements ?? []).map((heritage) => heritage.expression);
+
+  return declaration.superClass ? [declaration.superClass, ...implemented] : implemented;
+}
+
+function inheritedTypeReferences(node: ESTree.Node | null): ESTree.Node[] {
+  const value = node ? unwrapExpression(node) : null;
+
+  if (
+    value?.type === "TSInterfaceDeclaration" ||
+    value?.type === "ClassDeclaration" ||
+    value?.type === "ClassExpression"
+  ) {
+    return heritageReferences(value);
+  }
+
+  if (value?.type === "VariableDeclaration") {
+    return value.declarations.flatMap((declarator) => inheritedTypeReferences(declarator.init));
+  }
+
+  return [];
+}
+
+function qualifiedName(reference: ESTree.Node) {
+  if (
+    reference.type === "MemberExpression" &&
+    !reference.computed &&
+    reference.property.type === "Identifier"
+  ) {
+    return { qualifier: reference.object, member: reference.property.name };
+  }
+
+  return reference.type === "TSQualifiedName"
+    ? { qualifier: reference.left, member: reference.right.name }
+    : null;
+}
+
+function exportedNamespaceMembers(namespace: ESTree.Node, name: string) {
+  const block = namespace.type === "TSModuleDeclaration" ? moduleBlock(namespace) : null;
+
+  return (block?.body ?? []).flatMap((statement) =>
+    statement.type === "ExportNamedDeclaration" &&
+    statement.declaration !== null &&
+    declaredNames(statement.declaration).includes(name)
+      ? [statement.declaration]
+      : [],
+  );
+}
+
+function boundDeclarations(variable: Variable) {
+  const declarations = variable.defs.map((definition) => definition.node);
+
+  return unchangedInit(variable) === null
+    ? declarations.filter((declaration) => declaration.type !== "VariableDeclarator")
+    : declarations;
+}
+
+function referencedDeclarations(sourceCode: SourceCode, reference: ESTree.Node): ESTree.Node[] {
+  if (reference.type === "Identifier") {
+    const variable = variableFor(sourceCode, reference);
+
+    return variable === null ? [] : boundDeclarations(variable);
+  }
+
+  const qualified = qualifiedName(reference);
+
+  return qualified === null
+    ? []
+    : referencedDeclarations(sourceCode, qualified.qualifier).flatMap((namespace) =>
+        exportedNamespaceMembers(namespace, qualified.member),
+      );
+}
+
+function exportedStatement(
+  statement: HeritageDeclaration | ESTree.VariableDeclaration,
+): ModuleStatement {
+  return statement.parent.type === "ExportNamedDeclaration" ? statement.parent : statement;
+}
+
+function heritageTarget(node: ESTree.Node) {
+  if (node.type !== "VariableDeclarator") {
+    return isHeritageDeclaration(node)
+      ? { declaration: node, statement: exportedStatement(node) }
+      : null;
+  }
+
+  const value = node.init === null ? null : unwrapExpression(node.init);
+
+  return value?.type === "ClassExpression" && node.parent.type === "VariableDeclaration"
+    ? { declaration: value, statement: exportedStatement(node.parent) }
+    : null;
+}
+
+function publicApiStarts(program: ESTree.Program, sourceCode: SourceCode) {
+  const { visitorKeys } = sourceCode;
+  const starts = new Set<number>();
+  const inheritedReferences: ESTree.Node[] = [];
+  const statementLists: (readonly ModuleStatement[])[] = [program.body];
 
   const addStatement = (statement: ModuleStatement) => {
     const declaration = exportedDeclaration(statement);
@@ -194,22 +324,57 @@ function collectPublicApi(
     const block = declaration.type === "TSModuleDeclaration" ? moduleBlock(declaration) : null;
 
     if (block !== null) {
-      collectPublicApi(block.body, starts, visitorKeys);
+      statementLists.push(block.body);
     }
   };
 
-  for (const statement of statements) {
-    const ambient = ambientBlock(statement);
+  const addPublicStatement = (statement: ModuleStatement) => {
+    addStatement(statement);
+    inheritedReferences.push(...inheritedTypeReferences(exportedDeclaration(statement)));
+  };
 
-    if (ambient !== null) {
-      ambient.body.forEach(addStatement);
-    } else if (
-      isExportStatement(statement) ||
-      declaredNames(statement).some((name) => exported.has(name))
-    ) {
-      addStatement(statement);
+  for (const statements of statementLists) {
+    const exported = locallyExportedNames(statements);
+
+    for (const statement of statements) {
+      const ambient = ambientBlock(statement);
+
+      if (ambient !== null) {
+        ambient.body.forEach(addPublicStatement);
+      } else if (
+        isExportStatement(statement) ||
+        declaredNames(statement).some((name) => exported.has(name))
+      ) {
+        addPublicStatement(statement);
+      }
     }
   }
+
+  const reached = new Set<HeritageDeclaration>();
+
+  for (const reference of inheritedReferences) {
+    for (const node of referencedDeclarations(sourceCode, reference)) {
+      const target = heritageTarget(node);
+
+      if (target !== null && !reached.has(target.declaration)) {
+        reached.add(target.declaration);
+        inheritedReferences.push(...heritageReferences(target.declaration));
+
+        if (target.declaration.type !== "ClassExpression") {
+          addStatement(target.statement);
+          continue;
+        }
+
+        starts.add(target.statement.start);
+
+        for (const member of valueMembers(target.declaration)) {
+          starts.add(member.start);
+        }
+      }
+    }
+  }
+
+  return starts;
 }
 
 export const noComments = defineRule({
@@ -258,11 +423,10 @@ export const noComments = defineRule({
         const { text } = context.sourceCode;
         const comments = context.sourceCode.getAllComments();
         const commentsByStart = new Map(comments.map((comment) => [comment.start, comment]));
-        const publicApiStarts = new Set<number>();
 
-        if (publicDocs) {
-          collectPublicApi(program.body, publicApiStarts, context.sourceCode.visitorKeys);
-        }
+        const publicApi = publicDocs
+          ? publicApiStarts(program, context.sourceCode)
+          : new Set<number>();
 
         const codeAfter = (comment: Comment) => {
           let position = comment.end;
@@ -285,7 +449,7 @@ export const noComments = defineRule({
         const isPublicTsDoc = (comment: Comment) =>
           isDocBlock(comment) &&
           !nonPublicTag.test(comment.value) &&
-          publicApiStarts.has(codeAfter(comment));
+          publicApi.has(codeAfter(comment));
 
         for (const comment of comments) {
           if (

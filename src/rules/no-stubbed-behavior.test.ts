@@ -43,6 +43,9 @@ ruleTester.run("no-stubbed-behavior", noStubbedBehavior, {
     "const Date = { now: 0 }; Date.now = () => 1;",
     "class Storage {} Storage.prototype.getItem = () => null;",
     "import { Storage } from './storage'; Storage.prototype.getItem = () => null;",
+    'import { mailer } from "./mailer"; mailer.send = async () => {};',
+    'import { vi } from "vitest"; import { mailer } from "./mailer"; mailer.send = vi.fn();',
+    'import { mailer } from "./mailer"; Object.defineProperty(mailer, "send", { value: async () => {} });',
     "window.fetch = realFetch;",
     "window.fetch = createFetch();",
     "document.querySelector('button').focus = () => {};",
@@ -117,6 +120,14 @@ ruleTester.run("no-stubbed-behavior", noStubbedBehavior, {
   invalid: [
     {
       code: 'import { vi } from "vitest"; vi.spyOn(api, "load").mockResolvedValue(user);',
+      errors: double,
+    },
+    {
+      code: 'import { vi } from "vite-plus/test"; const load = vi.fn(() => user);',
+      errors: double,
+    },
+    {
+      code: 'import { vi } from "vite-plus/test"; vi.stubGlobal("fetch", fetcher);',
       errors: double,
     },
     { code: "load.mockImplementation(() => user);", errors: double },
@@ -268,6 +279,10 @@ ruleTester.run("no-stubbed-behavior", noStubbedBehavior, {
     {
       code: "const original = api.load; api.load = () => user; api.load = original;",
       errors: [{ messageId: "double", line: 1, column: 27 }],
+    },
+    {
+      code: 'import { mailer } from "./mailer"; const original = mailer.send; mailer.send = async () => {}; mailer.send = original;',
+      errors: [{ messageId: "double", line: 1, column: 65 }],
     },
     {
       code: "const original = globalThis.fetch; globalThis.fetch = async () => response; globalThis.fetch = original;",

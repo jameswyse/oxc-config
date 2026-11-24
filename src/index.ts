@@ -29,6 +29,8 @@ import { noGetPasswordForm } from "./rules/no-get-password-form.ts";
 import { noHardcodedCredential } from "./rules/no-hardcoded-credential.ts";
 import { noImportTimeEffects } from "./rules/no-import-time-effects.ts";
 import { noInternalReturnTypes } from "./rules/no-internal-return-types.ts";
+import { noMutatedImports } from "./rules/no-mutated-imports.ts";
+import { noNetworkIdleWait } from "./rules/no-network-idle-wait.ts";
 import { noOptionalTestAction } from "./rules/no-optional-test-action.ts";
 import { noPassThroughFunction } from "./rules/no-pass-through-function.ts";
 import { noRecorderPolling } from "./rules/no-recorder-polling.ts";
@@ -125,6 +127,8 @@ const wyse = definePlugin({
     "no-known-value-widening": noKnownValueWidening,
     "no-manual-effect-error-tag": noManualEffectErrorTag,
     "no-module-mocking": noModuleMocking,
+    "no-mutated-imports": noMutatedImports,
+    "no-network-idle-wait": noNetworkIdleWait,
     "no-object-parameters": noObjectParameters,
     "no-optional-test-action": noOptionalTestAction,
     "no-pass-through-function": noPassThroughFunction,

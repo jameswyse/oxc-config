@@ -57,6 +57,7 @@ export interface LintScope {
   javaScript: string[];
   tests: string[];
   endToEnd: string[];
+  testSupport: string[];
   entrypoints: string[];
   programs: string[];
 }
@@ -115,6 +116,10 @@ const fileScopes = {
     "**/e2e/**",
     "**/*.e2e.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
     "**/*.e2e.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+  ],
+  testSupport: [
+    "**/*.{fixture,test-utils}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+    "**/{test,tests}/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
   ],
   entrypoints: [
     "**/*.{config,conf}.{js,mjs,cjs,ts,mts,cts}",

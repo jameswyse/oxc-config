@@ -8,6 +8,7 @@ import {
   staticPropertyName,
   unwrapExpression,
   variableFor,
+  vitestModules,
 } from "../../../shared/index.ts";
 import { resolveProperty } from "../../../shared/object-properties.ts";
 
@@ -26,8 +27,6 @@ export type TestFrameworkMethod = {
 const moduleMockMethods = new Set(["doMock", "mock", "unstable_mockModule"]);
 
 const spyOptionMethods = new Set(["doMock", "mock", "mockObject"]);
-
-const vitestModules = new Set(["vitest", "@effect/vitest"]);
 
 function importedName(node: ESTree.Node) {
   if (node.type !== "ImportSpecifier") {
@@ -54,7 +53,7 @@ export function testFrameworkObject(
 
   const binding = importedBinding(sourceCode, value);
 
-  if (binding !== null && vitestModules.has(binding.source) && binding.name === "vi") {
+  if (binding !== null && vitestModules.includes(binding.source) && binding.name === "vi") {
     return "vi";
   }
 

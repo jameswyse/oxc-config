@@ -121,6 +121,34 @@ ruleTester.run("no-comments", noComments, {
     "// @effect-diagnostics-next-line floatingEffect:off\nEffect.succeed(1);",
     "// @effect-diagnostics missingEffectContext:off\nexport const value = 1;",
     "/** @effect-diagnostics *:off */\nexport const value = 1;",
+    "/** Shared settings. */\ninterface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\nexport interface Settings extends Shared {}",
+    "interface Inner extends Root {}\n/** Root settings. */\ninterface Root {\n  /** Retry delay. */\n  delay: number;\n}\nexport interface Settings extends Inner {}",
+    "/** A value holder. */\ninterface Holder<T> {\n  /** The held value. */\n  current: T;\n}\nexport interface Box extends Holder<number> {}",
+    "/** Root settings. */\ntype Root = {\n  /** Retry delay. */\n  delay: number;\n};\nexport interface Settings extends Root {}",
+    "interface First {\n  /** First value. */\n  first: string;\n}\ninterface Second {\n  /** Second value. */\n  second: string;\n}\nexport interface Pair extends First, Second {}",
+    "/** Something countable. */\ninterface Countable {\n  /** Current total. */\n  total: number;\n}\nexport class Tally implements Countable { total = 0; }",
+    "/** Something countable. */\ntype Countable = {\n  /** Current total. */\n  total: number;\n};\nclass Tally implements Countable { total = 0; }\nexport { Tally };",
+    "interface Countable {\n  /** Current total. */\n  total: number;\n}\nexport default class implements Countable { total = 0; }",
+    "interface Countable {\n  /** Current total. */\n  total: number;\n}\nclass Tally implements Countable { total = 0; }\nexport default Tally;",
+    "interface Countable {\n  /** Current total. */\n  total: number;\n}\nexport const Tally = class implements Countable { total = 0; };",
+    "interface Root {\n  /** Retry delay. */\n  delay: number;\n}\ntype Alias = Root;\nexport interface Settings extends Alias {}",
+    "interface Root {\n  /** Retry delay. */\n  delay: number;\n}\ntype Combined = Root & {\n  /** Retry count. */\n  retries: number;\n};\nexport interface Settings extends Combined {}",
+    "interface First extends Second {\n  /** First value. */\n  first: string;\n}\ninterface Second extends First {}\nexport interface Pair extends First {}",
+    "export namespace Config {\n  interface Shared {\n    /** Maximum attempts. */\n    attempts: number;\n  }\n  export interface Settings extends Shared {}\n}",
+    "/** Shared settings. */\ninterface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\nexport namespace Config {\n  export interface Settings extends Shared {}\n}",
+    "namespace Local {\n  /** Shared settings. */\n  export interface Shared {\n    /** Maximum attempts. */\n    attempts: number;\n  }\n}\nexport interface Settings extends Local.Shared {}",
+    "namespace Outer {\n  export namespace Inner {\n    /** Shared settings. */\n    export type Shared = {\n      /** Maximum attempts. */\n      attempts: number;\n    };\n  }\n}\ninterface Combined extends Outer.Inner.Shared {}\nexport class Settings implements Combined { attempts = 1; }",
+    "/** Default shape. */\nclass Shape {\n  /** Width. */\n  width = 0;\n}\nexport interface Expanded extends Shape {\n  height: number;\n}",
+    "/** Base shape. */\nclass Base {\n  /** Width. */\n  width = 0;\n}\nclass Shape extends Base {}\nexport interface Expanded extends Shape {\n  height: number;\n}",
+    "interface Base {\n  /** Property. */\n  value: string;\n}\ndeclare global {\n  interface Child extends Base {}\n}\nexport {};",
+    'interface Base {\n  /** Property. */\n  value: string;\n}\ndeclare module "parser" {\n  export interface Options extends Base {}\n}',
+    '/** Base entity. */\nconst Base = class {\n  /** Display name. */\n  name = "";\n};\nexport class Child extends Base {}',
+    'let Base = class {\n  /** Display name. */\n  name = "";\n};\nexport class Child extends Base {}',
+    {
+      code: "/** Shared settings. */\ninterface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\nexport interface Settings extends Shared {}",
+      filename: "src/api/settings.ts",
+      options: [{ publicApi: ["src/api/**"] }],
+    },
   ],
   invalid: [
     { code: "// Read the value\nexport const value = 1;", errors: [{ messageId: "comment" }] },
@@ -289,6 +317,72 @@ ruleTester.run("no-comments", noComments, {
     },
     {
       code: "// see @effect-diagnostics docs\nconst value = 1;",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\ninterface Settings extends Shared {}\nexport const value = 1;",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Countable {\n  /** Current total. */\n  total: number;\n}\nexport function make() {\n  class Tally implements Countable { total = 0; }\n  return new Tally();\n}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Root {\n  /** Retry delay. */\n  delay: number;\n}\nexport interface Settings<Root> {\n  value: Root;\n}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Root {\n  /** Retry delay. */\n  delay: number;\n}\nexport class Settings<Root> {\n  value?: Root;\n}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Countable {\n  /** Current total. */\n  total: number;\n}\nexport class Tally<Countable> implements Countable {}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Root {\n  /** Retry delay. */\n  delay: number;\n}\nexport interface Settings<Root> extends Root {}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Options {\n  /** Retry delay. */\n  delay: number;\n}\nexport class Service {\n  private options?: Options;\n}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Root {\n  /** Retry delay. */\n  delay: number;\n}\nexport interface Settings extends Library.Root {}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "interface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\nexport namespace Config {\n  interface Shared {\n    limit: number;\n  }\n  export interface Settings extends Shared {}\n}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "type Root = {\n  /** Retry delay. */\n  delay: number;\n};\nexport type Settings = Root & { retries: number };",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "/**\n * Shared settings.\n * @internal\n */\ninterface Shared {\n  attempts: number;\n}\nexport interface Settings extends Shared {}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "/** Shared settings. */\ninterface Shared {\n  /** Maximum attempts. */\n  attempts: number;\n}\nexport interface Settings extends Shared {}",
+      filename: "src/internal/settings.ts",
+      options: [{ publicApi: ["src/api/**"] }],
+      errors: [{ messageId: "comment" }, { messageId: "comment" }],
+    },
+    {
+      code: "class Shape {\n  /** Width. */\n  private width = 0;\n  /** Depth. */\n  #depth = 0;\n  /**\n   * Height.\n   * @internal\n   */\n  height = 0;\n}\nexport interface Expanded extends Shape {}",
+      errors: [{ messageId: "comment" }, { messageId: "comment" }, { messageId: "comment" }],
+    },
+    {
+      code: 'namespace Local {\n  export class Base {\n    /** Display name. */\n    name = "";\n  }\n}\nexport class Child extends Local[Base] {}',
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: "const Base = class {},\n  Private = class {\n    /** Internal detail. */\n    value = 0;\n  };\nexport class Child extends Base {}",
+      errors: [{ messageId: "comment" }],
+    },
+    {
+      code: 'let Base = class {\n  /** Display name. */\n  name = "";\n};\nBase = class {};\nexport class Child extends Base {}',
       errors: [{ messageId: "comment" }],
     },
   ],

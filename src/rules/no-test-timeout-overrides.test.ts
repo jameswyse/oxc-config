@@ -1,6 +1,17 @@
 import { ruleTester } from "../shared/rule-tester.ts";
 import { noTestTimeoutOverrides } from "./no-test-timeout-overrides.ts";
 
+function inFile(filename: string, code: string) {
+  return { code, filename: `/project/${filename}` };
+}
+
+function reportedIn(filename: string, code: string, count = 1) {
+  return {
+    ...inFile(filename, code),
+    errors: Array.from({ length: count }, () => ({ messageId: "config" })),
+  };
+}
+
 ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
   valid: [
     'const a = b; const b = a; a("works", { timeout: 30_000 }, () => {});',
@@ -25,8 +36,59 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
     'import { test } from "vitest"; function check() {} test("tagged", { tag: "@smoke" }, check);',
     'import { test } from "vitest"; const check = async () => {}; test("works", run, check);',
     'import { beforeEach } from "vitest"; function reset() {} beforeEach(setup, reset);',
+    'describe.each([{ timeout: 20_000 }])("suite %s", () => {});',
+    'import { describe } from "./suite"; describe.each([1])("suite %s", () => {}, 20_000);',
+    inFile(
+      "vitest.config.ts",
+      'import { defineConfig } from "vitest/config"; export default defineConfig({ test: { projects: [{ test: { name: "e2e", testTimeout: 60_000 } }] } });',
+    ),
+    inFile(
+      "vitest.workspace.ts",
+      'import { defineWorkspace } from "vitest/config"; export default defineWorkspace([{ test: { name: "e2e", hookTimeout: 60_000 } }]);',
+    ),
+    inFile(
+      "vitest.e2e.config.ts",
+      'import { defineConfig } from "vitest/config"; export default defineConfig({ test: { testTimeout: 60_000 } });',
+    ),
+    inFile(
+      "vitest.config.ts",
+      'import { defineConfig } from "vitest/config"; export default defineConfig({ test: { environment: "node" }, server: { timeout: 60_000 } });',
+    ),
+    inFile(
+      "vitest.config.ts",
+      'import { mergeConfig } from "vitest/config"; import overrides from "./overrides"; export default mergeConfig({ test: { testTimeout: 20_000 } }, overrides);',
+    ),
+    inFile("src/config.ts", "export default { test: { testTimeout: 20_000 } };"),
   ],
   invalid: [
+    {
+      ...inFile(
+        "vitest.config.ts",
+        'import { defineConfig } from "vitest/config"; import { vi } from "vitest"; vi.setConfig({ testTimeout: 60_000 }); export default defineConfig({});',
+      ),
+      errors: [{ messageId: "override" }],
+    },
+    reportedIn(
+      "vitest.config.ts",
+      'import { defineConfig } from "vitest/config"; export default defineConfig({ test: { testTimeout: 20_000, hookTimeout: 30_000 } });',
+      2,
+    ),
+    reportedIn(
+      "vite.config.ts",
+      'import { defineConfig } from "vite"; export default defineConfig({ test: { testTimeout: process.env.CI ? 60_000 : 5_000, projects: [{ test: { name: "unit" } }] } });',
+    ),
+    reportedIn(
+      "vitest.config.ts",
+      'import { defineConfig, mergeConfig } from "vitest/config"; import base from "./vite.config"; export default mergeConfig(base, defineConfig({ test: { testTimeout: 20_000 } }));',
+    ),
+    reportedIn(
+      "vitest.config.ts",
+      'import { defineConfig } from "vitest/config"; export default defineConfig(({ mode }) => ({ test: { hookTimeout: 30_000, environment: mode } }));',
+    ),
+    reportedIn(
+      "vitest.config.cjs",
+      'const { defineConfig } = require("vitest/config"); const test = { testTimeout: 20_000 }; module.exports = defineConfig({ test });',
+    ),
     {
       code: 'import { vi } from "vitest"; vi.setConfig({ ["testTimeout"]: 20000 });',
       errors: [{ messageId: "override" }],
@@ -41,6 +103,30 @@ ruleTester.run("no-test-timeout-overrides", noTestTimeoutOverrides, {
     },
     {
       code: 'import { test } from "vitest"; test.each([1])("works %s", () => {}, LONG_TIMEOUT);',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'describe.each`a\n${1}`("suite $a", () => {}, { timeout: 20_000 });',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'describe.each([1])("suite %s", () => {}, 20_000);',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { describe } from "vitest"; describe.for([1])("suite %s", { timeout: 20_000 }, () => {});',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'describe.concurrent.each([1])("suite %s", { timeout: 20_000 }, () => {});',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'describe.skip.each([1])("suite %s", () => {}, 20_000);',
+      errors: [{ messageId: "override" }],
+    },
+    {
+      code: 'import { describe } from "vitest"; describe.only("suite", () => {}, 20_000);',
       errors: [{ messageId: "override" }],
     },
     {
