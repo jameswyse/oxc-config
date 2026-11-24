@@ -1042,7 +1042,7 @@ export function isTestRunner(
   name: string,
   modules: readonly string[],
 ): boolean {
-  if (isGlobal(sourceCode, node, name)) {
+  if (isGlobal(sourceCode, unwrapExpression(node), name)) {
     return true;
   }
 

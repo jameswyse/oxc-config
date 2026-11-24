@@ -78,6 +78,10 @@ ruleTester.run("no-uncontrolled-test-clock", noUncontrolledTestClock, {
       errors: [error],
     },
     {
+      code: '(jest as typeof jest).useFakeTimers({ legacyFakeTimers: true }); test("now", () => { expect(Date.now()).toBeGreaterThan(0); expect(performance.now()).toBeGreaterThan(0); });',
+      errors: [error, performanceError],
+    },
+    {
       code: 'import { jest, test } from "@jest/globals"; const legacy = { legacyFakeTimers: true }; jest.useFakeTimers(legacy); test("fast", () => { expect(performance.now()).toBe(0); });',
       errors: [performanceError],
     },
